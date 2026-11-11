@@ -424,8 +424,9 @@ class Mind(
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
 
         val recent = all.take(RECENT) // all() comes newest first
+        val diary = Brain.todaysDiary(all, now, z)
 
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         val looked = ArrayList<String>()
@@ -438,7 +439,7 @@ class Mind(
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
             found = (found + byWords + byTime).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
