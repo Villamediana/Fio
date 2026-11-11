@@ -3,12 +3,9 @@ package com.villamediana.fio.ui.entry
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Build
-import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.villamediana.fio.ui.components.IconAction
-import com.villamediana.fio.ui.components.groupShape
-import com.villamediana.fio.ui.components.GroupGap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
@@ -24,8 +21,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,12 +69,9 @@ import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.mind.Steps
-import com.villamediana.fio.ui.Filter
 import com.villamediana.fio.ui.Nav
-import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.CheckCircle
 import com.villamediana.fio.ui.components.Dates
-import com.villamediana.fio.ui.components.EntryCard
 import com.villamediana.fio.ui.components.Pill
 import com.villamediana.fio.ui.components.SectionLabel
 import com.villamediana.fio.ui.components.kindLabel
@@ -93,16 +85,12 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EntryScreen(nav: Nav, id: Long) {
     val graph = FioApplication.graph
     val lib = graph.library
     val scope = rememberCoroutineScope()
     val entry by lib.entry(id).collectAsStateWithLifecycle(initialValue = null)
-    val topics by lib.topicsOf(id).collectAsStateWithLifecycle(initialValue = emptyList())
-    val progress by lib.progressOf(id).collectAsStateWithLifecycle(initialValue = emptyList())
-    val related by produceState(emptyList<Entry>(), entry?.updatedAt, topics.size) { value = lib.recall().related(id) }
     val capture by produceState<Capture?>(null, entry?.captureId) { value = entry?.captureId?.let { lib.capture(it) } }
     var loaded by remember { mutableStateOf(false) }
 
@@ -117,6 +105,15 @@ fun EntryScreen(nav: Nav, id: Long) {
 
     var title by remember(e.id) { mutableStateOf(e.title) }
     var body by remember(e.id) { mutableStateOf(e.body) }
+    // The text can grow from elsewhere (news the model joins to it): follow it, unless it is being typed.
+    var seenTitle by remember(e.id) { mutableStateOf(e.title) }
+    var seenBody by remember(e.id) { mutableStateOf(e.body) }
+    LaunchedEffect(e.title, e.body) {
+        if (title == seenTitle) title = e.title
+        if (body == seenBody) body = e.body
+        seenTitle = e.title
+        seenBody = e.body
+    }
     var revealed by remember(e.id) { mutableStateOf(!e.sensitive) }
     var menu by remember { mutableStateOf(false) }
     // Steps only take room when there are some (or one is being written); what was said, folded.
@@ -212,39 +209,6 @@ fun EntryScreen(nav: Nav, id: Long) {
                 onRemind = { at -> scope.launch { lib.setReminder(e.id, at) } },
                 onAddStep = if (kind == Kind.TASK && !hasSteps && !addingStep) ({ addingStep = true }) else null,
             )
-
-            if (progress.any { it.text.isNotBlank() || it.status != null }) {
-                SectionLabel("Andamento")
-                progress.forEach { p ->
-                    Row(Modifier.padding(bottom = 10.dp)) {
-                        Box(Modifier.padding(top = 7.dp).size(6.dp).clip(CircleShape).background(FioColors.Surface3))
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            val st = Status.of(p.status)
-                            Text(
-                                listOfNotNull(st?.let { statusLabel(it) }, p.text.takeIf { it.isNotBlank() }).joinToString(" — "),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = FioColors.Text,
-                            )
-                            Text(Dates.dayTime(p.at), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
-                        }
-                    }
-                }
-            }
-
-            if (topics.isNotEmpty() || related.isNotEmpty()) {
-                SectionLabel("Conexões")
-                if (topics.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        topics.forEach { t -> Pill(t.name, selected = false, onClick = { nav.go(Screen.Library(Filter.LINKS, topic = t.id)) }) }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-                // Related things in one line each (their story is one tap away, not repeated here).
-                Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
-                    related.forEachIndexed { i, r -> RelatedRow(r, groupShape(i, related.size, outer = 18.dp)) { nav.go(Screen.Entry(r.id)) } }
-                }
-            }
 
             // What was said stays folded: it is the source, not the thing kept.
             capture?.transcript?.takeIf { it.isNotBlank() }?.let { said ->
@@ -375,26 +339,6 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
     e.checkInAt?.takeIf { it > System.currentTimeMillis() && e.isOpenTask }?.let {
         Spacer(Modifier.height(8.dp))
         Text("O Fio vai perguntar como está ${Dates.dayTime(it)}.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
-    }
-}
-
-/** Something related, in one line: what it is, its title, when. */
-@Composable
-private fun RelatedRow(r: Entry, shape: androidx.compose.ui.graphics.Shape, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            r.title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = FioColors.Text,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(kindLabel(r.kindEnum).lowercase() + " · " + Dates.day(r.createdAt), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint, maxLines = 1)
     }
 }
 

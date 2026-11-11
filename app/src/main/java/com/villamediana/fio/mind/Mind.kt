@@ -419,14 +419,13 @@ class Mind(
         val recall = Recall(all, db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
         val open = db.entries().openTasks()
         val focus = c.focusEntryId?.let { db.entries().get(it) }
-        val focusProgress = focus?.let { db.progress().latest(it.id, 5) }.orEmpty()
         val hits = recall.search(said, 12, now).map { it.entry }
         val image = if (photo && thinking.seesImages()) runCatching { photos.jpeg(File(c.imagePath!!), thinking.imageSide()) }.getOrNull() else null
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
 
         val recent = all.take(RECENT) // all() comes newest first
 
-        val first = Brain.context(heard, now, z, open, hits, focus, focusProgress, recent, photo = photo, typed = typed)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         val looked = ArrayList<String>()
@@ -439,7 +438,7 @@ class Mind(
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
             found = (found + byWords + byTime).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, focusProgress, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }

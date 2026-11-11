@@ -254,7 +254,17 @@ private fun Entries(
                 val shape = groupShape(i, items.size, outer = 22.dp)
                 Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
                     if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape)
-                    else EntryCard(e, onClick = { open(e.id) }, terms = terms.orEmpty(), onToggle = { toggle(e.id) }, showKind = searched || filter == Filter.ALL || filter == Filter.TODAY, showStatus = searched || filter != Filter.TASKS, shape = shape)
+                    else EntryCard(
+                        e,
+                        onClick = { open(e.id) },
+                        terms = terms.orEmpty(),
+                        onToggle = { toggle(e.id) },
+                        showKind = searched || filter == Filter.ALL || filter == Filter.TODAY,
+                        // Where the group already says it, the card doesn't again.
+                        showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
+                        inToday = !searched && filter == Filter.TODAY,
+                        shape = shape,
+                    )
                 }
             }
         }
@@ -411,6 +421,8 @@ private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState
         }
     }
 
+private const val DOING = "Em andamento"
+
 /** How each tab groups what is kept. */
 fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): List<Pair<String?, List<Entry>>> {
     val today = LocalDate.now(zone)
@@ -426,7 +438,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
             val doing = open.filter { it.statusEnum == Status.DOING && it !in late && it !in due }
             val said = all.filter { it.createdAt >= startToday && it.kindEnum != Kind.TASK }
             val doneToday = tasks.filter { it.doneAt != null && it.doneAt >= startToday }
-            listOf("Atrasadas" to late, "Pra hoje" to due, "Em andamento" to doing, "Guardado hoje" to said, "Feitas hoje" to doneToday)
+            listOf("Atrasadas" to late, "Pra hoje" to due, DOING to doing, "Guardado hoje" to said, "Feitas hoje" to doneToday)
         }
         Filter.TASKS -> {
             val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }

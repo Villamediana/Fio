@@ -13,7 +13,7 @@ import com.villamediana.fio.data.Topic
 import androidx.room.withTransaction
 import java.time.ZoneId
 
-/** Writes a [Plan] into the database: new entries, their topics and links, changes and progress. */
+/** Writes a [Plan] into the database: new entries, their topics and links, and changes. */
 class Keeper(
     private val db: FioDatabase,
     private val zone: () -> ZoneId = { ZoneId.systemDefault() },
@@ -80,7 +80,8 @@ class Keeper(
                 e = e.copy(steps = Steps.write(steps))
             }
             change.title?.takeIf { it.isNotBlank() }?.let { e = e.copy(title = it.trim().take(140)) }
-            change.append?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = listOf(e.body, it.trim()).filter { b -> b.isNotBlank() }.joinToString("\n\n")) }
+            // One text per item: what is new joins it (no history kept apart that says the same again).
+            change.append?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = joined(e.body, it)) }
             Brain.time(change.due, z)?.let { (ms, hasTime) -> e = e.copy(dueAt = ms, dueHasTime = hasTime) }
             Brain.remindTime(change.remindAt, z)?.takeIf { it > now }?.let { e = e.copy(remindAt = it) }
             Brain.remindTime(change.checkInAt, z)?.takeIf { it > now }?.let { e = e.copy(checkInAt = it) }
@@ -88,12 +89,11 @@ class Keeper(
             if (e.statusEnum == Status.DONE) e = e.copy(checkInAt = null, remindAt = e.remindAt?.takeIf { old.statusEnum == Status.DONE })
             val changed = e != old
             if (changed) db.entries().update(e.copy(updatedAt = now))
-            val news = change.progress?.trim()?.takeIf { it.isNotEmpty() }
-            if (news != null || (newStatus != null && newStatus != old.statusEnum)) {
-                db.progress().insert(Progress(entryId = e.id, at = now, text = news ?: "", status = newStatus?.takeIf { it != old.statusEnum }?.key))
+            if (newStatus != null && newStatus != old.statusEnum) {
+                db.progress().insert(Progress(entryId = e.id, at = now, text = "", status = newStatus.key))
             }
             tieTopics(e.id, change.entities)
-            if (changed || news != null) {
+            if (changed) {
                 outcomes += Outcome(e.id, if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE) Outcome.DONE else Outcome.UPDATED)
                 if (e.remindAt != old.remindAt || e.checkInAt != old.checkInAt) touched += e.id
             }
@@ -115,6 +115,9 @@ class Keeper(
         }
     }
 }
+
+/** [body] and what is new about it, a blank line between them. */
+fun joined(body: String, news: String): String = listOf(body.trim(), news.trim()).filter { it.isNotEmpty() }.joinToString("\n\n")
 
 fun Steps.same(a: String, b: String): Boolean {
     val x = Words.of(a).joinToString(" ")

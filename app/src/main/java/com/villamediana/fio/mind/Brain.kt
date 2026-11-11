@@ -2,7 +2,6 @@ package com.villamediana.fio.mind
 
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.Kind
-import com.villamediana.fio.data.Progress
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.data.Step
 import kotlinx.serialization.SerialName
@@ -62,9 +61,8 @@ data class Change(
     val status: String? = null,
     @SerialName("steps_done") val stepsDone: List<String> = emptyList(),
     @SerialName("add_steps") val addSteps: List<String> = emptyList(),
-    /** News about it, kept in its history ("falei com o fornecedor, manda amanhã"). */
-    val progress: String? = null,
     val title: String? = null,
+    /** What is new about it ("falei com o fornecedor, manda amanhã"), joined to its text: an item is one text. */
     val append: String? = null,
     val due: String? = null,
     @SerialName("remind_at") val remindAt: String? = null,
@@ -84,7 +82,7 @@ Numa mesma fala pode haver várias coisas:
 - diário (diary): um relato do dia — o que viveu, fez, sentiu. Se o relato traz coisas a fazer ou a guardar, crie o diário E também essas tarefas/notas.
 
 Ela também pode:
-- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie um novo. Notícias de andamento vão em "progress".
+- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie um novo. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status".
 - corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem. Pergunta não cria item.
 
@@ -105,7 +103,7 @@ Como preencher:
 Responda somente com um objeto JSON neste formato:
 {"reply": "...",
  "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": []}],
- "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "progress": null, "title": null, "append": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
+ "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
  "search": [],
  "period": {"from": null, "to": null},
  "show": []}
@@ -122,7 +120,6 @@ Responda somente com um objeto JSON neste formato:
         openTasks: List<Entry>,
         related: List<Entry>,
         focus: Entry? = null,
-        focusProgress: List<Progress> = emptyList(),
         recent: List<Entry> = emptyList(),
         looked: String? = null,
         photo: Boolean = false,
@@ -133,8 +130,8 @@ Responda somente com um objeto JSON neste formato:
         append("AGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
         if (focus != null) {
             append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
-            append(line(focus, zone, now, long = true)).append('\n')
-            focusProgress.take(5).forEach { p -> append("   · ").append(day(p.at, zone)).append(": ").append(p.text).append('\n') }
+            // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
+            append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
         }
         val tasks = openTasks.filter { it.id != focus?.id }.take(MAX_TASKS)
         if (tasks.isNotEmpty()) {
@@ -173,7 +170,7 @@ Responda somente com um objeto JSON neste formato:
     }
 
     /** One entry in a line the model can read and point to (#id). */
-    fun line(e: Entry, zone: ZoneId, now: Long, long: Boolean = false): String = buildString {
+    fun line(e: Entry, zone: ZoneId, now: Long, long: Boolean = false, bodyMax: Int = 220): String = buildString {
         append('#').append(e.id).append(' ')
         append(
             when (e.kindEnum) {
@@ -189,7 +186,7 @@ Responda somente com um objeto JSON neste formato:
         val steps = Steps.read(e.steps)
         if (steps.isNotEmpty()) append(" · etapas: ").append(steps.joinToString(" ") { (if (it.done) "[x] " else "[ ] ") + it.text.take(40) })
         if (long && e.body.isNotBlank()) {
-            val body = if (e.sensitive) e.body.take(160) else e.body.take(220)
+            val body = if (e.sensitive) e.body.take(160) else e.body.take(bodyMax)
             append(" — ").append(body.replace('\n', ' '))
         }
     }
@@ -275,6 +272,7 @@ ws     ::= [ \t\n]{0,20}
     private const val MAX_RELATED = 12
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
+    private const val FOCUS_BODY = 800
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")

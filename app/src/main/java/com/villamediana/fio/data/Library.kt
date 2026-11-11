@@ -9,8 +9,6 @@ import kotlinx.coroutines.flow.Flow
 class Library(private val db: FioDatabase, private val reminders: ReminderSync, private val clock: () -> Long = System::currentTimeMillis) {
     fun all(): Flow<List<Entry>> = db.entries().observeAll()
     fun entry(id: Long): Flow<Entry?> = db.entries().observe(id)
-    fun topicsOf(id: Long): Flow<List<Topic>> = db.graph().observeTopicsOf(id)
-    fun progressOf(id: Long): Flow<List<Progress>> = db.progress().observe(id)
 
     suspend fun get(id: Long): Entry? = db.entries().get(id)
     suspend fun capture(id: Long): Capture? = db.captures().get(id)

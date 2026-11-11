@@ -10,6 +10,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -92,9 +94,6 @@ interface GraphDao {
     @Query("SELECT t.* FROM entities t JOIN entry_topics et ON et.topicId = t.id WHERE et.entryId = :entryId ORDER BY t.name COLLATE NOCASE")
     suspend fun topicsOf(entryId: Long): List<Topic>
 
-    @Query("SELECT t.* FROM entities t JOIN entry_topics et ON et.topicId = t.id WHERE et.entryId = :entryId ORDER BY t.name COLLATE NOCASE")
-    fun observeTopicsOf(entryId: Long): Flow<List<Topic>>
-
     @Query("SELECT * FROM entities")
     suspend fun allTopics(): List<Topic>
 
@@ -131,16 +130,13 @@ interface ProgressDao {
     @Insert
     suspend fun insert(progress: Progress): Long
 
-    @Query("SELECT * FROM progress WHERE entryId = :entryId ORDER BY at DESC, id DESC")
-    fun observe(entryId: Long): Flow<List<Progress>>
-
     @Query("SELECT * FROM progress WHERE entryId = :entryId ORDER BY at DESC, id DESC LIMIT :limit")
     suspend fun latest(entryId: Long, limit: Int): List<Progress>
 }
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
@@ -151,8 +147,26 @@ abstract class FioDatabase : RoomDatabase() {
     abstract fun progress(): ProgressDao
 
     companion object {
+        /**
+         * An item is one text: the news kept apart as "andamento" joins the item's text, in the
+         * order it came. What stays in `progress` is only when the status changed.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val news = LinkedHashMap<Long, MutableList<String>>()
+                db.query("SELECT entryId, text FROM progress WHERE TRIM(text) != '' ORDER BY at, id").use { c ->
+                    while (c.moveToNext()) news.getOrPut(c.getLong(0)) { mutableListOf() } += c.getString(1)
+                }
+                for ((id, texts) in news) {
+                    val body = db.query("SELECT body FROM entries WHERE id = ?", arrayOf<Any>(id)).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: continue
+                    db.execSQL("UPDATE entries SET body = ? WHERE id = ?", arrayOf<Any>(texts.fold(body) { b, t -> com.villamediana.fio.mind.joined(b, t) }, id))
+                }
+                db.execSQL("UPDATE progress SET text = '' WHERE text != ''")
+            }
+        }
+
         fun open(context: Context): FioDatabase =
-            Room.databaseBuilder(context.applicationContext, FioDatabase::class.java, "fio.db").build()
+            Room.databaseBuilder(context.applicationContext, FioDatabase::class.java, "fio.db").addMigrations(MIGRATION_2_3).build()
 
         fun inMemory(context: Context): FioDatabase =
             Room.inMemoryDatabaseBuilder(context.applicationContext, FioDatabase::class.java).allowMainThreadQueries().build()

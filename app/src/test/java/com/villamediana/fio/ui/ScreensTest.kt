@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.geometry.Offset
@@ -137,7 +138,7 @@ class ScreensTest {
         val ids = seed()
         val tomorrow9 = LocalDate.now(zone).plusDays(1).toString() + "T09:00"
         apiThatAnswers(
-            """{"reply":"Anotei a ligação pro Pedro amanhã às 9 e o presente da Ana. E guardei o seu dia.","create":[{"kind":"task","title":"Ligar pro Pedro sobre o contrato","due":"$tomorrow9","remind_at":"$tomorrow9","entities":[{"name":"Pedro","type":"person"}],"related":[${ids["contract"]}]},{"kind":"diary","title":"Hoje foi um dia bom","body":"Hoje foi um dia bom."}],"update":[{"id":${ids["gift"]},"progress":"lembrar de comprar","remind_at":"$tomorrow9"}]}""",
+            """{"reply":"Anotei a ligação pro Pedro amanhã às 9 e o presente da Ana. E guardei o seu dia.","create":[{"kind":"task","title":"Ligar pro Pedro sobre o contrato","due":"$tomorrow9","remind_at":"$tomorrow9","entities":[{"name":"Pedro","type":"person"}],"related":[${ids["contract"]}]},{"kind":"diary","title":"Hoje foi um dia bom","body":"Hoje foi um dia bom."}],"update":[{"id":${ids["gift"]},"append":"Lembrar de comprar.","remind_at":"$tomorrow9"}]}""",
         )
         val nav = Nav()
 
@@ -180,6 +181,8 @@ class ScreensTest {
         }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Pagar o IPVA").fetchSemanticsNodes().isNotEmpty() }
         shot("03-today")
+        // The Hoje tab doesn't say "hoje" again on each card.
+        assertTrue(compose.onAllNodesWithText("hoje").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Library(Filter.TASKS)
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Presente de aniversário da Ana").fetchSemanticsNodes().isNotEmpty() }
         shot("04-tasks")
@@ -193,6 +196,9 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Fechar contrato da torre de Campinas").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(1_000)
         shot("07-entry-task")
+        // One text per item: no "Andamento" apart, no "Conexões" repeating what the text says.
+        assertTrue(compose.onAllNodesWithText("Andamento").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Settings
         shot("08-settings")
         screen.value = Screen.Library(Filter.LINKS)
@@ -282,6 +288,24 @@ class ScreensTest {
         }
         compose.mainClock.advanceTimeBy(900)
         shot("10-orb-listening-dark")
+    }
+
+    @Test
+    fun listeningByItselfHasAQuietCancel() {
+        val now = System.currentTimeMillis()
+        var cancelled = false
+        compose.setContent {
+            FioTheme(ThemeMode.DARK) {
+                Box(Modifier.fillMaxSize().background(FioColors.Background)) {
+                    androidx.compose.foundation.layout.Column(Modifier.align(androidx.compose.ui.Alignment.Center), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        com.villamediana.fio.ui.home.ListeningText(MindState.Listening(startedAt = now, locked = true, focusId = null), inCancelZone = false, onCancel = { cancelled = true })
+                    }
+                }
+            }
+        }
+        shot("17-listening-cancel")
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Cancelar")).performClick()
+        assertTrue(cancelled)
     }
 
     @Test

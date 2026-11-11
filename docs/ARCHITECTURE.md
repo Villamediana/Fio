@@ -14,7 +14,7 @@ Orb (segurar / tocar / arrastar pra cima)
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
-      Keeper.apply        cria/atualiza entries, tópicos (entities/entry_topics), links, progress
+      Keeper.apply        cria/atualiza entries (notícia nova entra no texto do item), tópicos (entities/entry_topics), links; progress só guarda mudança de status
       Reminders.sync      AlarmManager exato (USE_EXACT_ALARM), religado no boot/atualização
   → MindState.Answer (resposta + cartões do que foi criado/mudado/mostrado)
 ```
@@ -61,10 +61,16 @@ próprio toque, então ali não há deslize de tela. As transições seguem o me
 Escrever em vez de falar: o lápis leve no canto da tela principal abre um campo; o texto vira uma captura
 `source = "text"` com `transcript` já preenchido e vai direto pro organizar (o modelo lê "O QUE ELA ESCREVEU").
 
-Ações que se entendem pelo desenho são ícones (`IconAction`, com o nome pro leitor de tela): descartar a
-gravação (×, no modo toque), parar o organizar (■), tentar de novo (↻), descartar (lixeira), baixar/parar/apagar o
+Ações que se entendem pelo desenho são ícones (`IconAction`, com o nome pro leitor de tela): cancelar a
+gravação (× solto, sem círculo, bem discreto, no modo toque), parar o organizar (■), tentar de novo (↻), descartar (lixeira), baixar/parar/apagar o
 modelo, testar a API, prazo (calendário), lembrete (sino) e etapas (lista). Status, abas e "Ver feitas" seguem em
-texto. Na tarefa, etapas só aparecem quando existem e "O que você disse" fica recolhido; o relacionado é uma linha.
+texto. Na tarefa, etapas só aparecem quando existem e "O que você disse" fica recolhido.
+
+Nada dito duas vezes. O item é um texto só: notícia de algo que já existe entra no próprio texto (`append`,
+só o que é novo, como continuação), sem "Andamento" à parte; a situação está nos status. A tela do item não
+tem Conexões (os tópicos repetiam o texto e ficam na aba Conexões). O banco v3 (`MIGRATION_2_3`) juntou o
+andamento antigo ao texto de cada item. Nos cartões o dia aparece uma vez: lembrete no dia do prazo mostra só a
+hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 
 ## Pacotes
 

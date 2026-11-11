@@ -283,7 +283,8 @@ object Dates {
 /**
  * One entry as a card: the title, and one quiet line of what matters (due, steps, status, a
  * snippet). The same on the main screen's answers and in the lists. [label] says what just happened
- * to it ("Nova tarefa"); [showKind] names what it is where kinds are mixed; [showStatus] is off where the list is already grouped by status.
+ * to it ("Nova tarefa"); [showKind] names what it is where kinds are mixed; [showStatus] is off where the list is already grouped by status;
+ * [inToday] is for the Hoje tab, where "hoje" goes without saying.
  */
 @Composable
 fun EntryCard(
@@ -295,6 +296,7 @@ fun EntryCard(
     onToggle: (() -> Unit)? = null,
     showKind: Boolean = true,
     showStatus: Boolean = true,
+    inToday: Boolean = false,
     shape: Shape = RoundedCornerShape(20.dp),
 ) {
     val kind = entry.kindEnum
@@ -348,7 +350,7 @@ fun EntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus)
+            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday)
             if (meta.isNotEmpty()) {
                 Spacer(Modifier.height(5.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -361,19 +363,41 @@ fun EntryCard(
     }
 }
 
-/** The quiet line under a title; [named] starts it with what the entry is and when it was kept. */
-private fun meta(e: Entry, named: Boolean, withStatus: Boolean): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
-    if (named) add((kindLabel(e.kindEnum) + " · " + Dates.day(e.createdAt)) to false)
+/**
+ * The quiet line under a title; [named] starts it with what the entry is and when it was kept.
+ * A day is said once: a reminder on the due day says only its time, and in the Hoje tab
+ * ([inToday]) "hoje" is left out.
+ */
+fun meta(
+    e: Entry,
+    named: Boolean,
+    withStatus: Boolean,
+    inToday: Boolean = false,
+    zone: ZoneId = ZoneId.systemDefault(),
+    now: Long = System.currentTimeMillis(),
+): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    fun dayOf(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+    if (named) add((if (inToday && dayOf(e.createdAt) == today) kindLabel(e.kindEnum) else kindLabel(e.kindEnum) + " · " + Dates.day(e.createdAt, zone, today)) to false)
     if (e.kindEnum != Kind.TASK) return@buildList
     val status = e.statusEnum ?: Status.TODO
     if (withStatus && (status == Status.DOING || status == Status.WAITING || (named && status == Status.DONE))) add(statusLabel(status) to false)
-    Dates.due(e)?.let { d ->
-        val late = e.dueAt != null && status != Status.DONE && e.dueAt < LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        add(d to (status != Status.DONE && (late || d.startsWith("hoje"))))
+    e.dueAt?.let { due ->
+        val day = dayOf(due)
+        val text = when {
+            inToday && day == today -> if (e.dueHasTime) Dates.time(due, zone) else null
+            e.dueHasTime -> Dates.day(due, zone, today) + " · " + Dates.time(due, zone)
+            else -> Dates.day(due, zone, today)
+        }
+        if (text != null) add(text to (status != Status.DONE && !day.isAfter(today)))
     }
     val steps = Steps.read(e.steps)
     if (steps.isNotEmpty()) add("${steps.count { it.done }}/${steps.size}" to false)
-    e.remindAt?.takeIf { it > System.currentTimeMillis() && !(e.dueHasTime && it == e.dueAt) }?.let { add(("lembrete " + Dates.dayTime(it)) to false) }
+    e.remindAt?.takeIf { it > now && !(e.dueHasTime && it == e.dueAt) }?.let { r ->
+        val day = dayOf(r)
+        val sameDay = e.dueAt?.let { dayOf(it) == day } == true || (inToday && day == today)
+        add(("lembrete " + if (sameDay) Dates.time(r, zone) else Dates.day(r, zone, today) + " · " + Dates.time(r, zone)) to false)
+    }
 }
 
 @Composable
