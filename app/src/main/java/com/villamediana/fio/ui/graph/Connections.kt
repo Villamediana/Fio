@@ -13,15 +13,13 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,27 +48,31 @@ import com.villamediana.fio.FioApplication
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.TopicCount
 import com.villamediana.fio.data.TopicPair
-import com.villamediana.fio.ui.Nav
-import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.EntryCard
-import com.villamediana.fio.ui.components.FioIcons
-import com.villamediana.fio.ui.home.QuietIcon
+import com.villamediana.fio.ui.components.GroupGap
+import com.villamediana.fio.ui.components.groupShape
 import com.villamediana.fio.ui.theme.FioColors
+import com.villamediana.fio.ui.theme.Motion
 import com.villamediana.fio.ui.theme.Outfit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.sqrt
 
-/** The knots of what was said — people, projects, places, subjects — and the threads between them. */
+/**
+ * The knots of what was said — people, projects, places, subjects — and the threads between them.
+ * It is one of the library's tabs: it fills the space under them, and a touched knot lifts its
+ * entries in a card at the bottom.
+ */
 @Composable
-fun GraphScreen(nav: Nav, startTopic: Long?) {
+fun Connections(startTopic: Long?, onOpen: (Long) -> Unit, empty: @Composable () -> Unit, modifier: Modifier = Modifier) {
     val lib = FioApplication.graph.library
-    val topics by lib.topTopics(48).collectAsStateWithLifecycle(initialValue = emptyList())
+    val topics by lib.topTopics(48).collectAsStateWithLifecycle(initialValue = null)
     val pairs by lib.topicPairs().collectAsStateWithLifecycle(initialValue = emptyList())
-    val layout by produceState<Map<Long, Offset>>(emptyMap(), topics, pairs) {
-        value = withContext(Dispatchers.Default) { Force.layout(topics, pairs) }
+    val known = topics.orEmpty()
+    val layout by produceState<Map<Long, Offset>>(emptyMap(), known, pairs) {
+        value = withContext(Dispatchers.Default) { Force.layout(known, pairs) }
     }
-    var selected by remember { mutableStateOf(startTopic) }
+    var selected by remember(startTopic) { mutableStateOf(startTopic) }
     val entries by produceState(emptyList<Entry>(), selected) { value = selected?.let { lib.entriesOfTopic(it).sortedByDescending { e -> e.createdAt } }.orEmpty() }
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -79,15 +81,8 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
     val measurer = rememberTextMeasurer()
     val palette = FioColors.palette
 
-    Box(Modifier.fillMaxSize().background(FioColors.Background)) {
-        if (topics.isEmpty()) {
-            Text(
-                "As conexões aparecem conforme você fala de pessoas, lugares e projetos.",
-                style = MaterialTheme.typography.titleMedium,
-                color = FioColors.TextMuted,
-                modifier = Modifier.align(Alignment.Center).padding(40.dp),
-            )
-        }
+    Box(modifier.fillMaxSize()) {
+        if (topics?.isEmpty() == true) empty()
         Canvas(
             Modifier
                 .fillMaxSize()
@@ -100,8 +95,8 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
                 .pointerInput(layout, scale, pan) {
                     detectTapGestures { tap ->
                         val c = Offset(size.width / 2f, size.height / 2f)
-                        val unit = minOf(size.width, size.height) * 0.42f
-                        val hit = topics.minByOrNull { t ->
+                        val unit = minOf(size.width, size.height) * 0.40f
+                        val hit = known.minByOrNull { t ->
                             val p = layout[t.id] ?: return@minByOrNull Float.MAX_VALUE
                             (c + pan + p * unit * scale - tap).getDistance()
                         }
@@ -111,7 +106,7 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
                 },
         ) {
             val c = Offset(size.width / 2f, size.height / 2f) + pan
-            val unit = minOf(size.width, size.height) * 0.42f * scale
+            val unit = minOf(size.width, size.height) * 0.40f * scale
             val a = appear.value
             val maxW = (pairs.maxOfOrNull { it.weight } ?: 1).toFloat()
             pairs.forEach { e ->
@@ -124,8 +119,8 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
                     strokeWidth = (1f + 1f * (e.weight / maxW)).dp.toPx(),
                 )
             }
-            val maxC = (topics.maxOfOrNull { it.count } ?: 1).toFloat()
-            topics.forEach { t ->
+            val maxC = (known.maxOfOrNull { it.count } ?: 1).toFloat()
+            known.forEach { t ->
                 val p = layout[t.id] ?: return@forEach
                 val near = selected == null || selected == t.id || pairs.any { (it.a == selected && it.b == t.id) || (it.b == selected && it.a == t.id) }
                 val r = (4f + 9f * sqrt(t.count / maxC)).dp.toPx() * (0.6f + 0.4f * a)
@@ -136,30 +131,27 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
             }
         }
 
-        Row(Modifier.statusBarsPadding().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
-            Text("Conexões", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
-        }
-
         AnimatedVisibility(
             visible = selected != null && entries.isNotEmpty(),
-            enter = slideInVertically { it / 2 } + fadeIn(),
-            exit = slideOutVertically { it / 2 } + fadeOut(),
+            enter = slideInVertically(Motion.slide) { it / 2 } + fadeIn(Motion.enter()),
+            exit = slideOutVertically(Motion.slide) { it / 2 } + fadeOut(Motion.exit()),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .clip(RoundedCornerShape(28.dp))
                     .background(FioColors.Surface2)
-                    .navigationBarsPadding()
-                    .padding(top = 18.dp),
+                    .padding(top = 16.dp),
             ) {
-                val name = topics.firstOrNull { it.id == selected }?.name.orEmpty()
-                Text(name, style = MaterialTheme.typography.titleLarge, color = FioColors.Text, modifier = Modifier.padding(horizontal = 22.dp))
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 340.dp).padding(top = 10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                    items(entries, key = { it.id }) { e ->
-                        Box(Modifier.padding(bottom = 8.dp)) { EntryCard(e, onClick = { nav.go(Screen.Entry(e.id)) }) }
+                val name = known.firstOrNull { it.id == selected }?.name.orEmpty()
+                Text(name, style = MaterialTheme.typography.titleLarge, color = FioColors.Text, modifier = Modifier.padding(horizontal = 20.dp))
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp).padding(top = 12.dp), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
+                    itemsIndexed(entries, key = { _, e -> e.id }) { i, e ->
+                        Box(Modifier.padding(bottom = if (i == entries.lastIndex) 0.dp else GroupGap)) {
+                            EntryCard(e, onClick = { onOpen(e.id) }, shape = groupShape(i, entries.size, outer = 22.dp))
+                        }
                     }
                 }
             }

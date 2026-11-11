@@ -3,6 +3,8 @@ package com.villamediana.fio.ui.library
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,6 +12,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,18 +29,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
-import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -47,17 +51,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.villamediana.fio.FioApplication
@@ -70,17 +87,21 @@ import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.Dates
 import com.villamediana.fio.ui.components.EntryCard
+import com.villamediana.fio.ui.components.FioIcons
+import com.villamediana.fio.ui.components.GroupGap
 import com.villamediana.fio.ui.components.PT
 import com.villamediana.fio.ui.components.SectionLabel
+import com.villamediana.fio.ui.components.groupShape
+import com.villamediana.fio.ui.graph.Connections
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioColors
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryScreen(nav: Nav, screen: Screen.Library) {
@@ -106,49 +127,27 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     val open: (Long) -> Unit = { nav.go(Screen.Entry(it)) }
 
     Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
-            if (searching) {
-                Row(
-                    Modifier.weight(1f).padding(end = 10.dp).clip(CircleShape).background(FioColors.Surface2).padding(start = 18.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        if (query.isEmpty()) Text("Buscar no que você guardou", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
-                            cursorBrush = SolidColor(FioColors.Accent),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                        )
-                    }
-                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { if (query.isEmpty()) searching = false else query = "" }, contentAlignment = Alignment.Center) {
-                        Icon(FioIcons.Close, "Limpar", tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
-                    }
-                }
-            } else {
-                Spacer(Modifier.weight(1f))
-                QuietIcon(FioIcons.Search, "Buscar", { searching = true }, alpha = 0.6f)
-            }
+            SearchBar(
+                searching = searching,
+                query = query,
+                onQuery = { query = it },
+                onOpen = { searching = true },
+                onClear = { if (query.isEmpty()) searching = false else query = "" },
+                focus = focus,
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+            )
         }
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            // The tabs are just words: the one you are in is ink, the others wait in gray.
-            val tabsScroll = rememberScrollState()
-            Row(
-                Modifier.fillMaxWidth().fadingEdges(tabsScroll).horizontalScroll(tabsScroll).padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                listOf(Filter.TODAY, Filter.TASKS, Filter.NOTES, Filter.DIARY, Filter.ALL).forEach { f ->
-                    Tab(title(f), selected = filter == f, onClick = { filter = f; nav.go(Screen.Library(f)) })
-                }
-                Tab("Conexões", selected = false, onClick = { nav.go(Screen.Graph()) })
-            }
+            Tabs(filter, onSelect = { f -> filter = f; nav.go(Screen.Library(f)) })
         }
 
+        if (filter == Filter.LINKS && hits == null) {
+            Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
+            return@Column
+        }
         val list = entries
         if (list == null) return@Column
         val sections: List<Pair<String?, List<Entry>>> = if (hits != null) {
@@ -158,17 +157,19 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = if (hits != null) 14.dp else 0.dp, bottom = 40.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (hits != null) 14.dp else 0.dp, bottom = 40.dp),
         ) {
             if (hits == null && sections.all { it.second.isEmpty() }) {
                 item { Empty(filter) }
             }
             sections.forEach { (label, items) ->
                 if (label != null && (items.isNotEmpty() || hits != null)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
-                items(items, key = { it.id }) { e ->
-                    Box(Modifier.animateItem().padding(bottom = 8.dp)) {
-                        if (filter == Filter.DIARY && hits == null) DiaryCard(e, onClick = { open(e.id) })
-                        else EntryCard(e, onClick = { open(e.id) }, terms = if (hits != null) terms else emptyList(), onToggle = { toggle(e.id) }, showKind = hits != null || filter == Filter.ALL || filter == Filter.TODAY, showStatus = hits != null || filter != Filter.TASKS)
+                // One block per group: the cards touch, only the ends are round.
+                itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
+                    val shape = groupShape(i, items.size, outer = 22.dp)
+                    Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
+                        if (filter == Filter.DIARY && hits == null) DiaryCard(e, onClick = { open(e.id) }, shape = shape)
+                        else EntryCard(e, onClick = { open(e.id) }, terms = if (hits != null) terms else emptyList(), onToggle = { toggle(e.id) }, showKind = hits != null || filter == Filter.ALL || filter == Filter.TODAY, showStatus = hits != null || filter != Filter.TASKS, shape = shape)
                     }
                 }
             }
@@ -193,18 +194,121 @@ private fun title(f: Filter) = when (f) {
     Filter.NOTES -> "Notas"
     Filter.DIARY -> "Diário"
     Filter.ALL -> "Tudo"
+    Filter.LINKS -> "Conexões"
+}
+
+/**
+ * The tabs are just words: the one you are in is ink with a short stitch of the thread under it,
+ * the others wait in gray. The stitch slides to the new tab; a tab off the edge comes into view.
+ */
+@Composable
+private fun Tabs(filter: Filter, onSelect: (Filter) -> Unit) {
+    val scroll = rememberScrollState()
+    val bounds = remember { mutableStateMapOf<Filter, Pair<Float, Float>>() } // x, width (inside the row's padding)
+    val stitch = remember { Animatable(0f) }
+    var placed by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val start = with(density) { 10.dp.toPx() }
+    val target = bounds[filter]
+    LaunchedEffect(filter, target) {
+        val (x, w) = target ?: return@LaunchedEffect
+        val center = x + w / 2f
+        if (!placed) { stitch.snapTo(center); placed = true } else launch { stitch.animateTo(center, spring(dampingRatio = 0.8f, stiffness = 380f)) }
+        val left = start + x
+        val right = left + w
+        val view = scroll.viewportSize
+        if (view > 0) {
+            val margin = with(density) { 28.dp.toPx() }
+            when {
+                left - margin < scroll.value -> scroll.animateScrollTo((left - margin).toInt().coerceAtLeast(0))
+                right + margin > scroll.value + view -> scroll.animateScrollTo((right + margin - view).toInt())
+            }
+        }
+    }
+    val accent = FioColors.Accent
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .fadingEdges(scroll)
+            .horizontalScroll(scroll)
+            .padding(start = 10.dp, end = 10.dp, top = 2.dp)
+            .drawBehind {
+                if (!placed) return@drawBehind
+                val w = 18.dp.toPx()
+                val h = 3.dp.toPx()
+                drawRoundRect(accent, topLeft = Offset(stitch.value - w / 2f, size.height - h - 3.dp.toPx()), size = Size(w, h), cornerRadius = CornerRadius(h / 2f))
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Filter.entries.forEach { f ->
+            Tab(
+                title(f),
+                selected = filter == f,
+                onClick = { onSelect(f) },
+                modifier = Modifier.onGloballyPositioned { c -> bounds[f] = c.positionInParent().x to c.size.width.toFloat() },
+            )
+        }
+    }
 }
 
 @Composable
-private fun Tab(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun Tab(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val color by animateColorAsState(if (selected) FioColors.Text else FioColors.TextFaint, label = "tab")
     Text(
         text,
         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
         color = color,
         maxLines = 1,
-        modifier = Modifier.clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick)
+            .semantics { role = Role.Tab; this.selected = selected }
+            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 15.dp),
     )
+}
+
+/** The search sits at the top as a quiet field; touching it is already typing. */
+@Composable
+private fun SearchBar(
+    searching: Boolean,
+    query: String,
+    onQuery: (String) -> Unit,
+    onOpen: () -> Unit,
+    onClear: () -> Unit,
+    focus: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .height(46.dp)
+            .clip(CircleShape)
+            .background(FioColors.Surface)
+            .then(if (searching) Modifier else Modifier.clickable(onClick = onOpen))
+            .padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(FioIcons.Search, null, tint = FioColors.TextMuted, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) Text(if (searching) "Buscar no que você guardou" else "Buscar", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint, maxLines = 1)
+            if (searching) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQuery,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
+                    cursorBrush = SolidColor(FioColors.Accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+            }
+        }
+        AnimatedVisibility(searching, enter = fadeIn(), exit = fadeOut()) {
+            Box(Modifier.size(38.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
+                Icon(FioIcons.Close, "Limpar", tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
 }
 
 /** A row that runs past the screen melts into the paper at the edge it continues on. */
@@ -250,6 +354,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
         Filter.ALL -> byDay(all, zone, today)
+        Filter.LINKS -> emptyList()
     }
 }
 
@@ -259,10 +364,10 @@ private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<
         .map { (d, items) -> Dates.day(d.atStartOfDay(zone).toInstant().toEpochMilli(), zone, today).replaceFirstChar { it.titlecase(PT) } to items }
 
 @Composable
-private fun DiaryCard(e: Entry, onClick: () -> Unit) {
+private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape) {
     val d = Instant.ofEpochMilli(e.createdAt).atZone(ZoneId.systemDefault())
     Row(
-        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp).animateContentSize(),
+        Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp).animateContentSize(),
     ) {
         Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text)
@@ -291,11 +396,18 @@ private fun Empty(filter: Filter) {
                 Filter.NOTES -> "Nenhuma nota ainda."
                 Filter.DIARY -> "O diário está em branco."
                 Filter.ALL -> "Nada guardado ainda."
+                Filter.LINKS -> "Nenhuma conexão ainda."
             },
             style = MaterialTheme.typography.titleMedium,
             color = FioColors.TextMuted,
         )
         Spacer(Modifier.height(6.dp))
-        Text("Fale no botão da tela inicial.", style = MaterialTheme.typography.bodyMedium, color = FioColors.TextFaint)
+        Text(
+            if (filter == Filter.LINKS) "Elas aparecem quando você fala de pessoas, lugares e projetos." else "Fale no botão da tela inicial.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = FioColors.TextFaint,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp),
+        )
     }
 }

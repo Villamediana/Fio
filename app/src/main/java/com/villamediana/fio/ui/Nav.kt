@@ -2,15 +2,16 @@ package com.villamediana.fio.ui
 
 import androidx.compose.runtime.mutableStateListOf
 
-enum class Filter { TODAY, TASKS, NOTES, DIARY, ALL }
+/** The tabs of the library; LINKS is the drawing of what connects to what. */
+enum class Filter { TODAY, TASKS, NOTES, DIARY, ALL, LINKS }
 
 sealed interface Screen {
     data object Home : Screen
-    data class Library(val filter: Filter, val search: Boolean = false, val query: String = "") : Screen
+    /** [topic] opens the LINKS tab with that knot already touched. */
+    data class Library(val filter: Filter, val search: Boolean = false, val query: String = "", val topic: Long? = null) : Screen
     data class Entry(val id: Long) : Screen
     data object Settings : Screen
     data object Camera : Screen
-    data class Graph(val topicId: Long? = null) : Screen
 }
 
 /** A small back stack: the main screen at the bottom, always. */

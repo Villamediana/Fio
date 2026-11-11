@@ -2,6 +2,7 @@ package com.villamediana.fio.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,9 +32,17 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -122,9 +131,74 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         style = MaterialTheme.typography.labelLarge,
-        color = FioColors.TextFaint,
-        modifier = modifier.padding(top = 24.dp, bottom = 10.dp),
+        color = FioColors.TextMuted,
+        modifier = modifier.padding(start = 4.dp, top = 26.dp, bottom = 10.dp),
     )
+}
+
+/**
+ * Things that belong together sit as one block: 2 dp of paper between them, round outside,
+ * almost square inside. [index] of [count] says which corners are the block's.
+ */
+fun groupShape(index: Int, count: Int, outer: Dp = 22.dp, inner: Dp = 6.dp): Shape {
+    val top = if (index == 0) outer else inner
+    val bottom = if (index == count - 1) outer else inner
+    return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+}
+
+val GroupGap = 2.dp
+
+/** A block of rows on paper (settings, lists): each row gets its corners from [groupShape]. */
+@Composable
+fun Group(modifier: Modifier = Modifier, vararg rows: (@Composable () -> Unit)?) {
+    val shown = rows.filterNotNull()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+        shown.forEachIndexed { i, row ->
+            Box(Modifier.fillMaxWidth().clip(groupShape(i, shown.size)).background(FioColors.Surface)) { row() }
+        }
+    }
+}
+
+/**
+ * A few words side by side, one chosen: a soft track and a paper thumb that slides to the choice.
+ * All parts take the width of the widest, so the thumb never changes size on the way.
+ */
+@Composable
+fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val thumbAt by animateFloatAsState(selected.toFloat(), spring(dampingRatio = 0.82f, stiffness = 520f), label = "segment")
+    val thumbColor = if (FioColors.palette.dark) FioColors.Surface3 else FioColors.Surface
+    Layout(
+        content = {
+            Box(Modifier.clip(CircleShape).background(thumbColor))
+            options.forEachIndexed { i, text ->
+                val fg by animateColorAsState(if (i == selected) FioColors.Text else FioColors.TextMuted, label = "segmentFg")
+                Box(
+                    Modifier
+                        .clip(CircleShape)
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onSelect(i) }
+                        .semantics { role = Role.RadioButton; this.selected = i == selected }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
+                }
+            }
+        },
+        modifier = modifier.clip(CircleShape).background(FioColors.Surface2).padding(3.dp),
+    ) { measurables, constraints ->
+        val thumb = measurables.first()
+        val parts = measurables.drop(1)
+        val n = parts.size.coerceAtLeast(1)
+        val widest = parts.maxOf { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val w = if (constraints.hasBoundedWidth) minOf(widest, constraints.maxWidth / n) else widest
+        val h = parts.maxOf { it.minIntrinsicHeight(w) }
+        val placed = parts.map { it.measure(Constraints.fixed(w, h)) }
+        val thumbPlaced = thumb.measure(Constraints.fixed(w, h))
+        layout(w * n, h) {
+            thumbPlaced.place((thumbAt * w).roundToInt(), 0)
+            placed.forEachIndexed { i, p -> p.place(i * w, 0) }
+        }
+    }
 }
 
 /** [text] with the matched words in ink and bold on [mark] (search results, answers). */
@@ -199,6 +273,7 @@ fun EntryCard(
     onToggle: (() -> Unit)? = null,
     showKind: Boolean = true,
     showStatus: Boolean = true,
+    shape: Shape = RoundedCornerShape(20.dp),
 ) {
     val kind = entry.kindEnum
     val done = entry.statusEnum == Status.DONE
@@ -208,7 +283,7 @@ fun EntryCard(
         modifier
             .fillMaxWidth()
             .pressScale(interaction, 0.985f)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
             .background(FioColors.Surface)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(start = if (checkable) 4.dp else 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),

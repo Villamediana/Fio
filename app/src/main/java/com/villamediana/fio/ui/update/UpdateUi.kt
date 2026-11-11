@@ -377,9 +377,9 @@ fun UpdateRow(updates: Updates = FioApplication.graph.updates) {
                 if (text != null) {
                     Text(
                         text,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = if (state == UpdateState.UpToDate) FioColors.Success else FioColors.TextMuted,
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }

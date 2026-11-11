@@ -24,7 +24,6 @@ import com.villamediana.fio.Ask
 import com.villamediana.fio.FioApplication
 import com.villamediana.fio.ui.camera.CameraScreen
 import com.villamediana.fio.ui.entry.EntryScreen
-import com.villamediana.fio.ui.graph.GraphScreen
 import com.villamediana.fio.ui.home.HomeScreen
 import com.villamediana.fio.ui.library.LibraryScreen
 import com.villamediana.fio.ui.settings.SettingsScreen
@@ -84,7 +83,6 @@ fun FioRoot(ask: Ask?, onAskHandled: () -> Unit) {
                 is Screen.Entry -> EntryScreen(nav, screen.id)
                 Screen.Settings -> SettingsScreen(nav)
                 Screen.Camera -> CameraScreen(nav)
-                is Screen.Graph -> GraphScreen(nav, screen.topicId)
             }
         }
         UpdateHost()
