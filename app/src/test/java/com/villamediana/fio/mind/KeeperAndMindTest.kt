@@ -665,6 +665,13 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun aDiaryOnlyGrowsByWholeWords() {
+        // "Sol." is not in "Girassol": the day told so far stays, the new part joins it.
+        assertEquals("Sol.\n\nO girassol nasceu.", DayDiary.merge("Sol.", "O girassol nasceu."))
+        assertEquals("Sol na praia.\n\nDepois choveu.", DayDiary.merge("Sol na praia.", "Sol na praia.\n\nDepois choveu."))
+    }
+
+    @Test
     fun daysLeftWithTwoDiariesBecomeOne() = runBlocking {
         val a = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
         val b = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.\n\nAl final encontré a Alma.", createdAt = now, updatedAt = now))
