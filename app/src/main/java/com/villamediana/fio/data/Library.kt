@@ -62,6 +62,13 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
         db.captures().update(c.copy(turn = (c.turn + 90) % 360))
     }
 
+    /** Takes a photo out of Fio, its file too. What was kept from it (a task, a note) stays. */
+    suspend fun removePhoto(captureId: Long) {
+        val c = db.captures().get(captureId)?.takeIf { it.source == "photo" } ?: return
+        db.captures().delete(c.id)
+        c.imagePath?.let { java.io.File(it).delete() }
+    }
+
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 
     suspend fun setStatus(id: Long, status: Status) {

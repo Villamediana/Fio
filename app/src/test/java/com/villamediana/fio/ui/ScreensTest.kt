@@ -303,6 +303,15 @@ class ScreensTest {
         val turned = runBlocking { withTimeout(5_000) { graph.db.captures().allPhotos().first { it.imagePath!!.endsWith("gallery-test-0.jpg") }.let { c -> while (graph.db.captures().get(c.id)!!.turn != 90) kotlinx.coroutines.delay(20); graph.db.captures().get(c.id)!! } } }
         assertEquals(90, turned.turn)
         shot("24-viewer-turned")
+        assertTrue(compose.onAllNodesWithContentDescription("Baixar").fetchSemanticsNodes().isNotEmpty())
+        // Taking it out of Fio asks once more; then it is gone, its file too.
+        compose.onAllNodesWithContentDescription("Remover")[0].performClick()
+        compose.mainClock.advanceTimeBy(400)
+        shot("26-viewer-remove")
+        compose.onNodeWithContentDescription("Remover a foto").performClick()
+        runBlocking { withTimeout(5_000) { while (graph.db.captures().get(turned.id) != null) kotlinx.coroutines.delay(20) } }
+        assertTrue(!File(turned.imagePath!!).exists())
+        compose.waitUntil(3_000) { compose.onAllNodesWithText("1 / 3").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
 

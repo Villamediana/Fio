@@ -41,6 +41,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.platform.LocalContext
+import com.villamediana.fio.data.ToGallery
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -141,12 +146,19 @@ private val WHEN = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM · HH:mm", PT)
 
 /**
  * Photos big, on black, one beside the other: swipe between them; under each, when it was taken
- * and a light menu to turn it (what it shows, in the model's words, is only for the search —
- * never on screen). × or back closes.
+ * and a light menu to turn it, save it to the phone's gallery or take it out of Fio (what it
+ * shows, in the model's words, is only for the search — never on screen). × or back closes.
  */
 @Composable
 fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
-    if (photos.isEmpty()) return
+    if (photos.isEmpty()) {
+        // The last one taken out: nothing left to see.
+        LaunchedEffect(Unit) { onClose() }
+        return
+    }
+    val graph = com.villamediana.fio.FioApplication.graph
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         BackHandler(onBack = onClose)
         val pager = rememberPagerState(initialPage = start.coerceIn(0, photos.lastIndex)) { photos.size }
@@ -174,7 +186,11 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = shown; scaleX = scale; scaleY = scale },
                         )
                     }
-                    // Under the photo: when it was taken, and a light menu to turn it.
+                    // Under the photo: when it was taken, and a light menu to turn it, save it, take it out.
+                    var asking by remember(p.id) { mutableStateOf(false) }
+                    var note by remember(p.id) { mutableStateOf<String?>(null) }
+                    LaunchedEffect(asking) { if (asking) { delay(3_000); asking = false } }
+                    LaunchedEffect(note) { if (note != null) { delay(2_400); note = null } }
                     Column(
                         Modifier
                             .align(Alignment.BottomCenter)
@@ -185,28 +201,49 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            Instant.ofEpochMilli(p.takenAt).atZone(ZoneId.systemDefault()).format(WHEN).replaceFirstChar { it.titlecase(PT) },
+                            note ?: Instant.ofEpochMilli(p.takenAt).atZone(ZoneId.systemDefault()).format(WHEN).replaceFirstChar { it.titlecase(PT) },
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = Color.White.copy(alpha = if (note != null) 0.92f else 0.7f),
                         )
                         Spacer(Modifier.height(12.dp))
                         Row(
-                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).padding(4.dp),
+                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).padding(4.dp).animateContentSize(tween(220)),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(
-                                Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .clickable(onClickLabel = "Girar") {
-                                        angle += 90f
-                                        val lib = com.villamediana.fio.FioApplication.graph
-                                        lib.scope.launch { lib.library.turnPhoto(p.id) }
-                                    }
-                                    .semantics { contentDescription = "Girar" },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(FioIcons.Rotate, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(22.dp))
+                            ViewerAction(FioIcons.Rotate, "Girar") {
+                                asking = false
+                                angle += 90f
+                                graph.scope.launch { graph.library.turnPhoto(p.id) }
+                            }
+                            ViewerAction(FioIcons.Download, "Baixar") {
+                                asking = false
+                                // As it is seen here: the turn on screen may be ahead of the one saved.
+                                val turn = angle.toInt() % 360
+                                scope.launch {
+                                    note = if (ToGallery.save(context, p.path, p.takenAt, turn)) "Salva na galeria do celular" else "Não consegui salvar na galeria"
+                                }
+                            }
+                            if (!asking) {
+                                ViewerAction(FioIcons.Trash, "Remover") { asking = true }
+                            } else {
+                                // Asked once: one more tap takes it out of Fio.
+                                Row(
+                                    Modifier
+                                        .height(44.dp)
+                                        .clip(CircleShape)
+                                        .background(REMOVE.copy(alpha = 0.18f))
+                                        .clickable(onClickLabel = "Remover a foto") {
+                                            asking = false
+                                            if (photos.size == 1) onClose()
+                                            graph.scope.launch { graph.library.removePhoto(p.id) }
+                                        }
+                                        .semantics { contentDescription = "Remover a foto" }
+                                        .padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(FioIcons.Trash, null, tint = REMOVE, modifier = Modifier.size(20.dp))
+                                    Text("Remover", style = MaterialTheme.typography.labelLarge, color = REMOVE, modifier = Modifier.padding(start = 8.dp))
+                                }
                             }
                         }
                     }
@@ -232,5 +269,23 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
         }
     }
 }
+
+/** One round button of the viewer's menu, white on the black. */
+@Composable
+private fun ViewerAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .clickable(onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(22.dp))
+    }
+}
+
+/** Taking a photo out, on the black whatever the theme. */
+private val REMOVE = Color(0xFFFF8A80)
 
 private const val FULL_PX = 2048
