@@ -107,13 +107,31 @@ class KeeperAndMindTest {
     }
 
     private object NoMic : com.villamediana.fio.mind.MicHolder { override fun hold() {}; override fun release() {} }
+
+    /** What the app asked the background holder, in order. */
+    private class Holder : com.villamediana.fio.mind.MicHolder {
+        val calls = java.util.Collections.synchronizedList(mutableListOf<String>())
+        @Volatile var working = false
+        override fun hold() { calls += "hold" }
+        override fun release() { calls += "release" }
+        override fun working(on: Boolean) { working = on; calls += "working:$on" }
+    }
+
+    /** A microphone that "records" a ready WAV. */
+    private class FakeRecorder(val wav: () -> File) : Recorder() {
+        var starts = 0
+        private var on = false
+        override val isRecording: Boolean get() = on
+        override fun start(target: File): Boolean { starts++; on = true; return true }
+        override fun stop(): Pair<File, Long>? { if (!on) return null; on = false; return wav() to 2000L }
+    }
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced()) = Mind(
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic) = Mind(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-        db = db, recorder = Recorder(), hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = NoPhotos, mic = NoMic, dir = tmp.root, zone = { zone }, clock = { now },
+        db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
+        photos = NoPhotos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now },
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->
@@ -122,6 +140,35 @@ class KeeperAndMindTest {
 
     private suspend fun answered(m: Mind): MindState.Answer = withTimeout(10_000) {
         m.state.first { it is MindState.Answer || it is MindState.Problem }.let { it as? MindState.Answer ?: error("problem: $it") }
+    }
+
+    @Test
+    fun oneStopIsEnoughAndTheWorkKeepsTheAppGoing() = runBlocking {
+        val ears = FakeEars("lembrar de comprar pão")
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Anotei.","create":[{"kind":"task","title":"Comprar pão"}]}""")))
+        val holder = Holder()
+        var n = 0
+        val rec = FakeRecorder { voiceFile().also { n++ }.let { f -> File(tmp.root, "v$n.wav").also { f.renameTo(it) } } }
+        val m = mind(ears, thinker, recorder = rec, mic = holder)
+
+        assertTrue(m.startListening(locked = true))
+        assertTrue(m.state.value is MindState.Listening)
+        m.stopListening()
+        // One stop: the screen leaves "ouvindo" at once (it used to stay there until a second tap,
+        // hiding the progress and the answer, and a new hold then recorded nothing).
+        assertTrue("${m.state.value}", m.state.value is MindState.Working)
+        val a = answered(m)
+        assertEquals("Anotei.", a.reply)
+        // The background was held from before the microphone let go until the work was done.
+        withTimeout(5_000) { while (holder.working) kotlinx.coroutines.delay(20) }
+        val calls = holder.calls.toList()
+        assertEquals(listOf("hold", "working:true", "release"), calls.take(3))
+        assertEquals("working:false", calls.last())
+
+        // And the button records again right away.
+        assertTrue(m.startListening(locked = false))
+        assertEquals(2, rec.starts)
+        m.cancelListening()
     }
 
     @Test
