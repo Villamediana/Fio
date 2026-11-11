@@ -7,10 +7,10 @@ Orb (segurar / tocar / arrastar pra cima)
   → Recorder (AudioRecord 16 kHz mono → WAV; nível 0..1 a cada 20 ms)   MicService segura com a tela apagada
   → Capture (banco: recorded)
   → Mind.process (fila, um por vez)
-      Ears.transcribe     Hearing: LFM3 no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
+      Ears.transcribe     Hearing: LFM3-Audio no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      Thinking: LFM3 (gramática JSON GBNF) ou API /chat/completions (json_object)
+      Thinker.answer      Thinking: LFM3-Omni no celular (gramática JSON GBNF) ou API /chat/completions (json_object)
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
@@ -83,6 +83,9 @@ numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a 
 que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
 baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
 Arquivos: `LFM3-Audio-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Audio-2B-Q8_0.gguf` (304 MB).
+Pra pensar no celular: `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB), sem projetor — o modelo geral da família segue
+melhor as instruções do que o de áudio (que dava título "Task" e não separava diário). Um modelo carregado
+por vez (`LocalModel.Spec.AUDIO`/`OMNI`); o motor troca quando muda o trabalho.
 
 ## Lançar versão
 

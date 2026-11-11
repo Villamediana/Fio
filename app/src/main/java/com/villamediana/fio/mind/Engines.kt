@@ -47,7 +47,7 @@ class Hearing(
     fun readiness(s: FioSettings): String? = when (s.hear) {
         Source.LOCAL -> when {
             !LocalEngine.available -> "o modelo no celular ainda não vem nesta versão — escolha uma API em Ajustes"
-            !model.ready -> "baixe o modelo no celular em Ajustes"
+            !model.ready -> "baixe o ${model.spec.name} em Ajustes"
             else -> null
         }
         Source.API -> when {
@@ -111,7 +111,7 @@ class Thinking(
     fun readiness(s: FioSettings): String? = when (s.think) {
         Source.LOCAL -> when {
             !LocalEngine.available -> "o modelo no celular ainda não vem nesta versão — escolha uma API em Ajustes"
-            !model.ready -> "baixe o modelo no celular em Ajustes"
+            !model.ready -> "baixe o ${model.spec.name} em Ajustes"
             else -> null
         }
         Source.API -> when {

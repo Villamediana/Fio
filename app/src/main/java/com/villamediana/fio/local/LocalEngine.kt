@@ -12,8 +12,9 @@ fun interface TokenSink {
 }
 
 /**
- * LFM3-Audio on the phone (llama.cpp, app/src/main/cpp). Loaded on first use and kept for a few
- * minutes, then let go (the model takes ~1.4 GB of RAM).
+ * The LFM3 models on the phone (llama.cpp, app/src/main/cpp): one loaded at a time — the one that
+ * hears or the one that thinks, swapped when the job changes. Kept for a few minutes, then let go
+ * (a model takes ~1.4 GB of RAM).
  */
 class LocalEngine {
     private val lock = Mutex()
@@ -63,7 +64,7 @@ class LocalEngine {
             if (handle == 0L || loadedFrom != files.model.path) {
                 freeLocked()
                 val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 8).let { if (it > 4) it - 2 else it }
-                handle = nativeLoad(files.model.path, files.projector.path, threads, 8192)
+                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192)
                 check(handle != 0L) { "não deu pra carregar o modelo local" }
                 loadedFrom = files.model.path
             }

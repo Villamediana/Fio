@@ -18,7 +18,7 @@ A **câmera** do app lê o que está na foto (um papel, um quadro, um recibo) e 
 
 Em Ajustes você escolhe, separadamente, quem **ouve** (transcreve) e quem **pensa** (organiza):
 
-- **No celular**: LFM3-Audio 2B (Liquid AI) via llama.cpp. São 1,35 GB baixados uma vez e funciona sem internet.
+- **No celular** (Liquid AI, via llama.cpp, sem internet): o LFM3-Audio 2B ouve (1,35 GB) e o LFM3-Omni 2B pensa (1,05 GB); cada um baixado uma vez, em Ajustes.
 - **Por uma API compatível com OpenAI** (OpenAI, Azure AI Foundry, OpenRouter, um servidor local): você informa o endereço e a chave, carrega a lista e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
 
 Tudo o que você guarda fica no celular. Sai dele só o que vai pra API escolhida.
@@ -36,4 +36,4 @@ JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular).
 tools/release.sh -n $'- novidade'            # versão nova, com o motor no celular (ver docs/ARCHITECTURE.md)
 ```
 
-Licenças: llama.cpp (MIT); o modelo LFM3 é baixado do Hugging Face sob a LFM Open License v1.0.
+Licenças: llama.cpp (MIT); os modelos LFM3 são baixados do Hugging Face sob a LFM Open License v1.0.
