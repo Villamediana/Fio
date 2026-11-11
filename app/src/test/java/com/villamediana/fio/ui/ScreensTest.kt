@@ -333,6 +333,25 @@ class ScreensTest {
     }
 
     @Test
+    fun homeComesBackToTheMiddleAfterASwipe() {
+        val nav = Nav()
+        // The main screen kept on (as when she comes back before its way out ended).
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        compose.onRoot().performTouchInput {
+            val y = height * 0.72f
+            swipe(Offset(width * 0.85f, y), Offset(width * 0.15f, y), durationMillis = 250)
+        }
+        compose.waitUntil(3_000) { nav.top is Screen.Library }
+        compose.waitForIdle()
+        nav.back()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val hint = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot
+        assertEquals(root.center.x, hint.center.x, 2f)
+    }
+
+    @Test
     fun theme() {
         val nav = Nav()
         // (mode, accent, the main screen instead of Tema)
