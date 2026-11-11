@@ -6,6 +6,7 @@ import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.FioDatabase
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Outcome
+import com.villamediana.fio.data.Status
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -445,14 +446,20 @@ class Mind(
         val now = clock()
         val z = zone()
         val all = db.entries().all()
-        val recall = Recall(all, db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
+        val topics = db.graph().allTopics()
+        val ties = db.graph().allTies()
+        val links = db.graph().allLinks()
+        // A task already done is over: the model doesn't get it by itself (nothing to change in it,
+        // no words spent on it). Only a lookup it asks for, to answer about the past, brings it back.
+        val live = all.filterNot { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
+        val recall = Recall(all, topics, ties, links)
         val open = db.entries().openTasks()
         val focus = c.focusEntryId?.let { db.entries().get(it) }
-        val hits = recall.search(said, 12, now).map { it.entry }
+        val hits = Recall(live, topics, ties, links).search(said, 12, now).map { it.entry }
         val image = if (photo && thinking.seesImages()) runCatching { photos.jpeg(File(c.imagePath!!), thinking.imageSide()) }.getOrNull() else null
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
 
-        val recent = all.take(RECENT) // all() comes newest first
+        val recent = live.take(RECENT) // all() comes newest first
         val diary = Brain.todaysDiary(all, now, z)
         // The photos kept, found by what they show — only for what is said or written (a photo
         // being described needs no others), a few at first; more when the model asks to look.
@@ -460,7 +467,7 @@ class Mind(
         val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
 
         val taken = if (photo) c.createdAt else null
-        val before = before(c, all)
+        val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
@@ -486,7 +493,7 @@ class Mind(
         return plan.copy(search = emptyList(), period = null)
     }
 
-    /** The previous turn of the conversation: what she said then, the answer, and the items it touched (as they are now). */
+    /** The previous turn of the conversation: what she said then, the answer, and the items it touched (as they are now, among [all]). */
     private suspend fun before(c: Capture, all: List<Entry>): Before? {
         val last = db.captures().lastDone(c.id) ?: return null
         val byId = all.associateBy { it.id }

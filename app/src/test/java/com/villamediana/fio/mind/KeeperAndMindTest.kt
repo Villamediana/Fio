@@ -641,6 +641,33 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun aTaskDoneLeavesWhatTheModelGetsByItself() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Criar fluxo no Power Automate", status = "todo", createdAt = now, updatedAt = now))
+        val finish = """{"reply":"Marquei o fluxo como feito.","update":[{"id":$id,"status":"done"}]}"""
+        val note = """{"reply":"Anotei.","create":[{"kind":"note","title":"Vinícius sabe mexer no Power Automate"}]}"""
+        val look = """{"search":["fluxo"]}"""
+        val answer = """{"reply":"Você terminou o fluxo hoje."}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(finish, note, look, answer)))
+        val m = mind(FakeEars(""), thinker)
+        m.write("terminei o fluxo do Power Automate")
+        answered(m)
+        m.dismiss()
+        assertEquals("done", db.entries().get(id)!!.status)
+        // Next, something near it: the task done is in no list (not even the last conversation's).
+        m.write("o Vinícius que sabe mexer no fluxo do Power Automate")
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        m.dismiss()
+        val second = thinker.prompts[1]
+        assertTrue(second, second.contains("você: \"Marquei o fluxo como feito.\""))
+        assertTrue(second, !second.contains("#$id "))
+        // Asked about it, a lookup still finds it.
+        m.write("o que eu fiz do fluxo?")
+        withTimeout(10_000) { while (thinker.prompts.size < 4 || !m.idle) kotlinx.coroutines.delay(20) }
+        assertTrue(thinker.prompts[2], !thinker.prompts[2].contains("#$id "))
+        assertTrue(thinker.prompts[3], thinker.prompts[3].contains("#$id tarefa[done]"))
+    }
+
+    @Test
     fun whatChangesWhatATaskIsRewritesItsText() = runBlocking {
         val id = db.entries().insert(Entry(kind = "task", title = "Fluxo de aprovação", body = "No Power Automate.", status = "todo", createdAt = now, updatedAt = now))
         keeper().apply(Brain.parse("""{"update":[{"id":$id,"body":"No Power Apps, com tela de aprovação.","title":"App de aprovação"}]}""")!!, null)
