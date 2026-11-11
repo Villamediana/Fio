@@ -24,7 +24,7 @@ import java.time.ZoneId
  */
 class Backup(
     private val db: FioDatabase,
-    /** Where the app keeps the photos (filesDir/captures). */
+    /** Where the app keeps the photos and the sounds kept (filesDir/captures). */
     private val dir: File,
     /** What the last run wrote, so an unchanged file isn't written again. */
     private val stateFile: File,
@@ -36,11 +36,11 @@ class Backup(
     private val lock = Mutex()
 
     /** What went: how many items and photos, the snapshot written (null: nothing changed); [empty]: nothing in the app to keep. */
-    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false)
+    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false, val sounds: Int = 0)
 
     data class Kept(val name: String, val at: Long)
 
-    data class Restored(val entries: Int, val photos: Int)
+    data class Restored(val entries: Int, val photos: Int, val sounds: Int = 0)
 
     /** The Fio folder inside the one she chose: that one itself when it already is (named Fio, or holding Backups/). */
     fun home(root: Shelf, create: Boolean): Shelf? =
@@ -60,14 +60,17 @@ class Backup(
         val state = readState(key)
         val byId = snap.captures.associateBy { it.id }
 
-        // The photos first: the snapshot points to them.
-        for ((id, rel) in snap.photos) {
-            val local = byId[id]?.imagePath?.let(::File)?.takeIf { it.isFile } ?: continue
+        // The photos and sounds first: the snapshot points to them.
+        val files = snap.photos.mapNotNull { (id, rel) -> byId[id]?.imagePath?.let { it to rel } } +
+            snap.sounds.mapNotNull { (id, rel) -> byId[id]?.audioPath?.let { it to rel } }
+        for ((path, rel) in files) {
+            val local = File(path).takeIf { it.isFile } ?: continue
             val (folder, name) = home.at(rel, create = true) ?: continue
             if (folder.files()[name] != local.length()) folder.copyIn(name, local)
         }
-        // The gallery of the phone leaves the backup's photos alone (no copies of her photos in it).
+        // The phone's gallery and music player leave them alone (no copies of hers in them).
         if (snap.photos.isNotEmpty()) home.folder(Readable.PHOTOS, create = true)?.let { if (NOMEDIA !in it.files()) it.write(NOMEDIA, ByteArray(0)) }
+        if (snap.sounds.isNotEmpty()) home.folder(Readable.SOUNDS, create = true)?.let { if (NOMEDIA !in it.files()) it.write(NOMEDIA, ByteArray(0)) }
 
         // The readable side: written when it changed, gone when its item is gone.
         val wanted = Readable.files(snap, zone())
@@ -93,7 +96,7 @@ class Backup(
             backups.files().keys.filter(Readable::isSnapshot).sorted().dropLast(KEEP).forEach(backups::delete)
         }
         writeState(State(key, hashes, sameAsLast))
-        Saved(snap.entries.size, snap.photoCount, wrote)
+        Saved(snap.entries.size, snap.photoCount, wrote, sounds = snap.soundCount)
     }
 
     /** The snapshots in [root], the newest first. */
@@ -124,15 +127,18 @@ class Backup(
             // The photos into the app first: if one fails, nothing in the app has changed.
             val made = ArrayList<File>()
             val restored = HashMap<Long, String>()
+            val sounds = HashMap<Long, String>()
+            fun bring(id: Long, rel: String, kind: String, into: HashMap<Long, String>) {
+                val (folder, n) = home.at(rel, create = false) ?: return
+                val input = folder.open(n) ?: return
+                val f = File(dir.apply { mkdirs() }, "$kind-$id-${clock()}." + n.substringAfterLast('.', if (kind == "photo") "jpg" else "wav"))
+                input.use { i -> f.outputStream().use { i.copyTo(it) } }
+                made += f
+                into[id] = f.path
+            }
             try {
-                for ((id, rel) in snap.photos) {
-                    val (folder, n) = home.at(rel, create = false) ?: continue
-                    val input = folder.open(n) ?: continue
-                    val f = File(dir.apply { mkdirs() }, "photo-$id-${clock()}." + n.substringAfterLast('.', "jpg"))
-                    input.use { i -> f.outputStream().use { i.copyTo(it) } }
-                    made += f
-                    restored[id] = f.path
-                }
+                for ((id, rel) in snap.photos) bring(id, rel, "photo", restored)
+                for ((id, rel) in snap.sounds) bring(id, rel, "voice", sounds)
             } catch (e: Throwable) {
                 made.forEach(File::delete)
                 throw e
@@ -144,7 +150,8 @@ class Backup(
                     c.source == "photo" && image == null && c.state != Capture.DONE -> null
                     // Something said, never heard: its sound isn't in the backup.
                     c.source != "photo" && c.transcript == null -> null
-                    else -> c.copy(audioPath = null, imagePath = image, tries = 0)
+                    // A sound kept comes back with it; any other recording is long gone.
+                    else -> c.copy(audioPath = sounds[c.id], sound = sounds[c.id] != null, imagePath = image, tries = 0)
                 }
             }
             val b = db.backup()
@@ -163,10 +170,10 @@ class Backup(
                 b.putCaptures(captures)
             }
             // What was replaced is in the backup made above: its files leave the app.
-            val now = captures.flatMap { listOfNotNull(it.imagePath) }.toSet()
+            val now = captures.flatMap { listOfNotNull(it.imagePath, it.audioPath) }.toSet()
             (oldFiles - now).forEach { File(it).delete() }
             runCatching { reminders.sync((before + entryIds).distinct()) }
-            Restored(snap.entries.size, restored.size)
+            Restored(snap.entries.size, restored.size, sounds.size)
         }
     }
 
@@ -186,6 +193,8 @@ class Backup(
                 progress = b.progress(),
                 photos = captures.filter { it.source == "photo" && it.imagePath?.let { p -> File(p).isFile } == true }
                     .associate { it.id to Readable.photoPath(it, zone()) },
+                sounds = captures.filter { it.sound && it.audioPath?.let { p -> File(p).isFile } == true }
+                    .associate { it.id to Readable.soundPath(it, zone()) },
             )
         }
     }

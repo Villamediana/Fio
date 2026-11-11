@@ -405,6 +405,8 @@ class Mind(
             runCatching { reminders.sync(result.touched) }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
             val shownPhotos = plan.showPhotos.distinct().filter { p -> p != id && db.captures().get(p)?.let { it.source == "photo" && it.imagePath != null } == true }
+            // The recording goes, unless the model saw its sound is what she wants kept.
+            val keep = plan.keepAudio && c.source == "voice" && c.audioPath?.let { File(it).isFile } == true
             db.captures().update(
                 c.copy(
                     state = Capture.DONE,
@@ -416,9 +418,11 @@ class Mind(
                     shownPhotos = ids.encodeToString(ListSerializer(Long.serializer()), shownPhotos),
                     // What the photo shows, in her words: what the search finds it by.
                     description = if (photo) plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() } ?: c.description else c.description,
+                    audioPath = if (keep) c.audioPath else null,
+                    sound = keep,
                 ),
             )
-            c.audioPath?.let { File(it).delete() }
+            if (!keep) c.audioPath?.let { File(it).delete() }
             say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))

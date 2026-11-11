@@ -5,6 +5,7 @@ import com.villamediana.fio.mind.Recall
 import com.villamediana.fio.mind.ReminderSync
 import com.villamediana.fio.mind.Steps
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** What the screens do to entries by hand (tap the circle, change the status, edit, delete). */
@@ -18,6 +19,12 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
     /** The photos taken in [day] (first to last ms), in the order they were taken. */
     fun photos(day: LongRange): Flow<List<com.villamediana.fio.mind.Photo>> =
         db.captures().observePhotos(day.first, day.last).map { list -> list.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+
+    /** The sounds kept that go with [entry] (see [Sounds]), the oldest first. */
+    fun sounds(entry: Entry): Flow<List<Capture>> =
+        db.captures().observeSounds()
+            .map { list -> list.filter { Sounds.goesWith(it, entry) && java.io.File(it.audioPath!!).isFile } }
+            .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     /** Every photo kept, the newest first. */
     fun allPhotos(): Flow<List<com.villamediana.fio.mind.Photo>> =

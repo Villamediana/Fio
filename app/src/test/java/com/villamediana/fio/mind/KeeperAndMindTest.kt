@@ -235,6 +235,36 @@ class KeeperAndMindTest {
         m.cancelListening()
     }
 
+    @Test
+    fun aSoundWorthKeepingStaysWithWhatCameOfIt() = runBlocking {
+        val ears = FakeEars("lembra dessa música que eu inventei")
+        val sung = """{"reply":"Guardei a música.","create":[{"kind":"note","title":"Música que eu inventei"}],"keep_audio":true}"""
+        val plain = """{"reply":"Anotei.","create":[{"kind":"task","title":"Comprar pão"}]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(sung, plain)))
+        var n = 0
+        val rec = FakeRecorder { voiceFile().also { n++ }.let { f -> File(tmp.root, "v$n.wav").also { f.renameTo(it) } } }
+        val m = mind(ears, thinker, recorder = rec)
+
+        assertTrue(m.startListening(locked = true))
+        m.stopListening()
+        answered(m)
+        m.dismiss()
+        val kept = db.backup().captures().single()
+        assertTrue(kept.sound)
+        assertTrue(File(kept.audioPath!!).isFile)
+        val note = db.entries().all().single()
+        assertEquals(listOf(kept.id), com.villamediana.fio.data.Library(db, Synced()).sounds(note).first().map { it.id })
+
+        // Where the words are enough, the recording goes.
+        assertTrue(m.startListening(locked = true))
+        m.stopListening()
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        val other = db.backup().captures().first { it.id != kept.id }
+        assertTrue(!other.sound)
+        assertNull(other.audioPath)
+        assertTrue(!File(tmp.root, "v2.wav").exists())
+    }
+
     /** A model that hangs and doesn't listen to anything (like a native call that won't come back). */
     private class StuckThinker(val reply: String) : Thinker {
         @Volatile var stuck = true

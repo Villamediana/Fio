@@ -212,6 +212,35 @@ class BackupTest {
     }
 
     @Test
+    fun aSoundKeptGoesWithItsItemAndComesBack() = runBlocking {
+        val note = db.entries().insert(Entry(kind = "note", title = "Música que eu inventei", createdAt = now, updatedAt = now))
+        val wav = File(app, "voice-9.wav").apply { writeBytes(ByteArray(3000) { it.toByte() }) }
+        val sung = db.captures().insert(
+            Capture(
+                createdAt = now, source = "voice", audioPath = wav.path, sound = true, durationMs = 2000, transcript = "lá lá lá", state = Capture.DONE,
+                outcomes = """[{"entryId":$note,"action":"created"}]""",
+            ),
+        )
+        db.entries().update(db.entries().get(note)!!.copy(captureId = sung))
+        val b = backup()
+        val saved = b.save(root, "k")
+        assertEquals(1, saved.sounds)
+        val rel = "Áudios/2026/2026-11-11 14.32.05 ($sung).wav"
+        assertEquals(3000L, File(home, rel).length())
+        assertTrue(File(home, "Áudios/.nomedia").isFile)
+        val md = File(home, "Notas/Música que eu inventei.md").readText()
+        assertTrue(md, md.contains("[Áudio](../Áudios/2026/2026-11-11%2014.32.05%20%28$sung%29.wav)"))
+
+        // Gone from the phone, back with the import.
+        wav.delete()
+        val restored = b.restore(root, "k", b.kept(root).single().name)
+        assertEquals(1, restored.sounds)
+        val back = db.captures().get(sung)!!
+        assertTrue(back.sound)
+        assertEquals(3000L, File(back.audioPath!!).length())
+    }
+
+    @Test
     fun aBrokenOrNewerSnapshotIsNotImported() = runBlocking {
         aDay()
         val b = backup()

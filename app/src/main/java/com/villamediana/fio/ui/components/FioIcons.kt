@@ -11,6 +11,8 @@ object FioIcons {
     val PhotoCamera: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_photo_camera)
     val FlipCamera: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flip_camera)
     val Rotate: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_rotate)
+    val Play: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_play)
+    val Pause: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_pause)
     val Gallery: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_gallery)
     val Upload: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_upload)
     val Tune: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_tune)

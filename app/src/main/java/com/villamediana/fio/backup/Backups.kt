@@ -67,7 +67,7 @@ class Backups(
         _busy.value = SAVING
         return try {
             val r = core.save(root(folder), key = folder)
-            settings.setBackupDone(System.currentTimeMillis(), if (r.empty) "nada pra guardar ainda" else note(r.entries, r.photos))
+            settings.setBackupDone(System.currentTimeMillis(), if (r.empty) "nada pra guardar ainda" else note(r.entries, r.photos, r.sounds))
             true
         } catch (e: Throwable) {
             settings.setBackupFailed(message(e))
@@ -115,9 +115,10 @@ class Backups(
         const val SAVING = "Fazendo o backup…"
         const val IMPORTING = "Importando…"
 
-        fun note(entries: Int, photos: Int): String = buildString {
+        fun note(entries: Int, photos: Int, sounds: Int = 0): String = buildString {
             append(if (entries == 1) "1 item" else "$entries itens")
             if (photos > 0) append(" · ").append(if (photos == 1) "1 foto" else "$photos fotos")
+            if (sounds > 0) append(" · ").append(if (sounds == 1) "1 áudio" else "$sounds áudios")
         }
     }
 }

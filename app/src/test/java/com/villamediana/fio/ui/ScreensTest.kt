@@ -263,6 +263,33 @@ class ScreensTest {
     }
 
     @Test
+    fun aSoundKeptPlaysInItsItem() {
+        seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val wav = File(File(context.filesDir, "captures").apply { mkdirs() }, "voice-sung.wav")
+        com.villamediana.fio.audio.Wav.write(wav, FloatArray(com.villamediana.fio.audio.Wav.RATE * 3) { i ->
+            (kotlin.math.sin(i / 9.0) * (0.2 + 0.6 * kotlin.math.abs(kotlin.math.sin(i / 4000.0)))).toFloat()
+        })
+        val note = runBlocking {
+            val id = graph.db.entries().insert(com.villamediana.fio.data.Entry(kind = "note", title = "Música que eu inventei", body = "A do caminho de casa.", createdAt = now, updatedAt = now))
+            val c = graph.db.captures().insert(
+                com.villamediana.fio.data.Capture(
+                    createdAt = now, source = "voice", audioPath = wav.path, sound = true, durationMs = 3000, transcript = "lá lá lá",
+                    state = com.villamediana.fio.data.Capture.DONE, outcomes = """[{"entryId":$id,"action":"created"}]""",
+                ),
+            )
+            graph.db.entries().update(graph.db.entries().get(id)!!.copy(captureId = c))
+            id
+        }
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.entry.EntryScreen(nav, note) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Ouvir o áudio").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("0:03").assertExists()
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("27-entry-sound")
+    }
+
+    @Test
     fun theGalleryHasEveryPhotoAndTheSearchFindsThemByWhatTheyShow() {
         seed()
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()

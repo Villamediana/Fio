@@ -32,6 +32,8 @@ data class Plan(
     @SerialName("show_photos") val showPhotos: List<Long> = emptyList(),
     /** The photo just taken: what can be seen in it, in her words — what the search finds it by later. */
     @SerialName("photo_description") val photoDescription: String? = null,
+    /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
+    @SerialName("keep_audio") val keepAudio: Boolean = false,
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
@@ -112,6 +114,7 @@ Como preencher:
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - photo_description: quando ela tirou uma foto, descreva o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
 - A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
+- keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
 - Deixe de fora os campos vazios ou null: a resposta fica curta.
@@ -124,7 +127,8 @@ Responda somente com um objeto JSON neste formato:
  "period": {"from": null, "to": null},
  "show": [],
  "show_photos": [],
- "photo_description": null}
+ "photo_description": null,
+ "keep_audio": false}
 """.trim()
 
     /**
