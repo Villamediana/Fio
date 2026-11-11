@@ -101,6 +101,8 @@ class Keeper(
                 e = e.copy(steps = Steps.write(steps))
             }
             change.title?.takeIf { it.isNotBlank() }?.let { e = e.copy(title = it.trim().take(140)) }
+            // What she said changed what the item is: its text written again.
+            change.body?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = it.trim()) }
             // One text per item: what is new joins it (no history kept apart that says the same again).
             change.append?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = if (e.kindEnum == Kind.DIARY) DayDiary.merge(e.body, it) else joined(e.body, it)) }
             Brain.time(change.due, z)?.let { (ms, hasTime) -> e = e.copy(dueAt = ms, dueHasTime = hasTime) }

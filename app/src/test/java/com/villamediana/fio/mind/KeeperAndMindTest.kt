@@ -639,4 +639,13 @@ class KeeperAndMindTest {
         // The first thing said has nothing before it.
         assertTrue(!thinker.prompts[0].contains("ANTES DISSO"))
     }
+
+    @Test
+    fun whatChangesWhatATaskIsRewritesItsText() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Fluxo de aprovação", body = "No Power Automate.", status = "todo", createdAt = now, updatedAt = now))
+        keeper().apply(Brain.parse("""{"update":[{"id":$id,"body":"No Power Apps, com tela de aprovação.","title":"App de aprovação"}]}""")!!, null)
+        val e = db.entries().get(id)!!
+        assertEquals("No Power Apps, com tela de aprovação.", e.body)
+        assertEquals("App de aprovação", e.title)
+    }
 }
