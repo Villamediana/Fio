@@ -38,8 +38,8 @@ android {
         applicationId = "com.villamediana.fio"
         minSdk = 29
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.12.0"
+        versionCode = 17
+        versionName = "1.13.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         // Phones only (ML Kit's OCR alone ships ~11 MB per ABI).
