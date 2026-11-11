@@ -227,6 +227,8 @@ fun SettingsScreen(nav: Nav) {
                 },
             )
 
+            BackupBlock()
+
             SectionLabel("Sobre")
             val updateLine: (@Composable () -> Unit)? = if (graph.updates.enabled) ({ UpdateRow() }) else null
             Group(
@@ -351,7 +353,7 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State) {
 
 /** A row of a block: the name (and a word under it) on the left, the control on the right. */
 @Composable
-private fun Line(
+internal fun Line(
     title: String,
     subtitle: String? = null,
     subtitleColor: Color = FioColors.TextMuted,

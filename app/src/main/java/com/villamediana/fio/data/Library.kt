@@ -1,5 +1,6 @@
 package com.villamediana.fio.data
 
+import androidx.room.withTransaction
 import com.villamediana.fio.mind.Recall
 import com.villamediana.fio.mind.ReminderSync
 import com.villamediana.fio.mind.Steps
@@ -24,6 +25,42 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
 
     /** Whether [entryId] is the day's diary (the newest of [day]) — the one that shows the day's photos. */
     suspend fun isDayDiary(entryId: Long, day: LongRange): Boolean = db.entries().diariesBetween(day.first, day.last).firstOrNull()?.id == entryId
+
+    /**
+     * One diary a day: days with more than one (from before the rule, or a model that made another)
+     * become one — the first of the day, with what the others told that it didn't, their topics
+     * and links. Runs on opening and after an import; a day already single is left alone.
+     */
+    suspend fun joinDayDiaries(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) = db.withTransaction {
+        val diaries = db.entries().all().filter { it.kindEnum == Kind.DIARY }
+        val days = diaries.groupBy { com.villamediana.fio.mind.DayDiary.bounds(it.createdAt, zone).first }.values.filter { it.size > 1 }
+        if (days.isEmpty()) return@withTransaction
+        val ties = db.graph().allTies()
+        val links = db.graph().allLinks()
+        for (list in days) {
+            val ordered = list.sortedWith(compareBy<Entry>({ it.createdAt }, { it.id }))
+            val keep = ordered.first()
+            val others = ordered.drop(1)
+            var body = keep.body
+            others.forEach { body = com.villamediana.fio.mind.DayDiary.merge(body, it.body) }
+            val title = if (keep.body.isBlank()) others.firstOrNull { it.body.isNotBlank() }?.title ?: keep.title else keep.title
+            db.entries().update(keep.copy(title = title, body = body, updatedAt = maxOf(keep.updatedAt, others.maxOf { it.updatedAt })))
+            val gone = others.map { it.id }.toSet()
+            ties.filter { it.entryId in gone }.forEach { db.graph().tie(EntryTopic(keep.id, it.topicId)) }
+            links.filter { it.a in gone || it.b in gone }.forEach { l ->
+                val a = if (l.a in gone) keep.id else l.a
+                val b = if (l.b in gone) keep.id else l.b
+                if (a != b) db.graph().link(Link(minOf(a, b), maxOf(a, b)))
+            }
+            gone.forEach { db.entries().delete(it) }
+        }
+    }
+
+    /** A photo a quarter turn to the right (kept with it, the file untouched). */
+    suspend fun turnPhoto(captureId: Long) {
+        val c = db.captures().get(captureId) ?: return
+        db.captures().update(c.copy(turn = (c.turn + 90) % 360))
+    }
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 

@@ -83,6 +83,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `data/` | Room: `entries`, `captures`, `entities`, `entry_topics`, `links`, `progress`; `Library` (ações da UI) |
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
+| `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
 | `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Fio` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
@@ -108,6 +109,68 @@ aí as duas coisas: o item recebe só o que muda pra ele, o diário o relato int
 `Brain.todaysDiary` (o mais novo criado hoje) vai no contexto como `DIÁRIO DE HOJE` (texto inteiro,
 fora das outras listas) e o relato entra nele por `update.append` — parágrafo novo no fim, sem mexer
 no que já está nem no título; sem diário hoje, cria.
+
+Galeria (1.14.0): ao lado da câmera, na tela principal, o ícone da galeria abre o seletor de fotos do
+Android (`PickMultipleVisualMedia`, só imagens, quantas ela quiser — o app não põe limite). Cada foto é
+copiada pra filesDir/captures (a da galeria fica onde está) e vai pelo mesmo caminho da foto tirada no
+app (`Mind.photos`, uma depois da outra, na ordem escolhida). A data é a de quando foi tirada: o EXIF
+(`PhotoDate`, DateTimeOriginal com o fuso dele quando há), senão a data da galeria (MediaStore), senão
+agora — então a foto cai no diário daquele dia e na busca por período. Quando é de outro dia, o
+contexto diz `O QUE ESTÁ NA FOTO (TIRADA EM …)` pro modelo não tratar como coisa de hoje.
+
+Mais na 1.14.0:
+
+- **Mosaico** (`ui/components/Mosaic`): fotos da mesma câmera têm todas o mesmo formato, então cada uma
+  ganha um formato pelo lugar (`Mosaic.shape`, recorte) e as linhas vão de ponta a ponta com larguras
+  diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
+- **Descrição só pra busca**: `Capture.description` nunca aparece na tela; o prompt diz que o que se vê na
+  foto não vai pro diário nem pra item (a foto já está no diário do dia).
+- **Girar**: no visualizador, um menu leve embaixo gira a foto um quarto pra direita, com animação e escala
+  que acompanha; o giro fica em `captures.turn` (banco v5) e o arquivo não é mexido (`uprightBitmap(turn)`).
+- **Câmera da frente**: botão ao lado do disparador quando o celular tem as duas; sem flash na da frente.
+- **Um diário por dia de verdade**: criar diário num dia que já tem vira continuação (`Keeper`); só entra
+  parágrafo novo, e o dia contado de novo do começo toma o lugar (`DayDiary.merge`, vale pro append de
+  diário). Dias que ficaram com dois viram um ao abrir o app e depois de importar (`Library.joinDayDiaries`).
+- **ANTES DISSO**: o contexto leva a última conversa (o que ela disse, a resposta, os itens com id) pra
+  "essa tarefa" ter referência; o prompt diz que é só pra entender, nunca pra criar de novo.
+- **Etapas**: notícia de tarefa se divide — a fazer vira `add_steps`, feito vai em `steps_done`/`status`,
+  o que completa vai em `append`, o que muda a tarefa reescreve `update.body`. Nada em dois lugares.
+- **Deslize**: a inclinação da tela principal volta a zero sempre que o dedo solta (antes ficava torta
+  quando ela voltava antes do fim da animação e a mesma tela era reaproveitada).
+
+## Backup (1.14.0)
+
+Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
+com `takePersistableUriPermission`) e o backup vai pra `<pasta>/Fio` (ou pra própria pasta, se ela já se
+chama Fio ou já tem `Backups/`). Ao escolher, faz um na hora; depois sozinho (`BackupWorker`, WorkManager,
+Diário ou Semanal, com bateria e espaço; "Não" desliga). "Fazer agora" e o resultado do último ficam na
+mesma linha.
+
+```
+Fio/
+  Diário/2026/2026-11-11.md        um por diário, com as fotos do dia (links relativos)
+  Notas/<título>.md
+  Tarefas/Abertas/<título>.md      status, prazo, lembrete, etapas [x]/[ ]
+  Tarefas/Feitas/<título>.md
+  Fotos/2026/<data hora> (<id>).jpg   + .nomedia (a galeria do celular não mostra cópias)
+  Backups/fio 2026-11-11 14.32.05.json   tudo, com os ids: é o que o importar lê
+```
+
+- `backup/Backup.kt` (testável com `FileShelf`): lê tudo numa transação (`BackupDao`), copia as fotos
+  que faltam (pelo tamanho), escreve só o Markdown que mudou (hash guardado em filesDir/backup-state.json),
+  apaga o `.md` de item que sumiu e grava um snapshot novo só quando algo mudou; ficam os 30 últimos.
+  Fotos nunca saem da pasta (snapshots antigos apontam pra elas). App vazio não escreve nada: instalação
+  nova nunca cobre um backup bom. Fala ainda não ouvida (só o áudio) não vai.
+- `backup/Shelf.kt`: a pasta. `TreeShelf` vai direto no `DocumentsContract` (uma consulta por pasta; o
+  `DocumentFile` perguntaria o nome de cada arquivo), cria como octet-stream pra nenhum provedor trocar a
+  extensão e escreve com "wt".
+- Importar: lista os snapshots da pasta (o mais novo primeiro), mostra quantos itens/fotos tem e troca
+  tudo pelo escolhido, com os mesmos ids. Antes, o que está no app vira um backup na mesma pasta (dá pra
+  voltar). Só com o Fio parado (`Mind.idle`); fotos copiadas antes de mexer no banco, lembretes
+  refeitos (`ReminderSync`), e o Markdown segue o que voltou. Snapshot de versão mais nova (`format`)
+  ou estragado não entra.
+- As entidades do Room são `@Serializable`: o snapshot é o próprio banco em JSON (campos com padrão, chaves
+  desconhecidas ignoradas).
 
 ## Economia (1.13.0)
 

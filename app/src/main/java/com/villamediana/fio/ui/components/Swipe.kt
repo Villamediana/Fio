@@ -34,7 +34,7 @@ fun swipeGoes(dx: Float, velocity: Float, density: Density): Int = with(density)
  * The whole screen as a place on a line: a swipe to the left ([onLeft], the finger goes left) or
  * to the right ([onRight]) takes you to the neighbor. Whatever a child takes for itself (the
  * button, a list scrolling up and down) is not a swipe. [follow] gets how far the content may
- * lean with the finger while dragging, and goes back to 0 if the swipe was not enough.
+ * lean with the finger while dragging, and goes back to 0 when the finger lets go.
  */
 fun Modifier.swipeNav(onLeft: (() -> Unit)?, onRight: (() -> Unit)?, follow: MutableFloatState? = null): Modifier = composed {
     val scope = rememberCoroutineScope()
@@ -55,7 +55,10 @@ fun Modifier.swipeNav(onLeft: (() -> Unit)?, onRight: (() -> Unit)?, follow: Mut
                     1 -> right
                     else -> null
                 }
-                if (go != null) go() else settle()
+                // Gone or not, the lean goes back: a screen reused on the way back (she returned
+                // before its way out ended) must not stay off-center.
+                go?.invoke()
+                settle()
             },
             onDragCancel = { settle() },
         ) { change, amount ->

@@ -15,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -92,6 +93,7 @@ import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.mind.Recall
 import com.villamediana.fio.ui.entry.PhotoRow
+import com.villamediana.fio.ui.components.Mosaic
 import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.mind.PhotoRecall
 import com.villamediana.fio.mind.Photo
@@ -510,18 +512,23 @@ private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<
     }
 }
 
-/** The day's photos, small, on its diary card: up to four, the last one saying how many more. */
+/** The day's photos on its diary card: one row of different widths (up to four), the last saying how many more. */
 @Composable
 private fun DayThumbs(photos: List<Photo>) {
-    val shown = photos.take(MAX_THUMBS)
-    val more = photos.size - shown.size
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        shown.forEachIndexed { i, p ->
-            Box(Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))) {
-                PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 240)
-                if (i == shown.lastIndex && more > 0) {
-                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.42f)), contentAlignment = Alignment.Center) {
-                        Text("+$more", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White)
+    val aspects = com.villamediana.fio.ui.components.rememberAspects(photos.take(MAX_THUMBS), min = Mosaic.MIN, max = Mosaic.MAX) ?: return
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 6.dp
+        val shapes = photos.take(MAX_THUMBS).mapIndexed { i, p -> Mosaic.shape(i, aspects[p.id] ?: 1f) }
+        val (n, h) = remember(shapes, maxWidth) { Mosaic.strip(shapes, maxWidth.value, gap.value, min = 52f, cap = 96f, max = MAX_THUMBS) }
+        val more = photos.size - n
+        Row(Modifier.height(h.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+            photos.take(n).forEachIndexed { i, p ->
+                Box(Modifier.width((h * shapes[i]).dp).fillMaxHeight().clip(RoundedCornerShape(14.dp))) {
+                    PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 320, turn = p.turn)
+                    if (i == n - 1 && more > 0) {
+                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.42f)), contentAlignment = Alignment.Center) {
+                            Text("+$more", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White)
+                        }
                     }
                 }
             }

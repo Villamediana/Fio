@@ -68,12 +68,17 @@ data class Change(
     val title: String? = null,
     /** What is new about it ("falei com o fornecedor, manda amanhã"), joined to its text: an item is one text. */
     val append: String? = null,
+    /** Its whole text again, when what she said changes what the item is. */
+    val body: String? = null,
     val due: String? = null,
     @SerialName("remind_at") val remindAt: String? = null,
     @SerialName("check_in_at") val checkInAt: String? = null,
     val entities: List<NamedTopic> = emptyList(),
     val delete: Boolean = false,
 )
+
+/** The last exchange: what she said (or that it was a photo), Fio's answer, the items it made or changed ("criado"…). */
+data class Before(val at: Long, val said: String, val reply: String, val photo: Boolean = false, val items: List<Pair<Entry, String>> = emptyList())
 
 /** The model's side of Fio: the instructions, the context it sees, and reading what it answers. */
 object Brain {
@@ -86,8 +91,13 @@ Numa mesma fala pode haver várias coisas:
 - diário (diary): um relato do dia — o que viveu, fez, sentiu, o que está acontecendo com ela. Todo relato assim vai pro diário, mesmo quando também traz coisas a fazer ou a guardar, ou é notícia de algo que já existe: aí faça as duas coisas — o diário com o relato e, além dele, as tarefas/notas ou o "update" do item. O diário é um por dia: se há DIÁRIO DE HOJE, o relato entra nele em "update" com "append" — um parágrafo novo no fim, sem mudar o que já está escrito nem o título; se não há, crie o diário do dia.
 
 Ela também pode:
-- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie outro igual a ele. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele e só o que muda pra ele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status". Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
-- corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
+- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes, mais coisas a fazer): atualize o item existente pelo id em "update", não crie outro igual a ele. Decida onde cada parte vai, e nada vai em dois lugares:
+  · o que ainda precisa ser feito pra tarefa andar — um passo, uma ação dela ou de outra pessoa — é etapa: "add_steps", curta, começando pela ação;
+  · etapa que ela já fez vai em "steps_done"; a tarefa inteira feita, "status": "done"; outra mudança de situação, só "status";
+  · o que completa a tarefa sem ser algo a fazer (o que aconteceu, o que decidiu, um dado) vai em "append": só o que ainda não está no texto, escrito como continuação dele;
+  · se o que ela diz muda o que a tarefa é, reescreva o texto inteiro em "body" (e o "title", se preciso).
+  Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
+- corrigir, completar ou desfazer o que acabou de falar, ou se referir ao que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS e em ANTES DISSO (a última conversa); mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro. ANTES DISSO serve só pra entender a que ela se refere: o que está ali já foi guardado — nunca crie de novo nem leve de novo pro diário.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem e em "show_photos" os números das fotos (foto#N) que respondem. Pergunta não cria item.
 
 Como preencher:
@@ -100,7 +110,8 @@ Como preencher:
 - sensitive: true para senhas, números de documento, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
-- photo_description: quando ela tirou uma foto, descreva o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado.
+- photo_description: quando ela tirou uma foto, descreva o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
+- A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
 - Deixe de fora os campos vazios ou null: a resposta fica curta.
@@ -108,7 +119,7 @@ Como preencher:
 Responda somente com um objeto JSON neste formato:
 {"reply": "...",
  "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": []}],
- "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
+ "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "body": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
  "search": [],
  "period": {"from": null, "to": null},
  "show": [],
@@ -133,6 +144,10 @@ Responda somente com um objeto JSON neste formato:
         typed: Boolean = false,
         diary: Entry? = null,
         photos: List<Photo> = emptyList(),
+        /** A photo: when it was taken (one from the gallery may be from another day). */
+        takenAt: Long? = null,
+        /** The last thing she said before this, and what came of it: what "isso", "essa tarefa" refer to. */
+        before: Before? = null,
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -179,11 +194,19 @@ Responda somente com um objeto JSON neste formato:
             // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
             append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
         }
+        if (before != null) {
+            append("\nANTES DISSO (a última conversa, ").append(stamp(before.at, zone)).append("):\n")
+            append("ela: ").append(if (before.photo) "(mandou uma foto)" else "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\"").append('\n')
+            if (before.reply.isNotBlank()) append("você: \"").append(before.reply.trim().take(BEFORE_REPLY)).append("\"\n")
+            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) -> append(what).append(": ").append(line(e, zone, now)).append('\n') }
+        }
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
         append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
+        val takenOn = takenAt?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zone) }?.takeIf { it.toLocalDate() != at.toLocalDate() }
         append(
             when {
+                photo && takenOn != null -> "\nO QUE ESTÁ NA FOTO (TIRADA EM " + takenOn.dayOfWeek.getDisplayName(TextStyle.FULL, PT) + ", " + takenOn.format(STAMP) + "):\n"
                 photo -> "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n"
                 typed -> "\nO QUE ELA ESCREVEU:\n"
                 else -> "\nO QUE ELA DISSE:\n"
@@ -314,6 +337,9 @@ ws     ::= [ \t\n]{0,20}
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
     private const val MAX_PHOTOS = 12
+    private const val BEFORE_SAID = 400
+    private const val BEFORE_REPLY = 200
+    private const val MAX_BEFORE_ITEMS = 6
     private const val FOCUS_BODY = 800
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

@@ -541,4 +541,111 @@ class KeeperAndMindTest {
         assertEquals(Capture.RECORDED, db.captures().get(id)!!.state)
         assertEquals(1, withTimeout(5_000) { m.pending.first { it == 1 } })
     }
+
+    @Test
+    fun photosFromTheGalleryGoOneByOneEachOnTheDayItWasTaken() = runBlocking {
+        val seen = """{"reply":"Guardei.","photo_description":"praia"}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(seen, seen)))
+        val m = mind(FakeEars(""), thinker, photos = ReadsText("Ubatuba"))
+        val lastWeek = LocalDateTime.of(2026, 11, 4, 16, 20).atZone(zone).toInstant().toEpochMilli()
+        val first = tmp.newFile("g1.jpg")
+        val second = tmp.newFile("g2.jpg")
+        m.photos(listOf(first to lastWeek, second to now))
+        // Done when nothing is going through or waiting (what an import waits for).
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle || db.captures().unfinished().isNotEmpty()) kotlinx.coroutines.delay(20) }
+        val kept = db.captures().allPhotos().sortedBy { it.id }
+        assertEquals(listOf(first.path, second.path), kept.map { it.imagePath }) // in the order picked
+        assertEquals(listOf(lastWeek, now), kept.map { it.createdAt })
+        // Each one is its day's: last week's day gets its diary, and the model knows when it was taken.
+        val thatDay = DayDiary.bounds(lastWeek, zone)
+        assertEquals("Quarta-feira, 4 de novembro", db.entries().diariesBetween(thatDay.first, thatDay.last).single().title)
+        assertTrue(thinker.prompts[0], thinker.prompts[0].contains("O QUE ESTÁ NA FOTO (TIRADA EM quarta-feira, 2026-11-04 16:20):"))
+        assertTrue(thinker.prompts[1], thinker.prompts[1].contains("O QUE ESTÁ NA FOTO QUE ELA TIROU:"))
+    }
+
+    @Test
+    fun theCameraDateOfAPhotoIsReadWithItsOffset() {
+        val utc = ZoneId.of("UTC")
+        assertEquals(
+            LocalDateTime.of(2026, 11, 7, 13, 15, 30).atZone(utc).toInstant().toEpochMilli(),
+            PhotoDate.parse("2026:11:07 10:15:30", "-03:00", utc),
+        )
+        // No offset written: the phone's own zone.
+        assertEquals(
+            LocalDateTime.of(2026, 11, 7, 10, 15, 30).atZone(zone).toInstant().toEpochMilli(),
+            PhotoDate.parse("2026:11:07 10:15:30", null, zone),
+        )
+        assertNull(PhotoDate.parse("0000:00:00 00:00:00", null, zone))
+        assertNull(PhotoDate.parse("", null, zone))
+        assertNull(PhotoDate.parse(null, null, zone))
+        assertNull(PhotoDate.of(File(tmp.root, "nada.jpg"), zone))
+    }
+
+    @Test
+    fun anotherDiaryTheSameDayGoesOnInTheOneThereIs() = runBlocking {
+        val morning = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
+        // The model made a new diary with the morning again and something new.
+        keeper().apply(Brain.parse("""{"create":[{"kind":"diary","title":"Una mañana interesante","body":"Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto."}]}""")!!, null)
+        val day = DayDiary.bounds(now, zone)
+        val diaries = db.entries().diariesBetween(day.first, day.last)
+        assertEquals(listOf(morning), diaries.map { it.id })
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto.", diaries.single().body)
+        // Told again from the start with more: it takes the place (nothing doubled).
+        keeper().apply(Brain.parse("""{"update":[{"id":$morning,"append":"Al final encontré a Alma en el aeropuerto."}]}""")!!, null)
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto.", db.entries().get(morning)!!.body)
+    }
+
+    @Test
+    fun daysLeftWithTwoDiariesBecomeOne() = runBlocking {
+        val a = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
+        val b = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.\n\nAl final encontré a Alma.", createdAt = now, updatedAt = now))
+        val other = db.entries().insert(Entry(kind = "diary", title = "Ontem", body = "Outro dia.", createdAt = now - 86_400_000, updatedAt = now))
+        val task = db.entries().insert(Entry(kind = "task", title = "Buscar a Alma", status = "done", createdAt = now, updatedAt = now))
+        val topic = db.graph().insertTopic(com.villamediana.fio.data.Topic(name = "Alma", norm = "alma", type = "person"))
+        db.graph().tie(com.villamediana.fio.data.EntryTopic(b, topic))
+        db.graph().link(com.villamediana.fio.data.Link(minOf(b, task), maxOf(b, task)))
+        com.villamediana.fio.data.Library(db, Synced(), clock = { now }).joinDayDiaries(zone)
+        assertNull(db.entries().get(b))
+        val kept = db.entries().get(a)!!
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma.", kept.body)
+        assertEquals(listOf("Alma"), db.graph().topicsOf(a).map { it.name })
+        assertEquals(listOf(com.villamediana.fio.data.Link(minOf(a, task), maxOf(a, task))), db.graph().allLinks())
+        assertNotNull(db.entries().get(other)) // another day stays as it is
+    }
+
+    @Test
+    fun theLastConversationGoesAlongSoThatTaskIsKnown() = runBlocking {
+        // First: a task is made.
+        val made = """{"reply":"Anotei a tarefa do fluxo.","create":[{"kind":"task","title":"Criar fluxo no Power Automate"}]}"""
+        val then = """{"reply":"Anotei a etapa.","update":[{"id":1,"add_steps":["Falar com o Vinícius"]}]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made, then)))
+        val m = mind(FakeEars(""), thinker)
+        m.write("preciso criar um fluxo no Power Automate")
+        answered(m)
+        m.dismiss()
+        val task = db.entries().all().single { it.kindEnum == com.villamediana.fio.data.Kind.TASK }
+        // Then, about "that task": the previous turn is in the context, with the task's id.
+        m.write("da tarefa do fluxo, preciso falar com o Vinícius")
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        val prompt = thinker.prompts[1]
+        assertTrue(prompt, prompt.contains("ANTES DISSO (a última conversa, "))
+        assertTrue(prompt, prompt.contains("ela: \"preciso criar um fluxo no Power Automate\""))
+        assertTrue(prompt, prompt.contains("você: \"Anotei a tarefa do fluxo.\""))
+        assertTrue(prompt, prompt.contains("criado: #${task.id} tarefa[todo]"))
+        // The step went to the task's steps, not to its text.
+        val after = db.entries().get(task.id)!!
+        assertEquals(listOf("Falar com o Vinícius"), Steps.read(after.steps).map { it.text })
+        assertEquals("", after.body)
+        // The first thing said has nothing before it.
+        assertTrue(!thinker.prompts[0].contains("ANTES DISSO"))
+    }
+
+    @Test
+    fun whatChangesWhatATaskIsRewritesItsText() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Fluxo de aprovação", body = "No Power Automate.", status = "todo", createdAt = now, updatedAt = now))
+        keeper().apply(Brain.parse("""{"update":[{"id":$id,"body":"No Power Apps, com tela de aprovação.","title":"App de aprovação"}]}""")!!, null)
+        val e = db.entries().get(id)!!
+        assertEquals("No Power Apps, com tela de aprovação.", e.body)
+        assertEquals("App de aprovação", e.title)
+    }
 }

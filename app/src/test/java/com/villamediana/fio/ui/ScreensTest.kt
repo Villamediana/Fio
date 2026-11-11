@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.geometry.Offset
@@ -149,6 +150,9 @@ class ScreensTest {
         // 1. Idle.
         compose.setContent { FioTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
         compose.onNodeWithText("O que está na sua cabeça?").assertExists()
+        // Next to the camera, the gallery.
+        compose.onNodeWithContentDescription("Câmera").assertExists()
+        compose.onNodeWithContentDescription("Galeria").assertExists()
         shot("01-home-idle")
 
         // 2. Something said goes through the API and comes back organized.
@@ -232,7 +236,16 @@ class ScreensTest {
             }
         }
         val nav = Nav()
-        compose.setContent { FioTheme(ThemeMode.LIGHT) { EntryScreen(nav, ids["diary"]!!) } }
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Entry(ids["diary"]!!))
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                when (val s = screen.value) {
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    else -> Unit
+                }
+            }
+        }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("day-photo-0").fetchSemanticsNodes().isNotEmpty() }
         // Today's three slide sideways (yesterday's belongs to yesterday's diary).
         val row = compose.onNodeWithTag("day-photo-row").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo]
@@ -246,6 +259,11 @@ class ScreensTest {
         shot("21-photo-viewer")
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
+        // On the diary's card, the day's photos in a strip of different widths.
+        screen.value = Screen.Library(Filter.DIARY)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("25-diary-card-photos")
     }
 
     @Test
@@ -277,8 +295,14 @@ class ScreensTest {
         shot("22-gallery")
         compose.onNodeWithTag("gallery-photo-0").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
-        // Under the photo, what it shows.
-        compose.onNodeWithText("Pôr do sol na praia de Itacaré, céu laranja").assertExists()
+        // What it shows is only for the search: never under the photo.
+        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isEmpty())
+        // The light menu under it turns the photo, and the turn stays with it.
+        compose.onAllNodesWithContentDescription("Girar")[0].performClick() // the page next to it is drawn too
+        compose.mainClock.advanceTimeBy(600)
+        val turned = runBlocking { withTimeout(5_000) { graph.db.captures().allPhotos().first { it.imagePath!!.endsWith("gallery-test-0.jpg") }.let { c -> while (graph.db.captures().get(c.id)!!.turn != 90) kotlinx.coroutines.delay(20); graph.db.captures().get(c.id)!! } } }
+        assertEquals(90, turned.turn)
+        shot("24-viewer-turned")
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
 
@@ -329,6 +353,25 @@ class ScreensTest {
     }
 
     @Test
+    fun homeComesBackToTheMiddleAfterASwipe() {
+        val nav = Nav()
+        // The main screen kept on (as when she comes back before its way out ended).
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        compose.onRoot().performTouchInput {
+            val y = height * 0.72f
+            swipe(Offset(width * 0.85f, y), Offset(width * 0.15f, y), durationMillis = 250)
+        }
+        compose.waitUntil(3_000) { nav.top is Screen.Library }
+        compose.waitForIdle()
+        nav.back()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val hint = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot
+        assertEquals(root.center.x, hint.center.x, 2f)
+    }
+
+    @Test
     fun theme() {
         val nav = Nav()
         // (mode, accent, the main screen instead of Tema)
@@ -345,6 +388,29 @@ class ScreensTest {
         look.value = Triple(ThemeMode.DARK, "graphite", true)
         compose.mainClock.advanceTimeBy(600)
         shot("16-home-dark-graphite")
+    }
+
+    @Test
+    fun backupInSettings() {
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
+        // No folder yet: one line to choose it, and the import.
+        compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
+        assertTrue(compose.onAllNodesWithText("Automático").fetchSemanticsNodes().isEmpty())
+        runBlocking {
+            graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Fio")
+            graph.settings.setBackupDone(System.currentTimeMillis(), "120 itens · 34 fotos")
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Fio").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Importar backup").performScrollTo()
+        compose.onNodeWithText("Automático").assertExists()
+        compose.onNodeWithText("Diário").assertExists()
+        assertTrue(compose.onAllNodesWithText("último: hoje", substring = true).fetchSemanticsNodes().isNotEmpty())
+        compose.mainClock.advanceTimeBy(500)
+        shot("18-settings-backup")
+        runBlocking {
+            graph.settings.setBackupFolder("", "")
+        }
     }
 
     @Test

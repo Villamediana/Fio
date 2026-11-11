@@ -27,6 +27,7 @@ import com.villamediana.fio.FioApplication
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.mind.DayDiary
 import com.villamediana.fio.mind.Photo
+import com.villamediana.fio.ui.components.Mosaic
 import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.ui.components.PhotoViewer
 import com.villamediana.fio.ui.components.bleed
@@ -51,21 +52,23 @@ internal fun DayPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
     PhotoRow(photos, side, modifier.padding(top = 22.dp))
 }
 
-/** A sideways row of [photos] at [height], each as wide as its shape asks; [side] = the page's own margin. */
+/** A sideways row of [photos] at [height], of different widths (see [Mosaic]); [side] = the page's own margin. */
 @Composable
 internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
-    val aspects = rememberAspects(photos, min = 0.62f, max = 1.6f) ?: return
+    val aspects = rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
     LazyRow(
         modifier.bleed(side).fillMaxWidth().testTag("$tag-row"),
         contentPadding = PaddingValues(horizontal = side),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
-            val ratio = aspects[p.id] ?: 1f
+            // Different widths, even for photos all of one shape.
+            val ratio = Mosaic.shape(i, aspects[p.id] ?: 1f)
             PhotoTile(
                 p.path,
-                Modifier
+                turn = p.turn,
+                modifier = Modifier
                     .height(height)
                     .width(height * ratio)
                     .clip(RoundedCornerShape(20.dp))
