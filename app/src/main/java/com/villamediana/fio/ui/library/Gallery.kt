@@ -2,14 +2,16 @@ package com.villamediana.fio.ui.library
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.mind.Photo
+import com.villamediana.fio.ui.components.Mosaic
 import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.ui.components.PhotoViewer
 import com.villamediana.fio.ui.components.rememberAspects
@@ -32,8 +35,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Every photo kept, Pinterest-like: two columns, each photo in its own shape, the newest first.
- * A tap opens them big, side by side, from that one.
+ * Every photo kept as a mosaic: rows edge to edge, the photos of a row of different widths
+ * (see [Mosaic]), the newest first. A tap opens them big, side by side, from that one.
  */
 @Composable
 internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
@@ -42,28 +45,38 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
         return
     }
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
-    // Each photo's own shape, kept reasonable (a panorama or a long screenshot doesn't take the
-    // column), read off the main thread; the grid lays out once it knows them (no jumping tiles).
-    val aspects = rememberAspects(photos, min = 0.56f, max = 1.8f) ?: return
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 40.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalItemSpacing = 8.dp,
-    ) {
-        itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
-            val ratio = aspects[p.id] ?: 1f
-            Box(Modifier.animateItem()) {
-                PhotoTile(
-                    p.path,
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(ratio)
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable { opened = i }
-                        .testTag("gallery-photo-$i"),
-                )
+    // Each photo's own shape, read off the main thread; the mosaic lays out once it knows them (no jumping tiles).
+    val aspects = rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val side = 16.dp
+        val gap = 8.dp
+        val width = maxWidth - side * 2
+        val rows = remember(photos, aspects, width) {
+            val shapes = photos.mapIndexed { i, p -> Mosaic.shape(i, aspects[p.id] ?: 1f) }
+            Mosaic.rows(shapes, width.value, gap.value, target = 220f).map { r -> r to r.items.map { shapes[it] } }
+        }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = side, end = side, top = 6.dp, bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            items(rows, key = { (r, _) -> photos[r.items.first()].id }) { (row, shapes) ->
+                Row(
+                    Modifier.animateItem().then(if (row.full) Modifier.fillMaxWidth() else Modifier).height(row.height.dp),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    row.items.forEachIndexed { k, i ->
+                        val p = photos[i]
+                        PhotoTile(
+                            p.path,
+                            (if (row.full) Modifier.weight(shapes[k]) else Modifier.width((row.height * shapes[k]).dp))
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { opened = i }
+                                .testTag("gallery-photo-$i"),
+                        )
+                    }
+                }
             }
         }
     }
