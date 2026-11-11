@@ -24,7 +24,6 @@ import com.villamediana.fio.mind.Steps
 import com.villamediana.fio.settings.Source
 import com.villamediana.fio.settings.ThemeMode
 import com.villamediana.fio.ui.entry.EntryScreen
-import com.villamediana.fio.ui.graph.GraphScreen
 import com.villamediana.fio.ui.home.HomeScreen
 import com.villamediana.fio.ui.home.Orb
 import com.villamediana.fio.ui.home.OrbMode
@@ -101,6 +100,7 @@ class ScreensTest {
         val ana = db.graph().insertTopic(Topic(name = "Ana", norm = "ana", type = "person"))
         val mae = db.graph().insertTopic(Topic(name = "Mãe", norm = "mae", type = "person"))
         val migr = db.graph().insertTopic(Topic(name = "Migração", norm = "migracao", type = "project"))
+        ids["topic-pedro"] = pedro
         listOf(ids["contract"]!! to pedro, ids["contract"]!! to torre, ids["gift"]!! to ana, ids["wifi"]!! to mae, ids["diary"]!! to migr, ids["diary"]!! to pedro, ids["idea"]!! to migr)
             .forEach { (e, t) -> db.graph().tie(EntryTopic(e, t)) }
         ids
@@ -170,7 +170,6 @@ class ScreensTest {
                     is Screen.Library -> LibraryScreen(nav, s)
                     is Screen.Entry -> EntryScreen(nav, s.id)
                     Screen.Settings -> SettingsScreen(nav)
-                    is Screen.Graph -> GraphScreen(nav, s.topicId)
                     else -> Unit
                 }
             }
@@ -192,9 +191,22 @@ class ScreensTest {
         shot("07-entry-task")
         screen.value = Screen.Settings
         shot("08-settings")
-        screen.value = Screen.Graph()
+        screen.value = Screen.Library(Filter.LINKS)
         repeat(8) { compose.mainClock.advanceTimeBy(250); Thread.sleep(150) }
         shot("09-graph")
+        screen.value = Screen.Library(Filter.LINKS, topic = ids["topic-pedro"])
+        // The touched knot lifts its entries in a card at the bottom.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
+        repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(100) }
+        shot("12-graph-topic")
+    }
+
+    @Test
+    fun settingsDark() {
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.DARK) { SettingsScreen(nav) } }
+        compose.mainClock.advanceTimeBy(500)
+        shot("13-settings-dark")
     }
 
     @Test

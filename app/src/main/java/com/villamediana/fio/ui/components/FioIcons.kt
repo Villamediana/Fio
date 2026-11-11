@@ -17,6 +17,7 @@ object FioIcons {
     val Lock: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_lock)
     val Plus: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_plus)
     val Check: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_check)
+    val Chevron: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_chevron)
     val FlashOn: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_on)
     val FlashOff: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_off)
 }

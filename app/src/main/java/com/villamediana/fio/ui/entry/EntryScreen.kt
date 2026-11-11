@@ -61,6 +61,7 @@ import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.mind.Steps
+import com.villamediana.fio.ui.Filter
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.CheckCircle
@@ -205,7 +206,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                 SectionLabel("Conexões")
                 if (topics.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        topics.forEach { t -> Pill(t.name, selected = false, onClick = { nav.go(Screen.Graph(t.id)) }) }
+                        topics.forEach { t -> Pill(t.name, selected = false, onClick = { nav.go(Screen.Library(Filter.LINKS, topic = t.id)) }) }
                     }
                     Spacer(Modifier.height(12.dp))
                 }

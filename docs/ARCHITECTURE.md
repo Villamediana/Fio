@@ -31,7 +31,10 @@ perde o lembrete.
 
 Papel, tinta e um acento só (vermelhão `#EC4F2A`; `#FF6A43` no escuro). Nada de bloco preto: o
 botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
-a biblioteca é uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo, Conexões).
+a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo,
+Conexões) com um ponto do fio sob a escolhida; Conexões é uma aba como as outras (o grafo ocupa o
+espaço embaixo). Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
+Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`) em vez de texto explicando.
 
 ## Pacotes
 
