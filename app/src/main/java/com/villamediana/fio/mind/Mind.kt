@@ -4,6 +4,7 @@ import com.villamediana.fio.audio.Recorder
 import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.FioDatabase
+import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Outcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -45,6 +46,8 @@ sealed interface MindState {
         val photo: Boolean,
         /** Written instead of said. */
         val typed: Boolean = false,
+        /** Photos that answer (capture ids). */
+        val photos: List<Long> = emptyList(),
     ) : MindState
 
     data class Problem(val captureId: Long?, val need: Need?, val message: String, val said: String? = null) : MindState
@@ -376,8 +379,11 @@ class Mind(
             say(MindState.Working(id, Stage.THINKING, said, photo, typed))
             val plan = think(c, said, photo, typed)
             val result = keeper.apply(plan, id)
+            // A photo is the day's too: it shows in the day's diary (begun now when there is none).
+            if (photo) diaryFor(c.createdAt)
             runCatching { reminders.sync(result.touched) }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
+            val shownPhotos = plan.showPhotos.distinct().filter { p -> p != id && db.captures().get(p)?.let { it.source == "photo" && it.imagePath != null } == true }
             db.captures().update(
                 c.copy(
                     state = Capture.DONE,
@@ -386,10 +392,13 @@ class Mind(
                     reply = plan.reply,
                     outcomes = ids.encodeToString(ListSerializer(Outcome.serializer()), result.outcomes),
                     shown = ids.encodeToString(ListSerializer(Long.serializer()), shown),
+                    shownPhotos = ids.encodeToString(ListSerializer(Long.serializer()), shownPhotos),
+                    // What the photo shows, in her words: what the search finds it by.
+                    description = if (photo) plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() } ?: c.description else c.description,
                 ),
             )
             c.audioPath?.let { File(it).delete() }
-            say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo, typed))
+            say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
@@ -425,10 +434,15 @@ class Mind(
 
         val recent = all.take(RECENT) // all() comes newest first
         val diary = Brain.todaysDiary(all, now, z)
+        // The photos kept, found by what they show — only for what is said or written (a photo
+        // being described needs no others), a few at first; more when the model asks to look.
+        val pictures = PhotoRecall(db.captures().allPhotos().filter { it.id != c.id }.mapNotNull(Photo::of))
+        val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
 
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
+        var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
         var lookups = 0
         while (plan.isLookupOnly && lookups < MAX_LOOKUPS) {
@@ -438,14 +452,23 @@ class Mind(
             val days = Brain.range(plan.period, z)
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
             found = (found + byWords + byTime).distinctBy { it.id }
+            foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures.search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
+                (if (days == null) emptyList() else pictures.during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.
         if (plan.isLookupOnly) plan = plan.copy(reply = plan.reply.ifBlank { NOTHING_FOUND })
         return plan.copy(search = emptyList(), period = null)
+    }
+
+    /** The diary of the day [at] falls in, made (named by the date, nothing written yet) when the day has none. */
+    private suspend fun diaryFor(at: Long) {
+        val day = DayDiary.bounds(at, zone())
+        if (db.entries().diariesBetween(day.first, day.last).isNotEmpty()) return
+        db.entries().insert(Entry(kind = Kind.DIARY.key, title = DayDiary.title(at, zone()), createdAt = at, updatedAt = clock()))
     }
 
     private fun show(state: MindState) {
@@ -463,6 +486,10 @@ class Mind(
 
         /** How many times the model may ask to look something up for one thing said. */
         const val MAX_LOOKUPS = 2
+
+        /** Photos found by what they show that go to the model at most: on the first look, and when it asks to look. */
+        const val FIRST_PHOTO_HITS = 4
+        const val MAX_PHOTO_HITS = 8
 
         /** The last things kept, shown to the model so "aquilo que acabei de falar" has a face. */
         const val RECENT = 5

@@ -28,9 +28,13 @@ data class Plan(
     val period: Period? = null,
     /** Entries that answer a question, to show. */
     val show: List<Long> = emptyList(),
+    /** Photos that answer a question (foto#N → N), to show. */
+    @SerialName("show_photos") val showPhotos: List<Long> = emptyList(),
+    /** The photo just taken: what can be seen in it, in her words — what the search finds it by later. */
+    @SerialName("photo_description") val photoDescription: String? = null,
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
-    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty()
+    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
 }
 
 @Serializable
@@ -84,7 +88,7 @@ Numa mesma fala pode haver várias coisas:
 Ela também pode:
 - dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie outro igual a ele. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele e só o que muda pra ele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status". Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
 - corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
-- perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem. Pergunta não cria item.
+- perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem e em "show_photos" os números das fotos (foto#N) que respondem. Pergunta não cria item.
 
 Como preencher:
 - Use as palavras dela. Título curto (até ~8 palavras) que diz do que se trata — nunca o tipo do item. Corpo com os detalhes ditos, sem inventar nada.
@@ -96,6 +100,7 @@ Como preencher:
 - sensitive: true para senhas, números de documento, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
+- photo_description: quando ela tirou uma foto, descreva o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
 - Deixe de fora os campos vazios ou null: a resposta fica curta.
@@ -106,7 +111,9 @@ Responda somente com um objeto JSON neste formato:
  "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
  "search": [],
  "period": {"from": null, "to": null},
- "show": []}
+ "show": [],
+ "show_photos": [],
+ "photo_description": null}
 """.trim()
 
     /**
@@ -125,26 +132,22 @@ Responda somente com um objeto JSON neste formato:
         photo: Boolean = false,
         typed: Boolean = false,
         diary: Entry? = null,
+        photos: List<Photo> = emptyList(),
     ): String = buildString {
-        val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
-        val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
-        append("AGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
-        if (focus != null) {
-            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
-            // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
-            append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
-        }
+        // What changes least comes first and what changes every time last (the moment, the item
+        // being answered about, the words): a server that caches the start of the prompt, and the
+        // phone that keeps its instructions run, reuse as much of it as can be.
         val today = diary?.takeIf { it.id != focus?.id }
+        val shown = setOfNotNull(focus?.id, today?.id)
+        val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
+        if (tasks.isNotEmpty()) {
+            append("TAREFAS ABERTAS:\n")
+            tasks.forEach { append(line(it, zone, now)).append('\n') }
+        }
         if (today != null) {
             // Whole (up to a point): the day's story goes on in it without repeating it.
             append("\nDIÁRIO DE HOJE:\n")
             append(line(today, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
-        }
-        val shown = setOfNotNull(focus?.id, today?.id)
-        val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
-        if (tasks.isNotEmpty()) {
-            append("\nTAREFAS ABERTAS:\n")
-            tasks.forEach { append(line(it, zone, now)).append('\n') }
         }
         val last = recent.filter { it.id !in shown }.take(MAX_RECENT)
         if (last.isNotEmpty()) {
@@ -167,6 +170,18 @@ Responda somente com um objeto JSON neste formato:
                 append("\nA BUSCA (").append(looked).append(") NÃO ACHOU NADA. Responda com o que há.\n")
             }
         }
+        if (photos.isNotEmpty()) {
+            append(if (looked == null) "\nFOTOS QUE PODEM TER A VER:\n" else "\nFOTOS ACHADAS:\n")
+            photos.take(MAX_PHOTOS).forEach { append(photoLine(it, zone)).append('\n') }
+        }
+        if (focus != null) {
+            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
+            // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
+            append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
+        }
+        val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
+        append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
         append(
             when {
                 photo -> "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n"
@@ -183,6 +198,13 @@ Responda somente com um objeto JSON neste formato:
         return entries
             .filter { it.kindEnum == Kind.DIARY && Instant.ofEpochMilli(it.createdAt).atZone(zone).toLocalDate() == today }
             .maxByOrNull { it.createdAt }
+    }
+
+    /** One photo in a line the model can point to (foto#id): when, what it shows, what is written in it. */
+    fun photoLine(p: Photo, zone: ZoneId): String = buildString {
+        append("foto#").append(p.id).append(' ').append(stamp(p.takenAt, zone))
+        p.description?.let { append(" — ").append(it.take(200).replace('\n', ' ')) }
+        p.text?.let { append(" · texto: ").append(it.take(120).replace('\n', ' ')) }
     }
 
     /** One entry in a line the model can read and point to (#id). */
@@ -209,7 +231,10 @@ Responda somente com um objeto JSON neste formato:
 
     /** The plain chat format LFM3 was trained on (for the on-device model), the thinking turned off as its template does. */
     fun chatml(system: String, user: String): String =
-        "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n$user<|im_end|>\n<|im_start|>assistant\n<think></think>"
+        chatmlHead(system) + "$user<|im_end|>\n<|im_start|>assistant\n<think></think>"
+
+    /** The start of [chatml] that only depends on the instructions: the same on every answer (the phone keeps it run). */
+    fun chatmlHead(system: String): String = "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n"
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true; explicitNulls = false }
 
@@ -288,6 +313,7 @@ ws     ::= [ \t\n]{0,20}
     private const val MAX_RELATED = 12
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
+    private const val MAX_PHOTOS = 12
     private const val FOCUS_BODY = 800
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

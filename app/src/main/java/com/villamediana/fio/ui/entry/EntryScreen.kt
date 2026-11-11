@@ -193,6 +193,9 @@ fun EntryScreen(nav: Nav, id: Long) {
                 }
             }
 
+            // The day's photos live in the day's diary.
+            if (kind == Kind.DIARY) DayPhotos(e, side = 24.dp)
+
             if (kind == Kind.TASK && (hasSteps || addingStep)) {
                 StepsBlock(
                     e,

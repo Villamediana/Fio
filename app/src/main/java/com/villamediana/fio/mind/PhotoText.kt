@@ -40,25 +40,27 @@ class MlKitPhotoReader(private val context: Context) : PhotoReader {
         }
     }
 
-    /** Decoded at most [max] px on the long side, upright. */
-    private fun load(file: File, max: Int): Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.path, bounds)
-        if (bounds.outWidth <= 0) return null
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= max) sample *= 2
-        val raw = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
-        val degrees = runCatching {
-            when (ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
-            }
-        }.getOrDefault(0f)
-        val scale = (max.toFloat() / maxOf(raw.width, raw.height)).coerceAtMost(1f)
-        if (degrees == 0f && scale == 1f) return raw
-        val m = Matrix().apply { postRotate(degrees); postScale(scale, scale) }
-        return Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
-    }
+    private fun load(file: File, max: Int): Bitmap? = uprightBitmap(file, max)
+}
+
+/** A photo decoded at most [max] px on the long side, upright (its EXIF turn applied); null if unreadable. */
+fun uprightBitmap(file: File, max: Int): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.path, bounds)
+    if (bounds.outWidth <= 0) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= max) sample *= 2
+    val raw = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+    val degrees = runCatching {
+        when (ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+    }.getOrDefault(0f)
+    val scale = (max.toFloat() / maxOf(raw.width, raw.height)).coerceAtMost(1f)
+    if (degrees == 0f && scale == 1f) return raw
+    val m = Matrix().apply { postRotate(degrees); postScale(scale, scale) }
+    return Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
 }

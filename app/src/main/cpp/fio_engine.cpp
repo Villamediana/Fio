@@ -36,6 +36,12 @@ struct Engine {
     std::vector<llama_logit_bias> text_only; // no switch to speech in a text answer
     std::vector<llama_token_data> cur;       // the candidates of one step (the whole vocabulary)
     std::atomic<bool> cancel{false};
+    // The prompt's fixed start (Fio's instructions) already run once: the model's state right after
+    // it, put back on the next answer instead of running those ~1,200 tokens again. A whole-state
+    // snapshot (not a cut of the cache): LFM's convolution layers can't be cut at a position.
+    std::string prefix_text;
+    std::vector<uint8_t> prefix_state;
+    llama_pos prefix_pos = 0;
 };
 
 void log_to_android(enum ggml_log_level level, const char * text, void *) {
@@ -213,8 +219,64 @@ std::string without_marker(std::string prompt) {
     return prompt;
 }
 
-/** The photo and the prompt (with the media marker where the photo goes) through the projector; -1 on failure. */
-llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::string & image) {
+/** [text]'s tokens, the special ones read as such (the prompt writes them out); empty on failure. */
+std::vector<llama_token> tokenize(Engine * e, const std::string & text) {
+    std::vector<llama_token> toks(text.size() + 16);
+    int n = llama_tokenize(e->vocab, text.c_str(), (int32_t) text.size(), toks.data(), (int32_t) toks.size(), false, true);
+    if (n < 0) {
+        toks.resize((size_t) -n);
+        n = llama_tokenize(e->vocab, text.c_str(), (int32_t) text.size(), toks.data(), (int32_t) toks.size(), false, true);
+    }
+    if (n <= 0) return {};
+    toks.resize((size_t) n);
+    return toks;
+}
+
+/** [toks] decoded after what is already in seq 0, in batches; false on failure or cancel. */
+bool decode_all(Engine * e, const std::vector<llama_token> & toks) {
+    for (size_t i = 0; i < toks.size(); i += (size_t) e->n_batch) {
+        if (e->cancel.load()) return false;
+        const int len = (int) std::min((size_t) e->n_batch, toks.size() - i);
+        llama_batch b = llama_batch_get_one(const_cast<llama_token *>(toks.data()) + i, len);
+        if (llama_decode(e->ctx, b) != 0) { LOGE("decode failed"); return false; }
+    }
+    return true;
+}
+
+/**
+ * Seq 0 holding exactly [prefix]: put back from the snapshot when it is of the same text, else run
+ * now and kept. The position after it; -1 on failure (memory left empty).
+ */
+llama_pos start_from(Engine * e, const std::string & prefix) {
+    llama_memory_t mem = llama_get_memory(e->ctx);
+    llama_memory_clear(mem, true);
+    if (prefix.empty()) return 0;
+    if (!e->prefix_state.empty() && e->prefix_text == prefix) {
+        const size_t read = llama_state_seq_set_data(e->ctx, e->prefix_state.data(), e->prefix_state.size(), 0);
+        if (read > 0 && llama_memory_seq_pos_max(mem, 0) == e->prefix_pos - 1) return e->prefix_pos;
+        // Never trust a half put-back state: run it again.
+        LOGE("prefix snapshot not restored (%zu bytes read); running it again", read);
+        llama_memory_clear(mem, true);
+        e->prefix_state.clear();
+        e->prefix_text.clear();
+    }
+    const std::vector<llama_token> toks = tokenize(e, prefix);
+    if (toks.empty() || !decode_all(e, toks)) { llama_memory_clear(mem, true); return -1; }
+    const llama_pos pos = (llama_pos) toks.size();
+    const size_t size = llama_state_seq_get_size(e->ctx, 0);
+    std::vector<uint8_t> state(size);
+    const size_t wrote = size > 0 ? llama_state_seq_get_data(e->ctx, state.data(), size, 0) : 0;
+    if (wrote > 0) {
+        state.resize(wrote);
+        e->prefix_state.swap(state);
+        e->prefix_text = prefix;
+        e->prefix_pos = pos;
+    }
+    return pos;
+}
+
+/** The photo and the prompt (with the media marker where the photo goes) through the projector, after [from] tokens already in; -1 on failure. */
+llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::string & image, llama_pos from = 0) {
     mtmd_helper_bitmap_wrapper w = mtmd_helper_bitmap_init_from_buf(
         e->mtmd, reinterpret_cast<const unsigned char *>(image.data()), image.size(), false, mtmd_helper_init_opt_default());
     if (!w.bitmap) { LOGE("image decode failed"); return -1; }
@@ -226,11 +288,11 @@ llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::str
     if (rc == 0) {
         const int ctx_size = (int) llama_n_ctx(e->ctx);
         const int n = (int) mtmd_helper_get_n_tokens(chunks);
-        if (n + 16 >= ctx_size) {
-            LOGE("prompt with image too long: %d tokens (ctx %d)", n, ctx_size);
+        if (from + n + 16 >= ctx_size) {
+            LOGE("prompt with image too long: %d tokens (ctx %d)", (int) from + n, ctx_size);
         } else {
-            llama_pos past = 0;
-            rc = mtmd_helper_eval_chunks(e->mtmd, e->ctx, chunks, 0, 0, e->n_batch, true, &past);
+            llama_pos past = from;
+            rc = mtmd_helper_eval_chunks(e->mtmd, e->ctx, chunks, from, 0, e->n_batch, true, &past);
             if (rc == 0) n_past = past; else LOGE("image eval failed: %d", rc);
         }
     } else {
@@ -361,41 +423,35 @@ Java_com_villamediana_fio_local_LocalEngine_nativeTranscribe(JNIEnv * env, jobje
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jstring jgrammar, jbyteArray jimage, jint max_tokens, jobject jsink) {
+Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jint jkeep, jstring jgrammar, jbyteArray jimage, jint max_tokens, jobject jsink) {
     auto * e = reinterpret_cast<Engine *>(h);
     if (!e) return nullptr;
     e->cancel.store(false);
-    llama_memory_clear(llama_get_memory(e->ctx), true);
 
-    std::string prompt = jbytes(env, jprompt);
+    const std::string prompt = jbytes(env, jprompt);
     const std::string grammar = jstr(env, jgrammar);
     const int ctx_size = (int) llama_n_ctx(e->ctx);
+    // The prompt's first [jkeep] bytes are the same every time (the instructions): run once, then put back.
+    const size_t keep = (size_t) std::max(0, std::min((int) jkeep, (int) prompt.size()));
+    const std::string head = prompt.substr(0, keep);
+    const std::string rest = prompt.substr(keep);
     llama_pos n_past = -1;
 
     // A photo goes in through the projector when the model sees; otherwise the text alone.
     const std::string image = jbytes(env, jimage);
     if (!image.empty() && e->mtmd && mtmd_support_vision(e->mtmd)) {
-        n_past = eval_with_image(e, prompt, image);
-        if (n_past < 0) llama_memory_clear(llama_get_memory(e->ctx), true);
+        const llama_pos from = start_from(e, head);
+        if (from >= 0) n_past = eval_with_image(e, rest, image, from);
     }
     if (n_past < 0) {
-        prompt = without_marker(prompt);
-        std::vector<llama_token> toks(prompt.size() + 16);
-        int n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
-        if (n < 0) {
-            toks.resize((size_t) -n);
-            n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
-        }
-        if (n <= 0) return nullptr;
-        if (n + 16 >= ctx_size) { LOGE("prompt too long: %d tokens (ctx %d)", n, ctx_size); return nullptr; }
-        toks.resize((size_t) n);
-
-        for (int i = 0; i < n && !e->cancel.load(); i += e->n_batch) {
-            const int len = std::min(e->n_batch, n - i);
-            llama_batch b = llama_batch_get_one(toks.data() + i, len);
-            if (llama_decode(e->ctx, b) != 0) { LOGE("prompt decode failed"); return nullptr; }
-        }
-        n_past = n;
+        if (e->cancel.load()) return to_bytes(env, std::string());
+        const llama_pos from = start_from(e, head);
+        if (from < 0) return e->cancel.load() ? to_bytes(env, std::string()) : nullptr;
+        const std::vector<llama_token> toks = tokenize(e, without_marker(rest));
+        if (toks.empty()) return nullptr;
+        if (from + (int) toks.size() + 16 >= ctx_size) { LOGE("prompt too long: %d tokens (ctx %d)", (int) (from + toks.size()), ctx_size); return nullptr; }
+        if (!decode_all(e, toks)) return e->cancel.load() ? to_bytes(env, std::string()) : nullptr;
+        n_past = from + (llama_pos) toks.size();
     }
     if (e->cancel.load()) return to_bytes(env, std::string());
 

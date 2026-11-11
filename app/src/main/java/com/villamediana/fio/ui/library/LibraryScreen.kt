@@ -91,6 +91,10 @@ import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.mind.Recall
+import com.villamediana.fio.ui.entry.PhotoRow
+import com.villamediana.fio.ui.components.PhotoTile
+import com.villamediana.fio.mind.PhotoRecall
+import com.villamediana.fio.mind.Photo
 import com.villamediana.fio.ui.Filter
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
@@ -130,6 +134,11 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     LaunchedEffect(query) { delay(180); debounced = query }
     val hits = remember(recall, debounced) { if (debounced.isBlank()) null else recall?.search(debounced, limit = 60) }
     val terms = remember(recall, debounced) { recall?.terms(debounced).orEmpty() }
+    // The photos: the gallery, the day's diary, and the search (by what each one shows).
+    val photos by graph.library.allPhotos().collectAsStateWithLifecycle(initialValue = emptyList())
+    val photoIndex = remember(photos) { PhotoRecall(photos) }
+    val photoHits = remember(photoIndex, debounced) { if (debounced.isBlank()) emptyList() else photoIndex.search(debounced, limit = 30) }
+    val dayPhotos = remember(entries, photos) { DayPhotosIndex.of(entries.orEmpty(), photos, ZoneId.systemDefault()) }
 
     LaunchedEffect(searching) { if (searching) runCatching { focus.requestFocus() } }
 
@@ -209,8 +218,9 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
         val list = entries
         if (hits != null) {
-            val found = listOf((if (hits.isEmpty()) "Nada com essas palavras" else null) to hits.map { it.entry })
-            Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle)
+            val nothing = hits.isEmpty() && photoHits.isEmpty()
+            val found = listOf((if (nothing) "Nada com essas palavras" else null) to hits.map { it.entry })
+            Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle, photos = photoHits)
             return@Column
         }
         Box(Modifier.fillMaxSize().nestedScroll(edge)) {
@@ -219,7 +229,8 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                 Box(Modifier.fillMaxSize().graphicsLayer { if (page == 0) translationX = pull * SWIPE_FOLLOW }) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
-                        list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle)
+                        f == Filter.GALLERY -> Gallery(photos, empty = { Empty(Filter.GALLERY) })
+                        list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle, dayPhotos = dayPhotos)
                     }
                 }
             }
@@ -238,6 +249,10 @@ private fun Entries(
     onShowDone: () -> Unit,
     open: (Long) -> Unit,
     toggle: (Long) -> Unit,
+    /** The search's photos, above what it found. */
+    photos: List<Photo> = emptyList(),
+    /** The day's photos on the day's diary card. */
+    dayPhotos: DayPhotosIndex = DayPhotosIndex.EMPTY,
 ) {
     val searched = terms != null
     LazyColumn(
@@ -247,13 +262,18 @@ private fun Entries(
         if (!searched && sections.all { it.second.isEmpty() }) {
             item { Empty(filter) }
         }
+        if (photos.isNotEmpty()) {
+            item(key = "label-photos") { SectionLabel("Fotos", Modifier.animateItem()) }
+            item(key = "photos") { PhotoRow(photos, side = 16.dp, height = 150.dp, tag = "found-photo") }
+            item(key = "photos-gap") { Spacer(Modifier.height(14.dp)) }
+        }
         sections.forEach { (label, items) ->
             if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
             // One block per group: the cards touch, only the ends are round.
             itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
                 val shape = groupShape(i, items.size, outer = 22.dp)
                 Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
-                    if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape)
+                    if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape, photos = dayPhotos.of(e.id))
                     else EntryCard(
                         e,
                         onClick = { open(e.id) },
@@ -287,6 +307,7 @@ private fun title(f: Filter) = when (f) {
     Filter.TASKS -> "Tarefas"
     Filter.NOTES -> "Notas"
     Filter.DIARY -> "Diário"
+    Filter.GALLERY -> "Galeria"
     Filter.ALL -> "Tudo"
     Filter.LINKS -> "Conexões"
 }
@@ -453,7 +474,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
         Filter.ALL -> byDay(all, zone, today)
-        Filter.LINKS -> emptyList()
+        Filter.GALLERY, Filter.LINKS -> emptyList()
     }
 }
 
@@ -463,7 +484,7 @@ private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<
         .map { (d, items) -> Dates.day(d.atStartOfDay(zone).toInstant().toEpochMilli(), zone, today).replaceFirstChar { it.titlecase(PT) } to items }
 
 @Composable
-private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape) {
+private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<Photo> = emptyList()) {
     val d = Instant.ofEpochMilli(e.createdAt).atZone(ZoneId.systemDefault())
     Row(
         Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp).animateContentSize(),
@@ -479,11 +500,36 @@ private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape) {
                 Spacer(Modifier.height(4.dp))
                 Text(e.body, style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, maxLines = 4)
             }
+            if (photos.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                DayThumbs(photos)
+            }
             Spacer(Modifier.height(6.dp))
             Text(d.format(DateTimeFormatter.ofPattern("EEEE · HH:mm", PT)), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
         }
     }
 }
+
+/** The day's photos, small, on its diary card: up to four, the last one saying how many more. */
+@Composable
+private fun DayThumbs(photos: List<Photo>) {
+    val shown = photos.take(MAX_THUMBS)
+    val more = photos.size - shown.size
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.forEachIndexed { i, p ->
+            Box(Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))) {
+                PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 240)
+                if (i == shown.lastIndex && more > 0) {
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.42f)), contentAlignment = Alignment.Center) {
+                        Text("+$more", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val MAX_THUMBS = 4
 
 @Composable
 private fun Empty(filter: Filter) {
@@ -494,6 +540,7 @@ private fun Empty(filter: Filter) {
                 Filter.TASKS -> "Nenhuma tarefa aberta."
                 Filter.NOTES -> "Nenhuma nota ainda."
                 Filter.DIARY -> "O diário está em branco."
+                Filter.GALLERY -> "Nenhuma foto ainda."
                 Filter.ALL -> "Nada guardado ainda."
                 Filter.LINKS -> "Nenhuma conexão ainda."
             },
@@ -502,7 +549,11 @@ private fun Empty(filter: Filter) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            if (filter == Filter.LINKS) "Elas aparecem quando você fala de pessoas, lugares e projetos." else "Fale no botão da tela inicial.",
+            when (filter) {
+                Filter.LINKS -> "Elas aparecem quando você fala de pessoas, lugares e projetos."
+                Filter.GALLERY -> "As fotos que você tira no Fio ficam aqui e no diário do dia."
+                else -> "Fale no botão da tela inicial."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = FioColors.TextFaint,
             textAlign = TextAlign.Center,

@@ -51,6 +51,10 @@ interface EntryDao {
 
     @Query("SELECT * FROM entries WHERE captureId = :captureId")
     suspend fun fromCapture(captureId: Long): List<Entry>
+
+    /** The diaries written between [from] and [to] (a day), newest first. */
+    @Query("SELECT * FROM entries WHERE kind = 'diary' AND createdAt BETWEEN :from AND :to ORDER BY createdAt DESC, id DESC")
+    suspend fun diariesBetween(from: Long, to: Long): List<Entry>
 }
 
 @Dao
@@ -72,6 +76,17 @@ interface CaptureDao {
 
     @Query("SELECT * FROM captures ORDER BY createdAt DESC LIMIT 1")
     fun observeLatest(): Flow<Capture?>
+
+    /** Every photo kept, the newest first (the gallery, the search). */
+    @Query("SELECT * FROM captures WHERE source = 'photo' AND imagePath IS NOT NULL ORDER BY createdAt DESC, id DESC")
+    fun observeAllPhotos(): Flow<List<Capture>>
+
+    @Query("SELECT * FROM captures WHERE source = 'photo' AND imagePath IS NOT NULL ORDER BY createdAt DESC, id DESC")
+    suspend fun allPhotos(): List<Capture>
+
+    /** The photos taken between [from] and [to] (a day), in the order they were taken. */
+    @Query("SELECT * FROM captures WHERE source = 'photo' AND imagePath IS NOT NULL AND createdAt BETWEEN :from AND :to ORDER BY createdAt, id")
+    fun observePhotos(from: Long, to: Long): Flow<List<Capture>>
 
     @Query("DELETE FROM captures WHERE id = :id")
     suspend fun delete(id: Long)
@@ -136,9 +151,9 @@ interface ProgressDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4)],
 )
 abstract class FioDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao
