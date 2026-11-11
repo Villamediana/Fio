@@ -155,7 +155,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
             val finished = done
             when {
                 finished != null -> {
-                    Text("Pronto. Voltaram " + Backups.note(finished.entries, finished.photos) + ".", style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
+                    Text("Pronto. Voltaram " + Backups.note(finished.entries, finished.photos, finished.sounds) + ".", style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
                     Spacer(Modifier.height(18.dp))
                     IconAction(FioIcons.Check, "Ok", onDismiss, primary = true)
                 }
@@ -166,7 +166,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
                 k != null -> {
                     Text(moment(k.at), style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
                     Text(
-                        holds?.let { Backups.note(it.entries.size, it.photoCount) } ?: "lendo…",
+                        holds?.let { Backups.note(it.entries.size, it.photoCount, it.soundCount) } ?: "lendo…",
                         style = MaterialTheme.typography.bodyMedium,
                         color = FioColors.TextMuted,
                         modifier = Modifier.padding(top = 2.dp),

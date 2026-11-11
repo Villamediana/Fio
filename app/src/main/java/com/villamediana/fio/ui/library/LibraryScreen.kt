@@ -150,12 +150,12 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     // The tabs are pages side by side: a swipe goes to the next one, a touch on a word too.
     // The tab asked by the screen is the page; the page a swipe stops on is the tab kept (so
     // coming back from an entry lands where you were).
-    val pager = rememberPagerState(initialPage = screen.filter.ordinal) { Filter.entries.size }
+    val pager = rememberPagerState(initialPage = TABS.indexOf(screen.filter).coerceAtLeast(0)) { TABS.size }
     val current by rememberUpdatedState(screen)
-    LaunchedEffect(screen.filter) { if (pager.currentPage != screen.filter.ordinal) pager.scrollToPage(screen.filter.ordinal) }
+    LaunchedEffect(screen.filter) { TABS.indexOf(screen.filter).takeIf { it >= 0 && it != pager.currentPage }?.let { pager.scrollToPage(it) } }
     LaunchedEffect(pager) {
         snapshotFlow { pager.settledPage }.collect { p ->
-            val f = Filter.entries[p]
+            val f = TABS[p]
             if (f != current.filter) nav.go(current.copy(filter = f, topic = null))
         }
     }
@@ -227,7 +227,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
         Box(Modifier.fillMaxSize().nestedScroll(edge)) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-                val f = Filter.entries[page]
+                val f = TABS[page]
                 Box(Modifier.fillMaxSize().graphicsLayer { if (page == 0) translationX = pull * SWIPE_FOLLOW }) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
@@ -304,6 +304,9 @@ private fun Entries(
     }
 }
 
+/** The tabs shown, in order. Conexões is hidden for now (the drawing stays in ui/graph). */
+private val TABS = Filter.entries - Filter.LINKS
+
 private fun title(f: Filter) = when (f) {
     Filter.TODAY -> "Hoje"
     Filter.TASKS -> "Tarefas"
@@ -339,7 +342,7 @@ private fun Tabs(selected: Int, position: () -> Float, onSelect: (Int) -> Unit) 
         }
     }
     val accent = FioColors.Accent
-    val last = Filter.entries.lastIndex
+    val last = TABS.lastIndex
     Row(
         Modifier
             .fillMaxWidth()
@@ -360,7 +363,7 @@ private fun Tabs(selected: Int, position: () -> Float, onSelect: (Int) -> Unit) 
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Filter.entries.forEachIndexed { i, f ->
+        TABS.forEachIndexed { i, f ->
             Tab(
                 title(f),
                 selected = selected == i,

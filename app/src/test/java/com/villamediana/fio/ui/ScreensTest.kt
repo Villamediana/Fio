@@ -209,14 +209,10 @@ class ScreensTest {
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Settings
         shot("08-settings")
-        screen.value = Screen.Library(Filter.LINKS)
-        repeat(8) { compose.mainClock.advanceTimeBy(250); Thread.sleep(150) }
-        shot("09-graph")
-        screen.value = Screen.Library(Filter.LINKS, topic = ids["topic-pedro"])
-        // The touched knot lifts its entries in a card at the bottom.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
-        repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(100) }
-        shot("12-graph-topic")
+        // Conexões is hidden for now: no tab for it, the last one is Tudo.
+        screen.value = Screen.Library(Filter.ALL)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Tudo").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -267,6 +263,81 @@ class ScreensTest {
     }
 
     @Test
+    fun aSoundKeptPlaysInItsItem() {
+        seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val wav = File(File(context.filesDir, "captures").apply { mkdirs() }, "voice-sung.wav")
+        com.villamediana.fio.audio.Wav.write(wav, FloatArray(com.villamediana.fio.audio.Wav.RATE * 3) { i ->
+            (kotlin.math.sin(i / 9.0) * (0.2 + 0.6 * kotlin.math.abs(kotlin.math.sin(i / 4000.0)))).toFloat()
+        })
+        val note = runBlocking {
+            val id = graph.db.entries().insert(com.villamediana.fio.data.Entry(kind = "note", title = "Música que eu inventei", body = "A do caminho de casa.", createdAt = now, updatedAt = now))
+            val c = graph.db.captures().insert(
+                com.villamediana.fio.data.Capture(
+                    createdAt = now, source = "voice", audioPath = wav.path, sound = true, durationMs = 3000, transcript = "lá lá lá",
+                    state = com.villamediana.fio.data.Capture.DONE, outcomes = """[{"entryId":$id,"action":"created"}]""",
+                ),
+            )
+            graph.db.entries().update(graph.db.entries().get(id)!!.copy(captureId = c))
+            id
+        }
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.entry.EntryScreen(nav, note) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Ouvir o áudio").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("0:03").assertExists()
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("27-entry-sound")
+    }
+
+    @Test
+    fun photosWaitOnTheMainScreenAndATaskKeepsThem() {
+        seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val colors = listOf(0xFF85CDCA, 0xFFE8A87C, 0xFFC38D9E).map { it.toInt() }
+        val files = colors.mapIndexed { i, color ->
+            File(context.cacheDir, "wait-$i.jpg").also { f ->
+                val b = Bitmap.createBitmap(60, 80, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+                f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            }
+        }
+        graph.mind.stage(files.map { it to now })
+        val nav = Nav()
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Home)
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                when (val s = screen.value) {
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    else -> HomeScreen(nav, null) {}
+                }
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("staged-2").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Enviar as fotos").assertExists()
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("28-home-photos-waiting")
+        // One let go.
+        compose.onAllNodesWithContentDescription("Tirar a foto")[2].performClick()
+        compose.waitUntil(3_000) { graph.mind.staged.value.size == 2 }
+
+        // A task holding photos shows them under its text.
+        val task = runBlocking {
+            val id = graph.db.entries().insert(com.villamediana.fio.data.Entry(kind = "task", title = "Comprar o tênis azul pra Alma", status = "todo", createdAt = now, updatedAt = now))
+            val said = graph.db.captures().insert(
+                com.villamediana.fio.data.Capture(createdAt = now, source = "text", transcript = "comprar isso pra Alma", state = com.villamediana.fio.data.Capture.DONE, outcomes = """[{"entryId":$id,"action":"created","photos":true}]"""),
+            )
+            graph.mind.staged.value.forEach { s ->
+                val f = File(context.filesDir, s.file.name).also { s.file.copyTo(it, overwrite = true) }
+                graph.db.captures().insert(com.villamediana.fio.data.Capture(createdAt = now, source = "photo", imagePath = f.path, state = com.villamediana.fio.data.Capture.DONE, partOf = said))
+            }
+            id
+        }
+        screen.value = Screen.Entry(task)
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-photo-1").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("29-task-photos")
+    }
+
+    @Test
     fun theGalleryHasEveryPhotoAndTheSearchFindsThemByWhatTheyShow() {
         seed()
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -303,6 +374,15 @@ class ScreensTest {
         val turned = runBlocking { withTimeout(5_000) { graph.db.captures().allPhotos().first { it.imagePath!!.endsWith("gallery-test-0.jpg") }.let { c -> while (graph.db.captures().get(c.id)!!.turn != 90) kotlinx.coroutines.delay(20); graph.db.captures().get(c.id)!! } } }
         assertEquals(90, turned.turn)
         shot("24-viewer-turned")
+        assertTrue(compose.onAllNodesWithContentDescription("Baixar").fetchSemanticsNodes().isNotEmpty())
+        // Taking it out of Fio asks once more; then it is gone, its file too.
+        compose.onAllNodesWithContentDescription("Remover")[0].performClick()
+        compose.mainClock.advanceTimeBy(400)
+        shot("26-viewer-remove")
+        compose.onNodeWithContentDescription("Remover a foto").performClick()
+        runBlocking { withTimeout(5_000) { while (graph.db.captures().get(turned.id) != null) kotlinx.coroutines.delay(20) } }
+        assertTrue(!File(turned.imagePath!!).exists())
+        compose.waitUntil(3_000) { compose.onAllNodesWithText("1 / 3").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
 
@@ -313,6 +393,26 @@ class ScreensTest {
         val found = compose.onNodeWithTag("found-photo-row").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo]
         assertEquals(1, found.columnCount)
         shot("23-search-photo")
+    }
+
+    @Test
+    fun aTurnedPhotoIsRedrawnWhereItShows() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val f = File(context.cacheDir, "turn-test.jpg")
+        Bitmap.createBitmap(80, 40, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF85CDCA.toInt()) }
+            .let { b -> f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+        val turn = androidx.compose.runtime.mutableIntStateOf(0)
+        var size = 0 to 0
+        compose.setContent {
+            val b = com.villamediana.fio.ui.components.rememberPhoto(f.path, 200, turn.intValue)
+            size = (b?.width ?: 0) to (b?.height ?: 0)
+        }
+        compose.waitUntil(5_000) { size == 80 to 40 }
+        // Turned (from the viewer), the same photo on screen follows without leaving it.
+        turn.intValue = 90
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(100)
+        runCatching { compose.waitUntil(5_000) { size == 40 to 80 } }.onFailure { throw AssertionError("still $size") }
     }
 
     @Test

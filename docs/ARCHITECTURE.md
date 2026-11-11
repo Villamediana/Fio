@@ -47,13 +47,13 @@ Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents
 FreeSong), com uma prévia da tela principal que muda junto; o que vai sobre o acento usa
 `OnAccent` (branco ou tinta, pela luminância da cor). Nada de bloco preto: o
 botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
-a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo,
-Conexões) com um ponto do fio sob a escolhida; Conexões é uma aba como as outras (o grafo ocupa o
-espaço embaixo). Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
+a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria,
+Tudo) com um ponto do fio sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por
+enquanto: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
 Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`) em vez de texto explicando.
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
-Tarefas, …, Conexões). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
+Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
 (`swipeNav`); na biblioteca as abas são um `HorizontalPager`, e na Hoje deslizar pra direita volta
 (o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
 próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.
@@ -137,6 +137,40 @@ Mais na 1.14.0:
   o que completa vai em `append`, o que muda a tarefa reescreve `update.body`. Nada em dois lugares.
 - **Deslize**: a inclinação da tela principal volta a zero sempre que o dedo solta (antes ficava torta
   quando ela voltava antes do fim da animação e a mesma tela era reaproveitada).
+
+Na 1.15.0:
+
+- **Tarefa feita sai do contexto**: o que o modelo recebe sozinho (lembranças, últimas coisas, ANTES DISSO)
+  deixa de fora tarefa `done`; só a busca que ele pede (pra responder sobre o passado) traz de volta.
+- **Contexto enxuto**: o que já está escrito acima é só apontado (`#id (acima)`); lembranças de 12 pra 8;
+  a `Recall` com tudo e o índice das fotos só são montados quando precisam.
+- **Foto**: a miniatura segue o giro na hora (`rememberPhoto` decodifica de novo quando o giro muda e mostra
+  a de antes até a nova ficar pronta). No visualizador, **Baixar** (`data/ToGallery`: MediaStore em
+  Imagens/Fio, giro no EXIF da cópia, data em que foi tirada) e **Remover** (pede um toque a mais;
+  `Library.removePhoto` tira a captura e o arquivo, o que foi guardado dela fica).
+- **Conexões escondida**: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora; o grafo fica em `ui/graph`.
+- **Áudio que vale guardar**: a gravação continua sumindo depois de ouvida, a não ser que o modelo marque
+  `keep_audio` (ela canta uma melodia pra lembrar, mostra um som). Aí `captures.sound` (banco v6) e
+  `audioPath` ficam; o áudio aparece nos itens que a gravação criou ou mudou (`data/Sounds`), com um player
+  leve (`ui/entry/SoundRow`: barras de `Wav.levels`, só anda enquanto toca), e o backup leva em
+  `Áudios/<ano>` (com `.nomedia`), põe `[Áudio](…)` no Markdown do item e traz de volta na importação.
+
+- **Fotos esperam e vão com o que ela diz**: câmera e galeria põem as fotos em `Mind.stage` (arquivos em
+  `captures/.staged`, sobrevivem ao app fechar); a Home mostra a faixa (× tira uma, seta = `sendStaged`, o
+  caminho de antes). Fala ou texto em seguida levam as fotos (`attach`: capturas de foto `DONE` com `partOf`):
+  uma chamada só, a imagem é uma grade com todas (`PhotoReader.jpeg(files)`, até 9), o contexto ganha
+  `AS FOTOS QUE ELA MANDOU JUNTO` e o modelo marca `"photos": true` no item a que pertencem
+  (`Outcome.photos`; mais fotos depois com `update.photos`). `data/Attached` diz as fotos de cada item:
+  `EntryPhotos` na tela, Markdown do item no backup. Se o que ela disse não vai adiante, as fotos seguem
+  sozinhas (`letGo`).
+- **Modelo local mais rápido**: o estado depois das instruções (~1.700 tokens) fica num arquivo
+  (`cacheDir/model/prompt-<modelo>-<tamanho>-<versão>.bin`, `read_cache`/`write_cache` no
+  `fio_engine.cpp`) e é preparado enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o
+  modelo era solto (5 min parado) ou o app fechava.
+- **Tema fora das telas** (`ui/theme/Look`): a abertura segura até as configurações carregarem; claro/escuro
+  pelo `UiModeManager.setApplicationNightMode` (12+), splash na cor dela por `setSplashScreenTheme` (13+,
+  `Theme.Fio.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
+  cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `FioActivity`.
 
 ## Backup (1.14.0)
 

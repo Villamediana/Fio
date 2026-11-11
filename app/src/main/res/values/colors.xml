@@ -4,4 +4,26 @@
     <color name="ink">#17171A</color>
     <color name="accent">#EC4F2A</color>
     <color name="window_bg">@color/paper</color>
+    <!-- Each accent: the splash (follows light/dark: values-night) and the launcher icon (one color). -->
+    <color name="splash_vermilion">#EC4F2A</color>
+    <color name="splash_vermilion_on">#FFFFFF</color>
+    <color name="icon_vermilion">#EC4F2A</color>
+    <color name="splash_blue">#4C6FFF</color>
+    <color name="splash_blue_on">#FFFFFF</color>
+    <color name="icon_blue">#4C6FFF</color>
+    <color name="splash_green">#149E5C</color>
+    <color name="splash_green_on">#FFFFFF</color>
+    <color name="icon_green">#149E5C</color>
+    <color name="splash_pink">#E0457B</color>
+    <color name="splash_pink_on">#FFFFFF</color>
+    <color name="icon_pink">#E0457B</color>
+    <color name="splash_purple">#7B4DFF</color>
+    <color name="splash_purple_on">#FFFFFF</color>
+    <color name="icon_purple">#7B4DFF</color>
+    <color name="splash_teal">#0E9C9C</color>
+    <color name="splash_teal_on">#FFFFFF</color>
+    <color name="icon_teal">#0E9C9C</color>
+    <color name="splash_graphite">#2B2E36</color>
+    <color name="splash_graphite_on">#FFFFFF</color>
+    <color name="icon_graphite">#2B2E36</color>
 </resources>

@@ -30,10 +30,11 @@ object DayDiary {
         val had = Words.of(body).joinToString(" ")
         val all = Words.of(more).joinToString(" ")
         if (all.isEmpty()) return body
-        if (had.isEmpty() || all.contains(had)) return more.trim()
+        // Whole words only ("sol" is not in "girassol").
+        if (had.isEmpty() || " $all ".contains(" $had ")) return more.trim()
         val fresh = more.trim().split(Regex("""\n\s*\n""")).map { it.trim() }.filter { p ->
             val words = Words.of(p).joinToString(" ")
-            words.isNotEmpty() && !had.contains(words)
+            words.isNotEmpty() && !" $had ".contains(" $words ")
         }
         return fresh.fold(body) { b, p -> joined(b, p) }
     }

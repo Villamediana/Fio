@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.villamediana.fio.FioApplication
-import com.villamediana.fio.MainActivity
+import com.villamediana.fio.FioActivity
 import com.villamediana.fio.Notifications
 import com.villamediana.fio.R
 import com.villamediana.fio.data.Entry
@@ -144,7 +144,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val id = Reminders.notificationId(e.id, kind)
         val open = PendingIntent.getActivity(
             context, id,
-            MainActivity.openEntry(context, e.id),
+            FioActivity.openEntry(context, e.id),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val checkIn = kind == Reminders.CHECK_IN
@@ -168,7 +168,7 @@ class ReminderReceiver : BroadcastReceiver() {
         if (checkIn) {
             val talk = PendingIntent.getActivity(
                 context, id + 1,
-                MainActivity.talkAbout(context, e.id),
+                FioActivity.talkAbout(context, e.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             b.addAction(0, context.getString(R.string.notif_talk), talk)

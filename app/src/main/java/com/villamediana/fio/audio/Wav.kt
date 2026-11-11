@@ -36,6 +36,21 @@ object Wav {
         return FloatArray(n) { buf.short / 32768f }
     }
 
+    /** How loud the file is along its length, in [bars] steps from 0 to 1 (the loudest is 1): its drawing. */
+    fun levels(file: File, bars: Int): FloatArray {
+        val samples = readFloats(file)
+        if (samples.isEmpty() || bars <= 0) return FloatArray(bars.coerceAtLeast(0))
+        val out = FloatArray(bars) { b ->
+            val from = (samples.size.toLong() * b / bars).toInt()
+            val to = (samples.size.toLong() * (b + 1) / bars).toInt().coerceAtLeast(from + 1).coerceAtMost(samples.size)
+            var sum = 0.0
+            for (i in from until to) sum += samples[i] * samples[i]
+            sqrt(sum / (to - from)).toFloat()
+        }
+        val top = out.max()
+        return if (top <= 0f) out else FloatArray(bars) { out[it] / top }
+    }
+
     fun write(file: File, samples: FloatArray, rate: Int = RATE) {
         val out = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
         samples.forEach { out.putShort((it.coerceIn(-1f, 1f) * 32767f).toInt().toShort()) }

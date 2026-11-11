@@ -24,7 +24,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.villamediana.fio.BuildConfig
-import com.villamediana.fio.MainActivity
+import com.villamediana.fio.FioActivity
 import com.villamediana.fio.Notifications
 import com.villamediana.fio.R
 import com.villamediana.fio.FioApplication
@@ -415,7 +415,7 @@ object UpdateNotifier {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         if (!allowed || !manager.areNotificationsEnabled()) return
         Notifications.createChannels(context)
-        val open = Intent(context, MainActivity::class.java)
+        val open = Intent(context, FioActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .apply { if (openSheet) putExtra(EXTRA_OPEN, true) }
         val tap = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

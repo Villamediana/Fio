@@ -55,4 +55,16 @@ class PiecesTest {
         assertArrayEquals(s, back, 1f / 16000)
         assertEquals(100L, Wav.durationMs(f))
     }
+
+    @Test
+    fun levelsDrawHowLoudAlongTheLength() {
+        val f = java.io.File.createTempFile("levels", ".wav")
+        // Quiet first half, loud second half.
+        Wav.write(f, FloatArray(Wav.RATE) { i -> (if (i < Wav.RATE / 2) 0.05f else 0.5f) * (if (i % 2 == 0) 1f else -1f) })
+        val l = Wav.levels(f, 4)
+        org.junit.Assert.assertEquals(4, l.size)
+        org.junit.Assert.assertEquals(1f, l[3], 0.001f)
+        org.junit.Assert.assertEquals(0.1f, l[0], 0.01f)
+        f.delete()
+    }
 }

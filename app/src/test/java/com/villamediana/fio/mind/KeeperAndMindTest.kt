@@ -235,6 +235,75 @@ class KeeperAndMindTest {
         m.cancelListening()
     }
 
+    @Test
+    fun aSoundWorthKeepingStaysWithWhatCameOfIt() = runBlocking {
+        val ears = FakeEars("lembra dessa música que eu inventei")
+        val sung = """{"reply":"Guardei a música.","create":[{"kind":"note","title":"Música que eu inventei"}],"keep_audio":true}"""
+        val plain = """{"reply":"Anotei.","create":[{"kind":"task","title":"Comprar pão"}]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(sung, plain)))
+        var n = 0
+        val rec = FakeRecorder { voiceFile().also { n++ }.let { f -> File(tmp.root, "v$n.wav").also { f.renameTo(it) } } }
+        val m = mind(ears, thinker, recorder = rec)
+
+        assertTrue(m.startListening(locked = true))
+        m.stopListening()
+        answered(m)
+        m.dismiss()
+        val kept = db.backup().captures().single()
+        assertTrue(kept.sound)
+        assertTrue(File(kept.audioPath!!).isFile)
+        val note = db.entries().all().single()
+        assertEquals(listOf(kept.id), com.villamediana.fio.data.Library(db, Synced()).sounds(note).first().map { it.id })
+
+        // Where the words are enough, the recording goes.
+        assertTrue(m.startListening(locked = true))
+        m.stopListening()
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        val other = db.backup().captures().first { it.id != kept.id }
+        assertTrue(!other.sound)
+        assertNull(other.audioPath)
+        assertTrue(!File(tmp.root, "v2.wav").exists())
+    }
+
+    private fun jpegFile(name: String): File = File(tmp.root, name).apply { writeBytes(ByteArray(1024) { it.toByte() }) }
+
+    @Test
+    fun photosWaitAndGoWithWhatSheSays() = runBlocking {
+        val made = """{"reply":"Anotei: comprar pra Alma.","create":[{"kind":"task","title":"Comprar o tênis azul pra Alma","photos":true}],"photo_description":"tênis azul numa vitrine"}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made)))
+        val m = mind(FakeEars(""), thinker)
+        m.stage(listOf(jpegFile("a.jpg") to now - 60_000, jpegFile("b.jpg") to now - 30_000, jpegFile("c.jpg") to now))
+        assertEquals(3, m.staged.value.size)
+        // One let go before sending.
+        m.unstage(m.staged.value[2])
+        assertEquals(2, m.staged.value.size)
+
+        m.write("lembra de comprar isso pra Alma")
+        answered(m)
+        assertTrue(m.staged.value.isEmpty())
+        // One look for all: what she wrote with the two photos.
+        val prompt = thinker.prompts.single()
+        assertTrue(prompt, prompt.contains("AS FOTOS QUE ELA MANDOU JUNTO (2, na imagem, em ordem):"))
+        val said = db.backup().captures().single { it.source == Capture.TEXT }
+        val sent = db.captures().attachedTo(said.id)
+        assertEquals(2, sent.size)
+        assertTrue(sent.all { it.description == "tênis azul numa vitrine" && it.state == Capture.DONE && File(it.imagePath!!).isFile })
+        // They stay with the task, and the day's diary shows them too.
+        val task = db.entries().all().single { it.kindEnum == com.villamediana.fio.data.Kind.TASK }
+        val lib = com.villamediana.fio.data.Library(db, Synced())
+        assertEquals(sent.map { it.id }, lib.photosOf(task.id).first().map { it.id })
+        val day = DayDiary.bounds(now, zone)
+        assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
+    }
+
+    @Test
+    fun morePhotosJoinATaskAlreadyThere() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Presente da Alma", status = "todo", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
+        val r = keeper().apply(Brain.parse("""{"update":[{"id":$id,"photos":true}]}""")!!, 7L)
+        assertEquals(listOf(Outcome(id, Outcome.UPDATED, photos = true)), r.outcomes)
+        assertEquals(now, db.entries().get(id)!!.updatedAt)
+    }
+
     /** A model that hangs and doesn't listen to anything (like a native call that won't come back). */
     private class StuckThinker(val reply: String) : Thinker {
         @Volatile var stuck = true
@@ -596,6 +665,13 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun aDiaryOnlyGrowsByWholeWords() {
+        // "Sol." is not in "Girassol": the day told so far stays, the new part joins it.
+        assertEquals("Sol.\n\nO girassol nasceu.", DayDiary.merge("Sol.", "O girassol nasceu."))
+        assertEquals("Sol na praia.\n\nDepois choveu.", DayDiary.merge("Sol na praia.", "Sol na praia.\n\nDepois choveu."))
+    }
+
+    @Test
     fun daysLeftWithTwoDiariesBecomeOne() = runBlocking {
         val a = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
         val b = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.\n\nAl final encontré a Alma.", createdAt = now, updatedAt = now))
@@ -631,13 +707,42 @@ class KeeperAndMindTest {
         assertTrue(prompt, prompt.contains("ANTES DISSO (a última conversa, "))
         assertTrue(prompt, prompt.contains("ela: \"preciso criar um fluxo no Power Automate\""))
         assertTrue(prompt, prompt.contains("você: \"Anotei a tarefa do fluxo.\""))
-        assertTrue(prompt, prompt.contains("criado: #${task.id} tarefa[todo]"))
+        // Already in the open tasks above: there it is only pointed to, not written again.
+        assertTrue(prompt, prompt.contains("criado: #${task.id} (acima)"))
+        assertEquals(prompt, 1, Regex("#${task.id} tarefa\\[todo]").findAll(prompt).count())
         // The step went to the task's steps, not to its text.
         val after = db.entries().get(task.id)!!
         assertEquals(listOf("Falar com o Vinícius"), Steps.read(after.steps).map { it.text })
         assertEquals("", after.body)
         // The first thing said has nothing before it.
         assertTrue(!thinker.prompts[0].contains("ANTES DISSO"))
+    }
+
+    @Test
+    fun aTaskDoneLeavesWhatTheModelGetsByItself() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Criar fluxo no Power Automate", status = "todo", createdAt = now, updatedAt = now))
+        val finish = """{"reply":"Marquei o fluxo como feito.","update":[{"id":$id,"status":"done"}]}"""
+        val note = """{"reply":"Anotei.","create":[{"kind":"note","title":"Vinícius sabe mexer no Power Automate"}]}"""
+        val look = """{"search":["fluxo"]}"""
+        val answer = """{"reply":"Você terminou o fluxo hoje."}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(finish, note, look, answer)))
+        val m = mind(FakeEars(""), thinker)
+        m.write("terminei o fluxo do Power Automate")
+        answered(m)
+        m.dismiss()
+        assertEquals("done", db.entries().get(id)!!.status)
+        // Next, something near it: the task done is in no list (not even the last conversation's).
+        m.write("o Vinícius que sabe mexer no fluxo do Power Automate")
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        m.dismiss()
+        val second = thinker.prompts[1]
+        assertTrue(second, second.contains("você: \"Marquei o fluxo como feito.\""))
+        assertTrue(second, !second.contains("#$id "))
+        // Asked about it, a lookup still finds it.
+        m.write("o que eu fiz do fluxo?")
+        withTimeout(10_000) { while (thinker.prompts.size < 4 || !m.idle) kotlinx.coroutines.delay(20) }
+        assertTrue(thinker.prompts[2], !thinker.prompts[2].contains("#$id "))
+        assertTrue(thinker.prompts[3], thinker.prompts[3].contains("#$id tarefa[done]"))
     }
 
     @Test

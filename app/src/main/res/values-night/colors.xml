@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="window_bg">#111113</color>
+    <color name="splash_vermilion">#FF6A43</color>
+    <color name="splash_vermilion_on">#FFFFFF</color>
+    <color name="splash_blue">#7C9BFF</color>
+    <color name="splash_blue_on">#FFFFFF</color>
+    <color name="splash_green">#5FD69C</color>
+    <color name="splash_green_on">#17171A</color>
+    <color name="splash_pink">#FF7AA8</color>
+    <color name="splash_pink_on">#FFFFFF</color>
+    <color name="splash_purple">#A88BFF</color>
+    <color name="splash_purple_on">#FFFFFF</color>
+    <color name="splash_teal">#5ED8D8</color>
+    <color name="splash_teal_on">#17171A</color>
+    <color name="splash_graphite">#E6E8EE</color>
+    <color name="splash_graphite_on">#17171A</color>
 </resources>

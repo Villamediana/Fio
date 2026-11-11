@@ -32,6 +32,8 @@ data class Plan(
     @SerialName("show_photos") val showPhotos: List<Long> = emptyList(),
     /** The photo just taken: what can be seen in it, in her words — what the search finds it by later. */
     @SerialName("photo_description") val photoDescription: String? = null,
+    /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
+    @SerialName("keep_audio") val keepAudio: Boolean = false,
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
@@ -54,6 +56,8 @@ data class NewItem(
     val status: String? = null,
     val sensitive: Boolean = false,
     val related: List<Long> = emptyList(),
+    /** The photos sent with what she said stay with this item. */
+    val photos: Boolean = false,
 )
 
 @Serializable
@@ -75,6 +79,8 @@ data class Change(
     @SerialName("check_in_at") val checkInAt: String? = null,
     val entities: List<NamedTopic> = emptyList(),
     val delete: Boolean = false,
+    /** The photos sent with what she said go to this item too. */
+    val photos: Boolean = false,
 )
 
 /** The last exchange: what she said (or that it was a photo), Fio's answer, the items it made or changed ("criado"…). */
@@ -112,19 +118,22 @@ Como preencher:
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - photo_description: quando ela tirou uma foto, descreva o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
 - A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
+- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho. Em photo_description, o que se vê nelas, só pra busca.
+- keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
 - Deixe de fora os campos vazios ou null: a resposta fica curta.
 
 Responda somente com um objeto JSON neste formato:
 {"reply": "...",
- "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": []}],
- "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "body": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
+ "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": [], "photos": false}],
+ "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "body": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false, "photos": false}],
  "search": [],
  "period": {"from": null, "to": null},
  "show": [],
  "show_photos": [],
- "photo_description": null}
+ "photo_description": null,
+ "keep_audio": false}
 """.trim()
 
     /**
@@ -148,6 +157,8 @@ Responda somente com um objeto JSON neste formato:
         takenAt: Long? = null,
         /** The last thing she said before this, and what came of it: what "isso", "essa tarefa" refer to. */
         before: Before? = null,
+        /** Photos she sent together with what she said (in the image, in this order): what they read. */
+        sent: List<Photo> = emptyList(),
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -167,17 +178,25 @@ Responda somente com um objeto JSON neste formato:
         val last = recent.filter { it.id !in shown }.take(MAX_RECENT)
         if (last.isNotEmpty()) {
             append("\nÚLTIMAS COISAS GUARDADAS (a mais nova primeiro):\n")
-            last.forEach { append(line(it, zone, now, long = true)).append('\n') }
+            last.forEach { e ->
+                val whole = line(e, zone, now, long = true)
+                // An open task listed above with nothing more to say (no text): only pointed to.
+                append(if (tasks.any { it.id == e.id } && whole == line(e, zone, now)) "#" + e.id + " (acima)" else whole).append('\n')
+            }
         }
+        // What is already written above: further down it is only pointed to (#id), never repeated.
+        val listed = HashSet<Long>(shown).apply { tasks.forEach { add(it.id) }; last.forEach { add(it.id) } }
         if (looked == null) {
-            val rel = related.filter { r -> r.id !in shown && tasks.none { it.id == r.id } && last.none { it.id == r.id } }.take(MAX_RELATED)
+            val rel = related.filter { r -> r.id !in listed }.take(MAX_RELATED)
             if (rel.isNotEmpty()) {
                 append("\nLEMBRANÇAS QUE PODEM TER A VER:\n")
                 rel.forEach { append(line(it, zone, now, long = true)).append('\n') }
             }
+            rel.forEach { listed += it.id }
         } else {
             // What was asked for comes whole, even when it is already listed above.
             val found = related.take(MAX_FOUND)
+            found.forEach { listed += it.id }
             if (found.isNotEmpty()) {
                 append("\nRESULTADOS DA BUSCA (").append(looked).append("):\n")
                 found.forEach { append(line(it, zone, now, long = true)).append('\n') }
@@ -198,12 +217,22 @@ Responda somente com um objeto JSON neste formato:
             append("\nANTES DISSO (a última conversa, ").append(stamp(before.at, zone)).append("):\n")
             append("ela: ").append(if (before.photo) "(mandou uma foto)" else "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\"").append('\n')
             if (before.reply.isNotBlank()) append("você: \"").append(before.reply.trim().take(BEFORE_REPLY)).append("\"\n")
-            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) -> append(what).append(": ").append(line(e, zone, now)).append('\n') }
+            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) ->
+                append(what).append(": ").append(if (e.id in listed) "#" + e.id + " (acima)" else line(e, zone, now)).append('\n')
+            }
         }
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
         append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
         val takenOn = takenAt?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zone) }?.takeIf { it.toLocalDate() != at.toLocalDate() }
+        if (sent.isNotEmpty()) {
+            append("\nAS FOTOS QUE ELA MANDOU JUNTO (").append(sent.size).append(if (sent.size == 1) ", na imagem):\n" else ", na imagem, em ordem):\n")
+            sent.forEachIndexed { i, p ->
+                append(i + 1).append(". ").append(stamp(p.takenAt, zone))
+                p.text?.let { append(" · texto: ").append(it.take(160).replace('\n', ' ')) }
+                append('\n')
+            }
+        }
         append(
             when {
                 photo && takenOn != null -> "\nO QUE ESTÁ NA FOTO (TIRADA EM " + takenOn.dayOfWeek.getDisplayName(TextStyle.FULL, PT) + ", " + takenOn.format(STAMP) + "):\n"
@@ -333,7 +362,7 @@ ws     ::= [ \t\n]{0,20}
 """.trim()
 
     private const val MAX_TASKS = 30
-    private const val MAX_RELATED = 12
+    private const val MAX_RELATED = 8
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
     private const val MAX_PHOTOS = 12

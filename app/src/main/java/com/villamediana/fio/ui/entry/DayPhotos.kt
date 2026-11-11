@@ -52,6 +52,15 @@ internal fun DayPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
     PhotoRow(photos, side, modifier.padding(top = 22.dp))
 }
 
+/** The photos an item holds (a task, a note: sent with what she said), under its text. */
+@Composable
+internal fun EntryPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
+    val lib = FioApplication.graph.library
+    val photos by remember(entry.id) { lib.photosOf(entry.id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    if (photos.isEmpty()) return
+    PhotoRow(photos, side, modifier.padding(top = 22.dp), tag = "entry-photo")
+}
+
 /** A sideways row of [photos] at [height], of different widths (see [Mosaic]); [side] = the page's own margin. */
 @Composable
 internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {

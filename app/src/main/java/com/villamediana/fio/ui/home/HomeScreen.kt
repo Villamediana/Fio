@@ -8,6 +8,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -100,6 +103,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val pending by mind.pending.collectAsStateWithLifecycle()
     val settings by graph.settings.now.collectAsStateWithLifecycle()
     val entries by graph.library.all().collectAsStateWithLifecycle(initialValue = emptyList())
+    val staged by mind.staged.collectAsStateWithLifecycle()
 
     var focus by remember { mutableStateOf<Entry?>(null) }
     var writing by remember { mutableStateOf(false) }
@@ -223,6 +227,10 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
+            // Photos taken or picked wait here: sent as they are, or with what she says or writes next.
+            AnimatedVisibility(staged.isNotEmpty(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                StagedTray(staged, onRemove = mind::unstage, onSend = mind::sendStaged)
+            }
             BottomBar(
                 entries = entries,
                 onCamera = { nav.go(Screen.Camera) },
@@ -239,6 +247,51 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
             onSend = { text -> writing = false; mind.write(text) },
             onDismiss = { writing = false },
         )
+    }
+}
+
+/** The photos waiting: a row of them (× lets one go), the arrow sends them as they are. */
+@Composable
+private fun StagedTray(photos: List<com.villamediana.fio.mind.Staged>, onRemove: (com.villamediana.fio.mind.Staged) -> Unit, onSend: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
+        Text(
+            if (photos.size == 1) "Fale ou escreva o que fazer com ela, ou envie assim" else "Fale ou escreva o que fazer com elas, ou envie assim",
+            style = MaterialTheme.typography.labelMedium,
+            color = FioColors.TextMuted,
+            modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.lazy.LazyRow(
+                Modifier.weight(1f).testTag("staged-row"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(photos.size, key = { photos[it].file.name }) { i ->
+                    val p = photos[i]
+                    Box(Modifier.size(62.dp)) {
+                        com.villamediana.fio.ui.components.PhotoTile(
+                            p.file.path,
+                            maxPx = 200,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).testTag("staged-$i"),
+                        )
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(3.dp)
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(FioColors.Background.copy(alpha = 0.86f))
+                                .clickable(onClickLabel = "Tirar a foto") { onRemove(p) }
+                                .semantics { contentDescription = "Tirar a foto" },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(FioIcons.Close, null, tint = FioColors.Text, modifier = Modifier.size(13.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            com.villamediana.fio.ui.components.IconAction(FioIcons.Send, if (photos.size == 1) "Enviar a foto" else "Enviar as fotos", onSend, primary = true, size = 48.dp)
+        }
     }
 }
 

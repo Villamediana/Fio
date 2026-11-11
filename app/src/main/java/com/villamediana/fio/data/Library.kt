@@ -5,6 +5,7 @@ import com.villamediana.fio.mind.Recall
 import com.villamediana.fio.mind.ReminderSync
 import com.villamediana.fio.mind.Steps
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** What the screens do to entries by hand (tap the circle, change the status, edit, delete). */
@@ -18,6 +19,18 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
     /** The photos taken in [day] (first to last ms), in the order they were taken. */
     fun photos(day: LongRange): Flow<List<com.villamediana.fio.mind.Photo>> =
         db.captures().observePhotos(day.first, day.last).map { list -> list.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+
+    /** The photos [entryId] holds (sent with what she said; see [Attached]), in order. */
+    fun photosOf(entryId: Long): Flow<List<com.villamediana.fio.mind.Photo>> =
+        db.captures().observeAttachments()
+            .map { list -> Attached.photosOf(entryId, list).filter { java.io.File(it.imagePath!!).isFile }.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+            .flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    /** The sounds kept that go with [entry] (see [Sounds]), the oldest first. */
+    fun sounds(entry: Entry): Flow<List<Capture>> =
+        db.captures().observeSounds()
+            .map { list -> list.filter { Sounds.goesWith(it, entry) && java.io.File(it.audioPath!!).isFile } }
+            .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     /** Every photo kept, the newest first. */
     fun allPhotos(): Flow<List<com.villamediana.fio.mind.Photo>> =
@@ -60,6 +73,13 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
     suspend fun turnPhoto(captureId: Long) {
         val c = db.captures().get(captureId) ?: return
         db.captures().update(c.copy(turn = (c.turn + 90) % 360))
+    }
+
+    /** Takes a photo out of Fio, its file too. What was kept from it (a task, a note) stays. */
+    suspend fun removePhoto(captureId: Long) {
+        val c = db.captures().get(captureId)?.takeIf { it.source == "photo" } ?: return
+        db.captures().delete(c.id)
+        c.imagePath?.let { java.io.File(it).delete() }
     }
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())

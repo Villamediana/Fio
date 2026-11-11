@@ -1,11 +1,13 @@
 package com.villamediana.fio.backup
 
+import com.villamediana.fio.data.Attached
 import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.EntryTopic
 import com.villamediana.fio.data.Kind
 import com.villamediana.fio.data.Link
 import com.villamediana.fio.data.Progress
+import com.villamediana.fio.data.Sounds
 import com.villamediana.fio.data.Status
 import com.villamediana.fio.data.Topic
 import com.villamediana.fio.mind.DayDiary
@@ -30,8 +32,11 @@ data class Snapshot(
     val progress: List<Progress> = emptyList(),
     /** Each photo (capture id) → its file in the backup folder ("Fotos/2026/…jpg"). */
     val photos: Map<Long, String> = emptyMap(),
+    /** Each sound kept (capture id) → its file in the backup folder ("Áudios/2026/…wav"). */
+    val sounds: Map<Long, String> = emptyMap(),
 ) {
     val photoCount: Int get() = photos.size
+    val soundCount: Int get() = sounds.size
 
     companion object {
         const val FORMAT = 1
@@ -50,6 +55,7 @@ object Readable {
     const val OPEN = "Abertas"
     const val DONE = "Feitas"
     const val PHOTOS = "Fotos"
+    const val SOUNDS = "Áudios"
     const val BACKUPS = "Backups"
 
     /** The folders holding Markdown kept in step with the app (a file whose item is gone leaves). */
@@ -66,6 +72,13 @@ object Readable {
         val at = Instant.ofEpochMilli(c.createdAt).atZone(zone)
         val ext = c.imagePath?.substringAfterLast('.', "jpg")?.lowercase()?.takeIf { it.length in 2..5 } ?: "jpg"
         return "$PHOTOS/${at.year}/${at.format(PHOTO)} (${c.id}).$ext"
+    }
+
+    /** Where a sound kept goes in the backup: Áudios/<ano>/<data hora> (<id>).<ext>. */
+    fun soundPath(c: Capture, zone: ZoneId): String {
+        val at = Instant.ofEpochMilli(c.createdAt).atZone(zone)
+        val ext = c.audioPath?.substringAfterLast('.', "wav")?.lowercase()?.takeIf { it.length in 2..5 } ?: "wav"
+        return "$SOUNDS/${at.year}/${at.format(PHOTO)} (${c.id}).$ext"
     }
 
     /** The name of a snapshot made at [ms]: Backups/fio 2026-11-11 14.32.05.json (the newest sorts last). */
@@ -94,6 +107,7 @@ object Readable {
         val diaryOfDay = s.entries.filter { it.kindEnum == Kind.DIARY }
             .groupBy { DayDiary.bounds(it.createdAt, zone).first }
             .mapValues { (_, list) -> list.maxWith(compareBy<Entry> { it.createdAt }.thenBy { it.id }).id }
+        val soundCaptures = s.captures.filter { it.id in s.sounds }
 
         val paths = LinkedHashMap<String, Entry>()
         // The oldest takes the plain name; another with the same name gets its number.
@@ -115,12 +129,16 @@ object Readable {
             val photos = if (e.kindEnum == Kind.DIARY) {
                 val day = DayDiary.bounds(e.createdAt, zone).first
                 if (diaryOfDay[day] == e.id) dayOfPhotos[day].orEmpty().sortedBy { it.createdAt }.mapNotNull { s.photos[it.id] } else emptyList()
-            } else emptyList()
-            markdown(e, topicsOf[e.id].orEmpty(), photos.map { "../".repeat(depth) + it }, zone)
+            } else {
+                // The photos it holds (sent with what she said).
+                Attached.photosOf(e.id, s.captures).mapNotNull { s.photos[it.id] }
+            }
+            val sounds = soundCaptures.filter { Sounds.goesWith(it, e) }.mapNotNull { s.sounds[it.id] }
+            markdown(e, topicsOf[e.id].orEmpty(), photos.map { "../".repeat(depth) + it }, zone, sounds.map { "../".repeat(depth) + it })
         }
     }
 
-    fun markdown(e: Entry, topics: List<String>, photos: List<String>, zone: ZoneId): String = buildString {
+    fun markdown(e: Entry, topics: List<String>, photos: List<String>, zone: ZoneId, sounds: List<String> = emptyList()): String = buildString {
         append("# ").append(e.title.ifBlank { "Sem título" }.trim()).append("\n\n")
         val about = buildList {
             if (e.kindEnum == Kind.TASK) {
@@ -141,8 +159,10 @@ object Readable {
             steps.forEach { append(if (it.done) "- [x] " else "- [ ] ").append(it.text.trim()).append('\n') }
             append('\n')
         }
-        photos.forEach { append("![](").append(it.replace(" ", "%20").replace("(", "%28").replace(")", "%29")).append(")\n") }
+        photos.forEach { append("![](").append(link(it)).append(")\n") }
         if (photos.isNotEmpty()) append('\n')
+        sounds.forEach { append("[Áudio](").append(link(it)).append(")\n") }
+        if (sounds.isNotEmpty()) append('\n')
         append("---\n")
         val tags = Tags.read(e.tags)
         if (topics.isNotEmpty()) append("Tópicos: ").append(topics.joinToString(" · ")).append('\n')
@@ -151,6 +171,8 @@ object Readable {
         if (e.updatedAt > e.createdAt + 60_000) append(" · atualizado em ").append(at(e.updatedAt, zone))
         append('\n')
     }
+
+    private fun link(path: String) = path.replace(" ", "%20").replace("(", "%28").replace(")", "%29")
 
     private fun status(s: Status) = when (s) {
         Status.TODO -> "a fazer"
