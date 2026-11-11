@@ -30,6 +30,9 @@ continua do trecho seguinte; `tries` conta execuções que nunca terminaram e, a
 (nada de cair em loop ao abrir). O modelo carrega enquanto ela ainda fala (`warm`), o motor usa só os núcleos rápidos
 (≥ 70 % da frequência máxima do mais rápido) e a API é pedida com `reasoning_effort: low` (sem ele, se o servidor recusar).
 Enquanto ouve, a tela mostra o fim do que já foi transcrito.
+Gramática barata: a cada passo o motor pega o token de maior logit e confere só ele na gramática; só quando não
+cabe a gramática corre o vocabulário todo (~125k no LFM3). Correr tudo a cada passo deixava o organizar no celular
+em minutos. O prompt pede pra deixar de fora campos vazios/null (menos tokens a gerar).
 Enquanto organiza, a tela tem um "parar": solta o modelo (cancel nativo) ou o pedido (OkHttp com tag), cancela o
 trabalho e a fila segue na hora; a captura fica `stopped` (com o texto), só volta por "Tentar de novo" ou pelo
 "esperando · tentar agora". Qualquer falha (até `Error` do motor) termina na tela, nunca num "Organizando…" eterno.

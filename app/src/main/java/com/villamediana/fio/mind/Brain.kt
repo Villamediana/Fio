@@ -99,6 +99,7 @@ Como preencher:
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
+- Deixe de fora os campos vazios ou null: a resposta fica curta.
 
 Responda somente com um objeto JSON neste formato:
 {"reply": "...",
