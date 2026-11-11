@@ -192,10 +192,10 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)) = Mind(
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos) = Mind(
         scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = NoPhotos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now },
+        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now },
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->
@@ -442,6 +442,50 @@ class KeeperAndMindTest {
         assertTrue(thinker.prompts[2], results.contains("#$diary diário"))
         assertTrue(results.contains("#$paid tarefa[done]"))
         assertTrue(!results.contains("#$old nota"))
+    }
+
+    private class ReadsText(val text: String) : PhotoReader { override suspend fun text(file: File) = text; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
+
+    @Test
+    fun aPhotoTakenIsTheDaysTooItsDiaryBegunOnce() = runBlocking {
+        val note = """{"reply":"Guardei o recibo.","create":[{"kind":"note","title":"Recibo do almoço","body":"R$ 32,00"}]}"""
+        val m = mind(FakeEars(""), FakeThinker(ArrayDeque(listOf(note, note))), photos = ReadsText("Restaurante Sol · R$ 32,00"))
+        m.photo(tmp.newFile("p1.jpg"))
+        answered(m)
+        // The day had no diary: one is begun, named by the day, nothing written for her.
+        val day = DayDiary.bounds(now, zone)
+        val first = db.entries().diariesBetween(day.first, day.last)
+        assertEquals(1, first.size)
+        assertEquals("Quarta-feira, 11 de novembro", first.single().title)
+        assertEquals("", first.single().body)
+        m.dismiss()
+        // Another photo the same day: the same diary.
+        m.photo(tmp.newFile("p2.jpg"))
+        answered(m)
+        assertEquals(first.map { it.id }, db.entries().diariesBetween(day.first, day.last).map { it.id })
+        assertEquals(2, db.entries().all().count { it.title == "Recibo do almoço" })
+    }
+
+    @Test
+    fun aPhotoKeepsWhatItShowsAndAQuestionBringsItBack() = runBlocking {
+        val described = """{"reply":"Que lindo!","photo_description":"Alma no aeroporto de Guarulhos com a mala azul"}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(described)))
+        val m = mind(FakeEars(""), thinker, photos = ReadsText("GRU T2"))
+        m.photo(tmp.newFile("alma.jpg"))
+        val a = answered(m)
+        val photo = db.captures().get(a.captureId)!!
+        assertEquals("Alma no aeroporto de Guarulhos com a mala azul", photo.description)
+        m.dismiss()
+
+        // Later, a question: the photo goes to the model by what it shows, and comes back as the answer.
+        val asked = FakeThinker(ArrayDeque(listOf("""{"reply":"Essa aqui.","show_photos":[${photo.id}, 999]}""")))
+        val m2 = mind(FakeEars("mostra a foto da Alma no aeroporto"), asked)
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, state = Capture.RECORDED))
+        m2.retry(id)
+        val answer = answered(m2)
+        assertTrue(asked.prompts.single(), asked.prompts.single().contains("FOTOS QUE PODEM TER A VER:\nfoto#${photo.id} "))
+        assertEquals(listOf(photo.id), answer.photos) // 999 isn't a photo
+        assertEquals("[${photo.id}]", db.captures().get(id)!!.shownPhotos)
     }
 
     @Test

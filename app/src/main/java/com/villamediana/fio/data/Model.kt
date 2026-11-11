@@ -89,6 +89,10 @@ data class Capture(
     val heardBy: String? = null,
     /** Runs that started and never ended (the app closed or fell in the middle): after a few, it waits for a hand. */
     @ColumnInfo(defaultValue = "0") val tries: Int = 0,
+    /** A photo: what it shows, in her words (written by the model that looked at it) — what the search finds it by. */
+    val description: String? = null,
+    /** JSON list of photos (capture ids) shown as the answer to a question. */
+    @ColumnInfo(defaultValue = "[]") val shownPhotos: String = "[]",
 ) {
     companion object {
         const val RECORDED = "recorded"

@@ -12,6 +12,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -209,6 +213,82 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
         repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(100) }
         shot("12-graph-topic")
+    }
+
+    @Test
+    fun theDaysDiaryShowsTheDaysPhotos() {
+        val ids = seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(context.filesDir, "captures").apply { mkdirs() }
+        // Three photos today, one yesterday (that one belongs to yesterday's diary).
+        val colors = listOf(0xFFE8A87C, 0xFF85CDCA, 0xFFC38D9E, 0xFF41B3A3).map { it.toInt() }
+        val times = listOf(now - 3_600_000L, now - 1_800_000L, now - 600_000L, now - day)
+        runBlocking {
+            colors.forEachIndexed { i, color ->
+                val f = File(dir, "photo-test-$i.jpg")
+                val b = Bitmap.createBitmap(64, 48, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+                f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                graph.db.captures().insert(com.villamediana.fio.data.Capture(createdAt = times[i], source = "photo", imagePath = f.path, state = com.villamediana.fio.data.Capture.DONE))
+            }
+        }
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { EntryScreen(nav, ids["diary"]!!) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("day-photo-0").fetchSemanticsNodes().isNotEmpty() }
+        // Today's three slide sideways (yesterday's belongs to yesterday's diary).
+        val row = compose.onNodeWithTag("day-photo-row").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo]
+        assertEquals(3, row.columnCount)
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("20-diary-photos")
+        compose.onNodeWithTag("day-photo-1").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("2 / 3").assertExists()
+        compose.mainClock.advanceTimeBy(500)
+        shot("21-photo-viewer")
+        compose.onNodeWithContentDescription("Fechar").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun theGalleryHasEveryPhotoAndTheSearchFindsThemByWhatTheyShow() {
+        seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(context.filesDir, "captures").apply { mkdirs() }
+        // Different shapes: the gallery keeps each one's.
+        val shots = listOf(
+            Triple(0xFFE8A87C.toInt(), 60 to 80, "Pôr do sol na praia de Itacaré, céu laranja"),
+            Triple(0xFF85CDCA.toInt(), 80 to 50, "Alma no aeroporto de Guarulhos com a mala azul"),
+            Triple(0xFFC38D9E.toInt(), 60 to 60, "Café da manhã com pão de queijo"),
+            Triple(0xFF41B3A3.toInt(), 50 to 90, null),
+        )
+        runBlocking {
+            shots.forEachIndexed { i, (color, size, about) ->
+                val f = File(dir, "gallery-test-$i.jpg")
+                val b = Bitmap.createBitmap(size.first, size.second, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+                f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                graph.db.captures().insert(com.villamediana.fio.data.Capture(createdAt = now - i * day, source = "photo", imagePath = f.path, state = com.villamediana.fio.data.Capture.DONE, description = about))
+            }
+        }
+        val nav = Nav()
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Library(Filter.GALLERY))
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { (screen.value as? Screen.Library)?.let { LibraryScreen(nav, it) } } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("gallery-photo-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Galeria").assertExists()
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("22-gallery")
+        compose.onNodeWithTag("gallery-photo-0").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
+        // Under the photo, what it shows.
+        compose.onNodeWithText("Pôr do sol na praia de Itacaré, céu laranja").assertExists()
+        compose.onNodeWithContentDescription("Fechar").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
+
+        // The search finds a photo by what it shows, even by the start of a word.
+        screen.value = Screen.Library(Filter.ALL, search = true, query = "aeroport")
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("found-photo-0").fetchSemanticsNodes().isNotEmpty() }
+        val found = compose.onNodeWithTag("found-photo-row").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo]
+        assertEquals(1, found.columnCount)
+        shot("23-search-photo")
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.villamediana.fio.mind.Recall
 import com.villamediana.fio.mind.ReminderSync
 import com.villamediana.fio.mind.Steps
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /** What the screens do to entries by hand (tap the circle, change the status, edit, delete). */
 class Library(private val db: FioDatabase, private val reminders: ReminderSync, private val clock: () -> Long = System::currentTimeMillis) {
@@ -12,6 +13,17 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
 
     suspend fun get(id: Long): Entry? = db.entries().get(id)
     suspend fun capture(id: Long): Capture? = db.captures().get(id)
+
+    /** The photos taken in [day] (first to last ms), in the order they were taken. */
+    fun photos(day: LongRange): Flow<List<com.villamediana.fio.mind.Photo>> =
+        db.captures().observePhotos(day.first, day.last).map { list -> list.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+
+    /** Every photo kept, the newest first. */
+    fun allPhotos(): Flow<List<com.villamediana.fio.mind.Photo>> =
+        db.captures().observeAllPhotos().map { list -> list.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+
+    /** Whether [entryId] is the day's diary (the newest of [day]) — the one that shows the day's photos. */
+    suspend fun isDayDiary(entryId: Long, day: LongRange): Boolean = db.entries().diariesBetween(day.first, day.last).firstOrNull()?.id == entryId
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 

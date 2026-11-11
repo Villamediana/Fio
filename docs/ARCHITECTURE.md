@@ -91,6 +91,18 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 `Brain.SYSTEM` descreve as ideias (o que é tarefa, nota, diário, notícia, pergunta), nunca listas de
 palavras-gatilho. O modelo decide; o código só valida (tipos conhecidos, ids que existem, datas futuras).
 
+Fotos (1.13.0): a foto tirada no Fio (`Capture` source=photo, arquivo em filesDir/captures) é do
+dia — se o dia não tem diário, `Mind.diaryFor` cria um com a data de título (`DayDiary.title`). O
+diário do dia (o mais novo daquele dia) mostra as fotos do dia num carrossel (`ui/entry/DayPhotos`,
+`PhotoRow`), o cartão do Diário mostra até 4 miniaturas, a aba Galeria é um mosaico de duas colunas
+(`ui/library/Gallery`, `LazyVerticalStaggeredGrid`) e um toque abre `PhotoViewer` (tela cheia,
+desliza, legenda + data). O modelo que olha a foto escreve `photo_description` (o que se vê, no
+idioma dela, com as palavras que ela usaria pra procurar) → `Capture.description` (banco v4,
+AutoMigration 3→4). `PhotoRecall` acha fotos pela descrição + texto lido (OCR), do mesmo jeito do
+`Recall`: na busca da biblioteca (faixa "Fotos" no topo) e nas perguntas — o contexto ganha
+`FOTOS QUE PODEM TER A VER` / `FOTOS ACHADAS` (`foto#id`), o modelo devolve `show_photos` e a
+resposta na Home mostra as fotos (`Capture.shownPhotos`).
+
 Diário (1.12.0): todo relato do dia vai pro diário, mesmo quando também é notícia de uma tarefa —
 aí as duas coisas: o item recebe só o que muda pra ele, o diário o relato inteiro. Um diário por dia:
 `Brain.todaysDiary` (o mais novo criado hoje) vai no contexto como `DIÁRIO DE HOJE` (texto inteiro,

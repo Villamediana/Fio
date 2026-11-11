@@ -40,6 +40,7 @@ import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -447,6 +448,12 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             s.shown.filter { id -> s.outcomes.none { it.entryId == id } }.forEach { id ->
                 val e = byId[id] ?: return@forEach
                 AppearingCard(i++) { EntryCard(e, onClick = { onOpen(e.id) }, terms = terms, onToggle = { onToggle(e.id) }) }
+            }
+            // The photos that answer, in the order Fio gave them; a tap opens them big.
+            if (s.photos.isNotEmpty()) {
+                val kept by remember { com.villamediana.fio.FioApplication.graph.library.allPhotos() }.collectAsState(initial = emptyList())
+                val found = remember(kept, s.photos) { kept.associateBy { it.id }.let { m -> s.photos.mapNotNull(m::get) } }
+                if (found.isNotEmpty()) AppearingCard(i++) { com.villamediana.fio.ui.entry.PhotoRow(found, side = 22.dp, height = 170.dp, tag = "answer-photo") }
             }
         }
     }
