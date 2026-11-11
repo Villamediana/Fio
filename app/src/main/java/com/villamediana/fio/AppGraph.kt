@@ -126,6 +126,7 @@ class AppGraph(context: Context) {
             settings = settings,
             mind = mind,
             scope = scope,
+            joinDays = { library.joinDayDiaries() },
         )
     }
 

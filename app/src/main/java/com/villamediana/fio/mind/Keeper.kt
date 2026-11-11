@@ -31,6 +31,27 @@ class Keeper(
 
         for (item in plan.create) {
             val kind = Kind.of(item.kind) ?: continue
+            // One diary a day: the day's story told again goes on in the diary already there.
+            if (kind == Kind.DIARY) {
+                val day = DayDiary.bounds(now, z)
+                val today = db.entries().diariesBetween(day.first, day.last).firstOrNull()
+                if (today != null) {
+                    val body = DayDiary.merge(today.body, item.body)
+                    // A diary only begun by a photo (the date for a name, nothing told) takes the name told.
+                    val title = if (today.body.isBlank() && item.title.isNotBlank()) item.title.trim().take(140) else today.title
+                    val e = today.copy(title = title, body = body)
+                    if (e != today) {
+                        db.entries().update(e.copy(updatedAt = now))
+                        outcomes += Outcome(today.id, Outcome.UPDATED)
+                    }
+                    known += today.id
+                    tieTopics(today.id, item.entities)
+                    item.related.filter { it != today.id && db.entries().get(it) != null }.forEach { other ->
+                        db.graph().link(Link(minOf(today.id, other), maxOf(today.id, other)))
+                    }
+                    continue
+                }
+            }
             val due = Brain.time(item.due, z)
             val status = if (kind == Kind.TASK) (Status.of(item.status) ?: Status.TODO) else null
             val entry = Entry(
@@ -81,7 +102,7 @@ class Keeper(
             }
             change.title?.takeIf { it.isNotBlank() }?.let { e = e.copy(title = it.trim().take(140)) }
             // One text per item: what is new joins it (no history kept apart that says the same again).
-            change.append?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = joined(e.body, it)) }
+            change.append?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = if (e.kindEnum == Kind.DIARY) DayDiary.merge(e.body, it) else joined(e.body, it)) }
             Brain.time(change.due, z)?.let { (ms, hasTime) -> e = e.copy(dueAt = ms, dueHasTime = hasTime) }
             Brain.remindTime(change.remindAt, z)?.takeIf { it > now }?.let { e = e.copy(remindAt = it) }
             Brain.remindTime(change.checkInAt, z)?.takeIf { it > now }?.let { e = e.copy(checkInAt = it) }

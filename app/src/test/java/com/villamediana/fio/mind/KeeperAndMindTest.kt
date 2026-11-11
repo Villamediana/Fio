@@ -580,4 +580,36 @@ class KeeperAndMindTest {
         assertNull(PhotoDate.parse(null, null, zone))
         assertNull(PhotoDate.of(File(tmp.root, "nada.jpg"), zone))
     }
+
+    @Test
+    fun anotherDiaryTheSameDayGoesOnInTheOneThereIs() = runBlocking {
+        val morning = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
+        // The model made a new diary with the morning again and something new.
+        keeper().apply(Brain.parse("""{"create":[{"kind":"diary","title":"Una mañana interesante","body":"Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto."}]}""")!!, null)
+        val day = DayDiary.bounds(now, zone)
+        val diaries = db.entries().diariesBetween(day.first, day.last)
+        assertEquals(listOf(morning), diaries.map { it.id })
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto.", diaries.single().body)
+        // Told again from the start with more: it takes the place (nothing doubled).
+        keeper().apply(Brain.parse("""{"update":[{"id":$morning,"append":"Al final encontré a Alma en el aeropuerto."}]}""")!!, null)
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma en el aeropuerto.", db.entries().get(morning)!!.body)
+    }
+
+    @Test
+    fun daysLeftWithTwoDiariesBecomeOne() = runBlocking {
+        val a = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
+        val b = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.\n\nAl final encontré a Alma.", createdAt = now, updatedAt = now))
+        val other = db.entries().insert(Entry(kind = "diary", title = "Ontem", body = "Outro dia.", createdAt = now - 86_400_000, updatedAt = now))
+        val task = db.entries().insert(Entry(kind = "task", title = "Buscar a Alma", status = "done", createdAt = now, updatedAt = now))
+        val topic = db.graph().insertTopic(com.villamediana.fio.data.Topic(name = "Alma", norm = "alma", type = "person"))
+        db.graph().tie(com.villamediana.fio.data.EntryTopic(b, topic))
+        db.graph().link(com.villamediana.fio.data.Link(minOf(b, task), maxOf(b, task)))
+        com.villamediana.fio.data.Library(db, Synced(), clock = { now }).joinDayDiaries(zone)
+        assertNull(db.entries().get(b))
+        val kept = db.entries().get(a)!!
+        assertEquals("Me desperté temprano.\n\nAl final encontré a Alma.", kept.body)
+        assertEquals(listOf("Alma"), db.graph().topicsOf(a).map { it.name })
+        assertEquals(listOf(com.villamediana.fio.data.Link(minOf(a, task), maxOf(a, task))), db.graph().allLinks())
+        assertNotNull(db.entries().get(other)) // another day stays as it is
+    }
 }

@@ -31,6 +31,8 @@ class Backups(
     private val settings: Settings,
     private val mind: Mind,
     private val scope: CoroutineScope,
+    /** One diary a day, after an import too (an older backup may have days with two). */
+    private val joinDays: suspend () -> Unit = {},
 ) {
     private val _busy = MutableStateFlow<String?>(null)
     /** "Fazendo o backup…" / "Importando…" while it goes; null when it doesn't. */
@@ -96,6 +98,7 @@ class Backups(
             _busy.value = null
         }
         if (r.isSuccess) {
+            runCatching { joinDays() }
             mind.restored()
             // The readable side follows what came back (no new snapshot: it is the same).
             save()

@@ -21,6 +21,23 @@ object DayDiary {
         return start until next
     }
 
+    /**
+     * The day's diary told some more: only what isn't in it yet joins it, as new paragraphs at the
+     * end. A [more] that already holds the whole of [body] (the day told again, from the start, with
+     * something new) takes its place.
+     */
+    fun merge(body: String, more: String): String {
+        val had = Words.of(body).joinToString(" ")
+        val all = Words.of(more).joinToString(" ")
+        if (all.isEmpty()) return body
+        if (had.isEmpty() || all.contains(had)) return more.trim()
+        val fresh = more.trim().split(Regex("""\n\s*\n""")).map { it.trim() }.filter { p ->
+            val words = Words.of(p).joinToString(" ")
+            words.isNotEmpty() && !had.contains(words)
+        }
+        return fresh.fold(body) { b, p -> joined(b, p) }
+    }
+
     /** The name of a diary started by a photo, before anything was told: the day ("Terça-feira, 11 de novembro"). */
     fun title(ms: Long, zone: ZoneId): String =
         Instant.ofEpochMilli(ms).atZone(zone).format(TITLE).replaceFirstChar { it.titlecase(PT) }
