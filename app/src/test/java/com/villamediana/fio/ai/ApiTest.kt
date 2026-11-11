@@ -41,6 +41,22 @@ class ApiTest {
     }
 
     @Test
+    fun aRefusedRequestIsToldApartAndJsonModeCanBeLeftOut() {
+        server.enqueue(MockResponse.Builder().code(400).body("""{"error":{"message":"response_format is not supported"}}""").build())
+        server.enqueue(MockResponse.Builder().body("""{"choices":[{"message":{"content":"{}"}}]}""").build())
+        try {
+            api.chat(ep, "tiny", "s", "u")
+            fail()
+        } catch (e: ApiException) {
+            assertTrue(e.refused)
+        }
+        server.takeRequest()
+        assertEquals("{}", api.chat(ep, "tiny", "s", "u", jsonOut = false))
+        assertTrue(!server.takeRequest().body!!.utf8().contains("response_format"))
+        assertTrue(!ApiException(401, "x").refused)
+    }
+
+    @Test
     fun transcribesAWav() {
         server.enqueue(MockResponse.Builder().body("""{"text":" olá mundo "}""").build())
         val wav = tmp.newFile("a.wav").apply { writeBytes(ByteArray(64)) }

@@ -40,11 +40,11 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE kind = 'task' AND (status IS NULL OR status != 'done') ORDER BY CASE WHEN dueAt IS NULL THEN 1 ELSE 0 END, dueAt, createdAt DESC")
     suspend fun openTasks(): List<Entry>
 
-    @Query("SELECT * FROM entries WHERE remindAt IS NOT NULL AND remindAt > :after")
-    suspend fun withReminderAfter(after: Long): List<Entry>
+    @Query("SELECT * FROM entries WHERE remindAt IS NOT NULL")
+    suspend fun withReminder(): List<Entry>
 
-    @Query("SELECT * FROM entries WHERE checkInAt IS NOT NULL AND checkInAt > :after AND kind = 'task' AND (status IS NULL OR status != 'done')")
-    suspend fun withCheckInAfter(after: Long): List<Entry>
+    @Query("SELECT * FROM entries WHERE checkInAt IS NOT NULL AND kind = 'task' AND (status IS NULL OR status != 'done')")
+    suspend fun withCheckIn(): List<Entry>
 
     @Query("SELECT * FROM entries WHERE captureId = :captureId")
     suspend fun fromCapture(captureId: Long): List<Entry>

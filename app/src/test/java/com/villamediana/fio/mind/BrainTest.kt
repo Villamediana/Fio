@@ -43,6 +43,24 @@ class BrainTest {
     }
 
     @Test
+    fun aLookupCanBeAStretchOfDays() {
+        val plan = Brain.parse("""{"reply":"","search":[],"period":{"from":"2026-11-09","to":"2026-11-10"},"show":[]}""")!!
+        assertTrue(plan.isLookupOnly)
+        assertEquals("de 2026-11-09 a 2026-11-10", Brain.looked(plan))
+        val days = Brain.range(plan.period, zone)!!
+        fun at(d: Int, h: Int, m: Int) = LocalDateTime.of(2026, 11, d, h, m).atZone(zone).toInstant().toEpochMilli()
+        assertTrue(at(9, 0, 0) in days)
+        assertTrue(at(10, 23, 59) in days) // the last day counts whole
+        assertFalse(at(11, 0, 0) in days)
+        assertFalse(at(8, 23, 59) in days)
+        // An empty period (the format's default) asks for nothing.
+        val none = Brain.parse("""{"reply":"ok","period":{"from":null,"to":null}}""")!!
+        assertFalse(none.wantsLookup)
+        assertNull(Brain.range(none.period, zone))
+        assertTrue(at(1, 0, 0) in Brain.range(Period(to = "2026-11-10"), zone)!!)
+    }
+
+    @Test
     fun times() {
         val (ms, hasTime) = Brain.time("2026-11-12T15:30", zone)!!
         assertTrue(hasTime)
@@ -69,6 +87,22 @@ class BrainTest {
         assertTrue(ctx.contains("[x] orçamento [ ] assinar"))
         assertTrue(ctx.contains("#40 nota"))
         assertTrue(ctx.contains("\"o que eu tenho pra hoje?\""))
+    }
+
+    @Test
+    fun contextShowsTheLastThingsKeptAndWhatALookupFound() {
+        val now = LocalDateTime.of(2026, 11, 11, 10, 0).atZone(zone).toInstant().toEpochMilli()
+        val last = Entry(id = 51, kind = "note", title = "Placa do carro", createdAt = now, updatedAt = now)
+        val done = Entry(id = 30, kind = "task", title = "Pagar o IPVA", status = "done", doneAt = now - 86_400_000L, createdAt = now - 5 * 86_400_000L, updatedAt = now)
+        val first = Brain.context("na verdade a placa termina em 7", now, zone, emptyList(), listOf(last), recent = listOf(last))
+        assertTrue(first, first.contains("ÚLTIMAS COISAS GUARDADAS"))
+        assertEquals(1, Regex("#51 nota").findAll(first).count()) // not repeated as a "lembrança"
+        val second = Brain.context("o que eu fiz ontem?", now, zone, emptyList(), listOf(done), looked = "dia 2026-11-10")
+        assertTrue(second, second.contains("RESULTADOS DA BUSCA (dia 2026-11-10)"))
+        assertTrue(second.contains("#30 tarefa[done]"))
+        assertTrue(second.contains("feito em 2026-11-10"))
+        val nothing = Brain.context("o que eu fiz ontem?", now, zone, emptyList(), emptyList(), looked = "dia 2026-11-10")
+        assertTrue(nothing.contains("NÃO ACHOU NADA"))
     }
 
     @Test

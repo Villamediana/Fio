@@ -23,13 +23,19 @@ data class Plan(
     val reply: String = "",
     val create: List<NewItem> = emptyList(),
     val update: List<Change> = emptyList(),
-    /** The model needs to look something up before answering: words to search for. */
+    /** The model needs to look something up before answering: words to search for… */
     val search: List<String> = emptyList(),
+    /** …and/or a stretch of days to look at ("o que fiz ontem", "o que vence semana que vem"). */
+    val period: Period? = null,
     /** Entries that answer a question, to show. */
     val show: List<Long> = emptyList(),
 ) {
-    val isLookupOnly: Boolean get() = search.isNotEmpty() && create.isEmpty() && update.isEmpty() && show.isEmpty()
+    val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
+    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty()
 }
+
+@Serializable
+data class Period(val from: String? = null, val to: String? = null)
 
 @Serializable
 data class NewItem(
@@ -79,6 +85,7 @@ Numa mesma fala pode haver várias coisas:
 
 Ela também pode:
 - dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie um novo. Notícias de andamento vão em "progress".
+- corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem. Pergunta não cria item.
 
 Como preencher:
@@ -90,7 +97,7 @@ Como preencher:
 - sensitive: true para senhas, números de documento, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
-- Se, pra responder, faltar algo que não está no contexto, devolva só "search" com as palavras a procurar (o resto vazio): você recebe os resultados e responde em seguida.
+- Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
 
 Responda somente com um objeto JSON neste formato:
@@ -98,10 +105,14 @@ Responda somente com um objeto JSON neste formato:
  "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": []}],
  "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "progress": null, "title": null, "append": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false}],
  "search": [],
+ "period": {"from": null, "to": null},
  "show": []}
 """.trim()
 
-    /** What the model sees: now, the open tasks, what may be related, and the words said. */
+    /**
+     * What the model sees: now, the open tasks, the last things kept, what may be related (or,
+     * after a lookup, what was found — [looked] says what was looked for), and the words said.
+     */
     fun context(
         said: String,
         now: Long,
@@ -110,7 +121,8 @@ Responda somente com um objeto JSON neste formato:
         related: List<Entry>,
         focus: Entry? = null,
         focusProgress: List<Progress> = emptyList(),
-        searched: List<String> = emptyList(),
+        recent: List<Entry> = emptyList(),
+        looked: String? = null,
         photo: Boolean = false,
     ): String = buildString {
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
@@ -126,12 +138,26 @@ Responda somente com um objeto JSON neste formato:
             append("\nTAREFAS ABERTAS:\n")
             tasks.forEach { append(line(it, zone, now)).append('\n') }
         }
-        val rel = related.filter { r -> r.id != focus?.id && tasks.none { it.id == r.id } }.take(MAX_RELATED)
-        if (rel.isNotEmpty()) {
-            append(if (searched.isEmpty()) "\nLEMBRANÇAS QUE PODEM TER A VER:\n" else "\nRESULTADOS DA BUSCA (${searched.joinToString(", ")}):\n")
-            rel.forEach { append(line(it, zone, now, long = true)).append('\n') }
-        } else if (searched.isNotEmpty()) {
-            append("\nA BUSCA (${searched.joinToString(", ")}) NÃO ACHOU NADA. Responda com o que há.\n")
+        val last = recent.filter { it.id != focus?.id }.take(MAX_RECENT)
+        if (last.isNotEmpty()) {
+            append("\nÚLTIMAS COISAS GUARDADAS (a mais nova primeiro):\n")
+            last.forEach { append(line(it, zone, now, long = true)).append('\n') }
+        }
+        if (looked == null) {
+            val rel = related.filter { r -> r.id != focus?.id && tasks.none { it.id == r.id } && last.none { it.id == r.id } }.take(MAX_RELATED)
+            if (rel.isNotEmpty()) {
+                append("\nLEMBRANÇAS QUE PODEM TER A VER:\n")
+                rel.forEach { append(line(it, zone, now, long = true)).append('\n') }
+            }
+        } else {
+            // What was asked for comes whole, even when it is already listed above.
+            val found = related.take(MAX_FOUND)
+            if (found.isNotEmpty()) {
+                append("\nRESULTADOS DA BUSCA (").append(looked).append("):\n")
+                found.forEach { append(line(it, zone, now, long = true)).append('\n') }
+            } else {
+                append("\nA BUSCA (").append(looked).append(") NÃO ACHOU NADA. Responda com o que há.\n")
+            }
         }
         append(if (photo) "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n" else "\nO QUE ELA DISSE:\n")
         append('"').append(said.trim()).append("\"\n")
@@ -149,6 +175,7 @@ Responda somente com um objeto JSON neste formato:
         )
         append(' ').append(day(e.createdAt, zone)).append(" \"").append(e.title.take(90)).append('"')
         e.dueAt?.let { append(" · prazo ").append(if (e.dueHasTime) stamp(it, zone) else day(it, zone)) }
+        e.doneAt?.let { append(" · feito em ").append(day(it, zone)) }
         e.remindAt?.takeIf { it > now }?.let { append(" · lembrete ").append(stamp(it, zone)) }
         val steps = Steps.read(e.steps)
         if (steps.isNotEmpty()) append(" · etapas: ").append(steps.joinToString(" ") { (if (it.done) "[x] " else "[ ] ") + it.text.take(40) })
@@ -189,6 +216,32 @@ Responda somente com um objeto JSON neste formato:
         return null
     }
 
+    /** The days a [Period] covers, whole days on both ends; an open end goes on forever. Null when it names no day. */
+    fun range(period: Period?, zone: ZoneId): LongRange? {
+        val from = time(period?.from, zone)
+        val to = time(period?.to, zone)
+        if (from == null && to == null) return null
+        val start = from?.let { startOfDay(it.first, zone) } ?: Long.MIN_VALUE
+        val end = to?.let { startOfDay(it.first, zone, plusDays = 1) - 1 } ?: Long.MAX_VALUE
+        return if (end < start) null else start..end
+    }
+
+    private fun startOfDay(ms: Long, zone: ZoneId, plusDays: Long = 0): Long =
+        Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().plusDays(plusDays).atStartOfDay(zone).toInstant().toEpochMilli()
+
+    /** What a lookup asked for, in a few words (it heads the results the model gets back). */
+    fun looked(plan: Plan): String = listOfNotNull(
+        plan.search.joinToString(", ").takeIf { it.isNotBlank() },
+        plan.period?.takeIf { it.from != null || it.to != null }?.let { p ->
+            when {
+                p.from != null && p.to != null && p.from != p.to -> "de ${p.from} a ${p.to}"
+                p.from != null && p.to != null -> "dia ${p.from}"
+                p.from != null -> "desde ${p.from}"
+                else -> "até ${p.to}"
+            }
+        },
+    ).joinToString(" · ")
+
     /** A reminder needs a time: a bare day reminds at 9:00. */
     fun remindTime(text: String?, zone: ZoneId): Long? {
         val (ms, hasTime) = time(text, zone) ?: return null
@@ -211,6 +264,8 @@ ws     ::= [ \t\n]{0,20}
 
     private const val MAX_TASKS = 30
     private const val MAX_RELATED = 12
+    private const val MAX_RECENT = 5
+    private const val MAX_FOUND = 40
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")

@@ -72,9 +72,9 @@ fun formatBytes(bytes: Long): String {
     return if (mb >= 1024) DecimalFormat("0.0").format(mb / 1024) + " GB" else DecimalFormat("0").format(mb) + " MB"
 }
 
-/** The mark: one thread that loops once and runs on (a thought kept). */
+/** The mark: one white thread that loops once and runs on (a thought kept), on vermilion. */
 @Composable
-fun FioMark(size: Dp = 40.dp, color: Color = FioColors.Accent, background: Color = FioColors.Text) {
+fun FioMark(size: Dp = 40.dp, color: Color = Color.White, background: Color = FioColors.Accent) {
     Canvas(Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(background)) {
         val w = this.size.width
         val path = Path().apply {
@@ -86,11 +86,6 @@ fun FioMark(size: Dp = 40.dp, color: Color = FioColors.Accent, background: Color
         }
         drawPath(path, color, style = Stroke(width = w * 0.085f, cap = StrokeCap.Round))
     }
-}
-
-@Composable
-fun KindDot(kind: Kind, size: Dp = 8.dp) {
-    Box(Modifier.size(size).clip(CircleShape).background(FioColors.of(kind)))
 }
 
 fun kindLabel(kind: Kind): String = when (kind) {
@@ -106,36 +101,32 @@ fun statusLabel(status: Status): String = when (status) {
     Status.DONE -> "Feito"
 }
 
-/** A rounded word that can be chosen (filters, statuses). */
+/** A rounded word that can be chosen (statuses, choices). Chosen is a breath of the accent, never a black block. */
 @Composable
-fun Pill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, dot: Color? = null) {
-    val bg by animateColorAsState(if (selected) FioColors.Text else FioColors.Surface2, label = "pillBg")
-    val fg by animateColorAsState(if (selected) FioColors.Background else FioColors.TextMuted, label = "pillFg")
+fun Pill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val bg by animateColorAsState(if (selected) FioColors.Accent.copy(alpha = 0.13f) else FioColors.Surface2, label = "pillBg")
+    val fg by animateColorAsState(if (selected) FioColors.Accent else FioColors.TextMuted, label = "pillFg")
     val interaction = remember { MutableInteractionSource() }
-    Row(
+    Box(
         modifier
             .pressScale(interaction)
             .clip(CircleShape)
             .background(bg)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (dot != null) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
-            Spacer(Modifier.width(7.dp))
-        }
         Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
     }
 }
 
+/** A quiet line above a group. */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text.uppercase(PT),
-        style = MaterialTheme.typography.labelSmall,
+        text,
+        style = MaterialTheme.typography.labelLarge,
         color = FioColors.TextFaint,
-        modifier = modifier.padding(top = 22.dp, bottom = 8.dp),
+        modifier = modifier.padding(top = 24.dp, bottom = 10.dp),
     )
 }
 
@@ -170,7 +161,7 @@ fun CheckCircle(done: Boolean, color: Color, onClick: () -> Unit, size: Dp = 24.
             drawCircle(color.copy(alpha = 0.55f + 0.45f * fill), radius = r - 1.dp.toPx(), style = Stroke(1.6.dp.toPx()))
             if (fill > 0f) drawCircle(color, radius = (r - 1.dp.toPx()) * fill)
         }
-        if (done) Icon(Icons.Rounded.Check, null, tint = FioColors.Background, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
+        if (done) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
     }
 }
 
@@ -194,17 +185,12 @@ object Dates {
     fun dayTime(ms: Long, zone: ZoneId = ZoneId.systemDefault()): String = day(ms, zone) + " · " + time(ms, zone)
 
     fun due(e: Entry, zone: ZoneId = ZoneId.systemDefault()): String? = e.dueAt?.let { if (e.dueHasTime) dayTime(it, zone) else day(it, zone) }
-
-    /** "terça, 11 de novembro" for the top of the main screen. */
-    fun header(zone: ZoneId = ZoneId.systemDefault()): String {
-        val d = LocalDate.now(zone)
-        return d.dayOfWeek.getDisplayName(TextStyle.FULL, PT).substringBefore("-") + ", " + d.format(DateTimeFormatter.ofPattern("d 'de' MMMM", PT))
-    }
 }
 
 /**
- * One entry as a card: kind dot, title, a line of what matters (due, steps, status, a snippet) —
- * the same look on the main screen's answers and in the lists.
+ * One entry as a card: the title, and one quiet line of what matters (due, steps, status, a
+ * snippet). The same on the main screen's answers and in the lists. [label] says what just happened
+ * to it ("Nova tarefa"); [showKind] names what it is where kinds are mixed; [showStatus] is off where the list is already grouped by status.
  */
 @Composable
 fun EntryCard(
@@ -214,9 +200,12 @@ fun EntryCard(
     label: String? = null,
     terms: Collection<String> = emptyList(),
     onToggle: (() -> Unit)? = null,
+    showKind: Boolean = true,
+    showStatus: Boolean = true,
 ) {
     val kind = entry.kindEnum
     val done = entry.statusEnum == Status.DONE
+    val checkable = kind == Kind.TASK && onToggle != null
     val interaction = remember { MutableInteractionSource() }
     Row(
         modifier
@@ -225,39 +214,30 @@ fun EntryCard(
             .clip(RoundedCornerShape(20.dp))
             .background(FioColors.Surface)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(start = if (kind == Kind.TASK && onToggle != null) 4.dp else 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            .padding(start = if (checkable) 4.dp else 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (kind == Kind.TASK && onToggle != null) {
-            CheckCircle(done, FioColors.of(kind), onToggle)
-        }
+        if (checkable) CheckCircle(done, FioColors.Accent, onToggle!!)
         Column(Modifier.weight(1f)) {
-            if (label != null || kind != Kind.TASK || onToggle == null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    KindDot(kind, 6.dp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        (label ?: kindLabel(kind)).uppercase(PT) + "  ·  " + Dates.day(entry.createdAt),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FioColors.TextFaint,
-                        maxLines = 1,
-                    )
-                    if (entry.sensitive) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Rounded.Lock, null, tint = FioColors.TextFaint, modifier = Modifier.size(11.dp))
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
+            if (label != null) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint, maxLines = 1)
+                Spacer(Modifier.height(3.dp))
             }
-            Text(
-                highlighted(entry.title, terms, FioColors.Text),
-                style = MaterialTheme.typography.titleMedium,
-                color = if (done) FioColors.TextMuted else FioColors.Text,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textDecoration = if (done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-            )
-            val meta = meta(entry)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    highlighted(entry.title, terms, FioColors.Text),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (done) FioColors.TextMuted else FioColors.Text,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (entry.sensitive) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Rounded.Lock, "Sensível", tint = FioColors.TextFaint, modifier = Modifier.size(13.dp))
+                }
+            }
             val snippet = when {
                 entry.sensitive -> null
                 terms.isNotEmpty() -> Snippet.around(entry.body, terms).takeIf { it.isNotBlank() }
@@ -274,11 +254,12 @@ fun EntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus)
             if (meta.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(5.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     meta.forEach { (text, strong) ->
-                        Text(text, style = MaterialTheme.typography.labelMedium, color = if (strong) FioColors.Accent else FioColors.TextMuted, maxLines = 1)
+                        Text(text, style = MaterialTheme.typography.labelMedium, color = if (strong) FioColors.Accent else FioColors.TextFaint, maxLines = 1)
                     }
                 }
             }
@@ -286,13 +267,15 @@ fun EntryCard(
     }
 }
 
-private fun meta(e: Entry): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
+/** The quiet line under a title; [named] starts it with what the entry is and when it was kept. */
+private fun meta(e: Entry, named: Boolean, withStatus: Boolean): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
+    if (named) add((kindLabel(e.kindEnum) + " · " + Dates.day(e.createdAt)) to false)
     if (e.kindEnum != Kind.TASK) return@buildList
     val status = e.statusEnum ?: Status.TODO
-    if (status == Status.DOING || status == Status.WAITING) add(statusLabel(status) to false)
+    if (withStatus && (status == Status.DOING || status == Status.WAITING || (named && status == Status.DONE))) add(statusLabel(status) to false)
     Dates.due(e)?.let { d ->
         val late = e.dueAt != null && status != Status.DONE && e.dueAt < LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        add(d to (late || d.startsWith("hoje")))
+        add(d to (status != Status.DONE && (late || d.startsWith("hoje"))))
     }
     val steps = Steps.read(e.steps)
     if (steps.isNotEmpty()) add("${steps.count { it.done }}/${steps.size}" to false)

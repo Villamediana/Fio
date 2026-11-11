@@ -169,6 +169,57 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun questionsAboutATimeLookAtThoseDays() = runBlocking {
+        val day = 86_400_000L
+        val diary = db.entries().insert(Entry(kind = "diary", title = "Dia bom no escritório", body = "saiu o cronograma", createdAt = now - day, updatedAt = now - day))
+        val paid = db.entries().insert(Entry(kind = "task", title = "Pagar o IPVA", status = "done", doneAt = now - day, createdAt = now - 20 * day, updatedAt = now - day))
+        val old = db.entries().insert(Entry(kind = "note", title = "Receita de pão", createdAt = now - 40 * day, updatedAt = now - 40 * day))
+        val thinker = FakeThinker(
+            ArrayDeque(
+                listOf(
+                    """{"reply":"","search":["academia"]}""",
+                    """{"reply":"","period":{"from":"2026-11-10","to":"2026-11-10"}}""",
+                    """{"reply":"Ontem você pagou o IPVA e teve um dia bom no escritório.","show":[$paid,$diary]}""",
+                ),
+            ),
+        )
+        val m = mind(FakeEars("o que eu fiz ontem?"), thinker)
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, state = Capture.RECORDED))
+        m.retry(id)
+        val a = answered(m)
+        assertEquals(listOf(paid, diary), a.shown)
+        assertEquals(3, thinker.prompts.size) // two lookups, then the answer
+        assertTrue(thinker.prompts[0].contains("ÚLTIMAS COISAS GUARDADAS"))
+        val results = thinker.prompts[2].substringAfter("RESULTADOS DA BUSCA (academia · dia 2026-11-10)", "")
+        assertTrue(thinker.prompts[2], results.contains("#$diary diário"))
+        assertTrue(results.contains("#$paid tarefa[done]"))
+        assertTrue(!results.contains("#$old nota"))
+    }
+
+    @Test
+    fun aPhotoWithNothingToReadIsNotKept() = runBlocking {
+        val m = mind(FakeEars(""), FakeThinker(ArrayDeque())) // this model doesn't see, and the photo has no text
+        val file = tmp.newFile("p.jpg")
+        m.photo(file)
+        val p = withTimeout(10_000) { m.state.first { it is MindState.Problem } as MindState.Problem }
+        assertNull(p.captureId)
+        assertTrue(p.message, p.message.contains("foto"))
+        assertTrue(!file.exists())
+        assertTrue(db.captures().unfinished().isEmpty())
+    }
+
+    @Test
+    fun doneByHandDropsItsReminder() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Pagar o IPVA", status = "todo", remindAt = now + 3_600_000L, checkInAt = now + 7_200_000L, createdAt = now, updatedAt = now))
+        val sync = Synced()
+        com.villamediana.fio.data.Library(db, sync, clock = { now }).setStatus(id, Status.DONE)
+        val e = db.entries().get(id)!!
+        assertNull(e.remindAt)
+        assertNull(e.checkInAt)
+        assertEquals(listOf(id), sync.ids) // the alarm is cancelled with it
+    }
+
+    @Test
     fun aCheckInAnswerGoesToItsTask() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Mudança de escritório", status = "doing", createdAt = now, updatedAt = now))
         val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Boa! Anotei o andamento.","update":[{"id":$task,"progress":"caixas prontas","check_in_at":"2026-11-13"}]}""")))

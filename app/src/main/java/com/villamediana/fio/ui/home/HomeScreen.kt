@@ -73,7 +73,6 @@ import com.villamediana.fio.mind.Words
 import com.villamediana.fio.ui.Filter
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
-import com.villamediana.fio.ui.components.Dates
 import com.villamediana.fio.ui.components.EntryCard
 import com.villamediana.fio.ui.components.Pill
 import com.villamediana.fio.ui.components.pressScale
@@ -135,7 +134,9 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(FioColors.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            TopBar(onCamera = { nav.go(Screen.Camera) }, onSettings = { nav.go(Screen.Settings) })
+            Box(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), contentAlignment = Alignment.CenterEnd) {
+                QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.4f)
+            }
 
             Spacer(Modifier.weight(1f - 0.82f * lift))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -195,17 +196,13 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
-            BottomBar(entries = entries, onOpen = { nav.go(Screen.Library(it)) }, onSearch = { nav.go(Screen.Library(Filter.ALL, search = true)) })
+            BottomBar(
+                entries = entries,
+                onCamera = { nav.go(Screen.Camera) },
+                onToday = { nav.go(Screen.Library(Filter.TODAY)) },
+                onSearch = { nav.go(Screen.Library(Filter.ALL, search = true)) },
+            )
         }
-    }
-}
-
-@Composable
-private fun TopBar(onCamera: () -> Unit, onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 10.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(Dates.header(), style = MaterialTheme.typography.titleMedium, color = FioColors.TextMuted, modifier = Modifier.weight(1f))
-        QuietIcon(FioIcons.PhotoCamera, "Câmera", onCamera)
-        QuietIcon(FioIcons.Tune, "Ajustes", onSettings)
     }
 }
 
@@ -422,21 +419,34 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
     }
 }
 
+/** Three things, no more: the camera, what is for today (the way into everything kept), the search. */
 @Composable
-private fun BottomBar(entries: List<Entry>, onOpen: (Filter) -> Unit, onSearch: () -> Unit) {
+private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
     val today = remember(entries) { todayCount(entries) }
     Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill(if (today > 0) "Hoje · $today" else "Hoje", selected = false, onClick = { onOpen(Filter.TODAY) }, dot = if (today > 0) FioColors.Accent else null)
-            Pill("Tarefas", selected = false, onClick = { onOpen(Filter.TASKS) })
-            Pill("Notas", selected = false, onClick = { onOpen(Filter.NOTES) })
-            Pill("Diário", selected = false, onClick = { onOpen(Filter.DIARY) })
+        QuietIcon(FioIcons.PhotoCamera, "Câmera", onCamera)
+        Spacer(Modifier.weight(1f))
+        val interaction = remember { MutableInteractionSource() }
+        Row(
+            Modifier
+                .pressScale(interaction)
+                .clip(CircleShape)
+                .background(FioColors.Surface)
+                .clickable(interactionSource = interaction, indication = null, onClick = onToday)
+                .padding(horizontal = 22.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Hoje", style = MaterialTheme.typography.labelLarge, color = FioColors.Text)
+            if (today > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(today.toString(), style = MaterialTheme.typography.labelLarge, color = FioColors.Accent)
+            }
         }
-        Spacer(Modifier.width(4.dp))
-        QuietIcon(Icons.Rounded.Search, "Buscar", onSearch, alpha = 0.65f)
+        Spacer(Modifier.weight(1f))
+        QuietIcon(Icons.Rounded.Search, "Buscar", onSearch)
     }
 }
 

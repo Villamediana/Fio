@@ -58,7 +58,6 @@ import com.villamediana.fio.ui.components.EntryCard
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.theme.Outfit
-import com.villamediana.fio.ui.theme.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.sqrt
@@ -121,20 +120,20 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
                 val q = layout[e.b] ?: return@forEach
                 val lit = selected == null || selected == e.a || selected == e.b
                 drawLine(
-                    palette.text.copy(alpha = a * (if (lit) 0.10f + 0.30f * (e.weight / maxW) else 0.04f)),
+                    palette.accent.copy(alpha = a * (if (lit) 0.22f + 0.30f * (e.weight / maxW) else 0.06f)),
                     c + p * unit, c + q * unit,
-                    strokeWidth = (1f + 2f * (e.weight / maxW)).dp.toPx(),
+                    strokeWidth = (1f + 1f * (e.weight / maxW)).dp.toPx(),
                 )
             }
             val maxC = (topics.maxOfOrNull { it.count } ?: 1).toFloat()
             topics.forEach { t ->
                 val p = layout[t.id] ?: return@forEach
                 val near = selected == null || selected == t.id || pairs.any { (it.a == selected && it.b == t.id) || (it.b == selected && it.a == t.id) }
-                val r = (6f + 14f * sqrt(t.count / maxC)).dp.toPx() * (0.6f + 0.4f * a)
-                val color = typeColor(t.type, palette)
-                drawCircle(color.copy(alpha = if (near) 1f else 0.25f), radius = r, center = c + p * unit)
-                if (selected == t.id) drawCircle(color.copy(alpha = 0.25f), radius = r * 1.8f, center = c + p * unit)
-                label(measurer, t.name, c + p * unit + Offset(0f, r + 4.dp.toPx()), palette.text.copy(alpha = a * (if (near) 0.9f else 0.3f)))
+                val r = (4f + 9f * sqrt(t.count / maxC)).dp.toPx() * (0.6f + 0.4f * a)
+                // Knots on the thread, in its color; the one you touched gets a halo and the rest step back.
+                if (selected == t.id) drawCircle(palette.accent.copy(alpha = 0.16f), radius = r * 2f, center = c + p * unit)
+                drawCircle(if (near) palette.accent else palette.surface3, radius = r, center = c + p * unit)
+                label(measurer, t.name, c + p * unit + Offset(0f, r + 4.dp.toPx()), palette.text.copy(alpha = a * (if (near) 0.9f else 0.3f)), palette.background)
             }
         }
 
@@ -169,17 +168,18 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
     }
 }
 
-private fun typeColor(type: String, p: Palette): Color = when (type) {
-    "person" -> p.diary
-    "project" -> p.task
-    "place" -> p.note
-    "org" -> p.textMuted
-    else -> p.text
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.label(m: TextMeasurer, text: String, at: Offset, color: Color) {
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.label(m: TextMeasurer, text: String, at: Offset, color: Color, paper: Color) {
     val layout = m.measure(text.take(22), TextStyle(fontFamily = Outfit, fontSize = 12.sp, color = color))
-    drawText(layout, topLeft = Offset(at.x - layout.size.width / 2f, at.y))
+    val left = at.x - layout.size.width / 2f
+    // The name sits on paper, so a thread passing behind it never crosses the letters.
+    val pad = 3.dp.toPx()
+    drawRoundRect(
+        paper,
+        topLeft = Offset(left - pad, at.y),
+        size = androidx.compose.ui.geometry.Size(layout.size.width + pad * 2, layout.size.height.toFloat()),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(pad),
+    )
+    drawText(layout, topLeft = Offset(left, at.y))
 }
 
 /** A small force layout: ties pull, everything pushes a little, all inside the unit circle. */

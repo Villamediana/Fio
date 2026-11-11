@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import com.villamediana.fio.R
-import com.villamediana.fio.data.Kind
 import com.villamediana.fio.settings.ThemeMode
 
 @Immutable
@@ -41,9 +40,6 @@ data class Palette(
     val line: Color,
     val accent: Color,
     val onAccent: Color,
-    val task: Color,
-    val note: Color,
-    val diary: Color,
     val danger: Color,
     val success: Color,
 )
@@ -62,9 +58,6 @@ object Palettes {
         line = Color(0x1A17171A),
         accent = Color(0xFFEC4F2A),
         onAccent = Color(0xFFFFFFFF),
-        task = Color(0xFFEC4F2A),
-        note = Color(0xFF1F8A70),
-        diary = Color(0xFF5B5BD6),
         danger = Color(0xFFC62E2E),
         success = Color(0xFF1F8A70),
     )
@@ -81,9 +74,6 @@ object Palettes {
         line = Color(0x1FF2F0EB),
         accent = Color(0xFFFF6A43),
         onAccent = Color(0xFF17171A),
-        task = Color(0xFFFF6A43),
-        note = Color(0xFF3FBF9C),
-        diary = Color(0xFF8C8CF0),
         danger = Color(0xFFFF6B6B),
         success = Color(0xFF3FBF9C),
     )
@@ -106,13 +96,6 @@ object FioColors {
     val OnAccent @Composable @ReadOnlyComposable get() = palette.onAccent
     val Danger @Composable @ReadOnlyComposable get() = palette.danger
     val Success @Composable @ReadOnlyComposable get() = palette.success
-
-    @Composable @ReadOnlyComposable
-    fun of(kind: Kind): Color = when (kind) {
-        Kind.TASK -> palette.task
-        Kind.NOTE -> palette.note
-        Kind.DIARY -> palette.diary
-    }
 }
 
 private fun outfit(weight: Int) = Font(

@@ -23,7 +23,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 
-class ApiException(val code: Int, message: String) : IOException(message)
+class ApiException(val code: Int, message: String) : IOException(message) {
+    /** The server understood but won't take the request as written (not the key, not the network). */
+    val refused: Boolean get() = code == 400 || code == 415 || code == 422
+}
 
 /**
  * Any OpenAI-compatible API (OpenAI, Azure AI Foundry "/openai/v1", OpenRouter, a local server):
