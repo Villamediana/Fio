@@ -11,4 +11,5 @@
     <string name="notif_sensitive">Toque pra ver</string>
     <string name="mic_listening">Ouvindo…</string>
     <string name="mic_stop">Parar e guardar</string>
+    <string name="work_going">Organizando o que você disse…</string>
 </resources>

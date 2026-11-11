@@ -16,7 +16,7 @@ import kotlin.math.sqrt
  * The microphone at 16 kHz mono, straight to a WAV file, with the voice level (0..1, every 20 ms)
  * for the button's animation. One recording at a time.
  */
-class Recorder {
+open class Recorder {
     private val _level = MutableStateFlow(0f)
     /** How loud the voice is right now (0 silence … 1 loud), smoothed a little. */
     val level: StateFlow<Float> = _level
@@ -26,11 +26,11 @@ class Recorder {
     private var file: File? = null
     private var startedAt = 0L
 
-    val isRecording: Boolean get() = running
+    open val isRecording: Boolean get() = running
 
     /** Starts writing to [target]. False if the microphone could not be opened. */
     @SuppressLint("MissingPermission") // asked for before the button records
-    fun start(target: File): Boolean {
+    open fun start(target: File): Boolean {
         if (running) return false
         val minBuf = AudioRecord.getMinBufferSize(Wav.RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         if (minBuf <= 0) return false
@@ -50,7 +50,7 @@ class Recorder {
     }
 
     /** Stops and closes the file. Returns it with its duration, or null if nothing was recorded. */
-    fun stop(): Pair<File, Long>? {
+    open fun stop(): Pair<File, Long>? {
         if (!running) return null
         running = false
         thread?.join(1_500)

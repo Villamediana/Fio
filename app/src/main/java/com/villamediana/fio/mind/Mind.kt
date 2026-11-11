@@ -18,6 +18,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 
 /** What the main screen shows around the button. */
 sealed interface MindState {
@@ -53,10 +54,15 @@ interface ReminderSync {
     suspend fun sync(entryIds: List<Long>)
 }
 
-/** Keeps the recording alive with the screen off (a foreground service in the app). */
+/**
+ * Keeps the app alive with the screen off or in the background (a foreground service in the app):
+ * the microphone while recording ([hold]/[release]), and the work while something said is being
+ * transcribed and organized ([working]), so minimizing the app never stops it halfway.
+ */
 interface MicHolder {
     fun hold()
     fun release()
+    fun working(on: Boolean) {}
 }
 
 /**
@@ -90,13 +96,27 @@ class Mind(
 
     private val queue = Channel<Long>(Channel.UNLIMITED)
     private val queued = HashSet<Long>()
+    @Volatile private var current: Long? = null
     private val ids = Json
+
+    /** Captures on their way (being saved, waiting in line, or going through): while > 0 the app keeps working in the background. */
+    private val work = AtomicInteger(0)
+
+    private fun begin() { if (work.getAndIncrement() == 0) mic.working(true) }
+
+    private fun end() { if (work.decrementAndGet() == 0) mic.working(false) }
 
     init {
         scope.launch {
             for (id in queue) {
+                current = id
                 synchronized(queued) { queued.remove(id) }
-                runCatching { process(id) }
+                try {
+                    runCatching { process(id) }
+                } finally {
+                    current = null
+                    end()
+                }
                 refreshPending()
             }
         }
@@ -125,19 +145,30 @@ class Mind(
 
     fun stopListening() {
         val s = _state.value as? MindState.Listening ?: return
-        val (file, ms) = recorder.stop() ?: run { mic.release(); _state.value = MindState.Idle; return }
-        mic.release()
-        if (ms < MIN_MS) {
-            file.delete()
+        val stopped = recorder.stop()
+        if (stopped == null || stopped.second < MIN_MS) {
+            stopped?.first?.delete()
+            mic.release()
             _state.value = MindState.Idle
             return
         }
+        val (file, ms) = stopped
+        // From here it is work: the app keeps running for it before the microphone lets go (so the
+        // background never has a gap), and the screen leaves "ouvindo" right now — the button is
+        // free again and the progress shows (while it said "ouvindo", nothing else could show).
+        begin()
+        mic.release()
+        _state.value = MindState.Working(0L, Stage.HEARING, "")
         scope.launch {
-            val id = db.captures().insert(
-                Capture(createdAt = clock(), source = "voice", audioPath = file.path, durationMs = ms, state = Capture.RECORDED, focusEntryId = s.focusId),
-            )
-            show(MindState.Working(id, Stage.HEARING, ""))
-            enqueue(id)
+            try {
+                val id = db.captures().insert(
+                    Capture(createdAt = clock(), source = "voice", audioPath = file.path, durationMs = ms, state = Capture.RECORDED, focusEntryId = s.focusId),
+                )
+                show(MindState.Working(id, Stage.HEARING, ""))
+                enqueue(id)
+            } finally {
+                end()
+            }
         }
     }
 
@@ -150,10 +181,15 @@ class Mind(
 
     /** A photo taken in the app's camera: read, understood and kept like something said. */
     fun photo(file: File) {
+        begin()
         scope.launch {
-            val id = db.captures().insert(Capture(createdAt = clock(), source = "photo", imagePath = file.path, state = Capture.RECORDED))
-            show(MindState.Working(id, Stage.READING, "", photo = true))
-            enqueue(id)
+            try {
+                val id = db.captures().insert(Capture(createdAt = clock(), source = "photo", imagePath = file.path, state = Capture.RECORDED))
+                show(MindState.Working(id, Stage.READING, "", photo = true))
+                enqueue(id)
+            } finally {
+                end()
+            }
         }
     }
 
@@ -190,12 +226,21 @@ class Mind(
     }
 
     private fun enqueue(id: Long) {
+        if (current == id) return // already going through
         val fresh = synchronized(queued) { queued.add(id) }
-        if (fresh) queue.trySend(id)
+        if (fresh) {
+            begin()
+            queue.trySend(id)
+        }
     }
 
+    /**
+     * Waiting = not done and not being handled now. Its saved state doesn't tell: a capture left
+     * "transcribing" by an app that was closed halfway is waiting too.
+     */
     private suspend fun refreshPending() {
-        _pending.value = withContext(Dispatchers.IO) { db.captures().unfinished().count { it.state != Capture.TRANSCRIBING && it.state != Capture.THINKING } }
+        val busy = synchronized(queued) { queued.toSet() } + listOfNotNull(current)
+        _pending.value = withContext(Dispatchers.IO) { db.captures().unfinished().count { it.id !in busy } }
     }
 
     // ------------------------------------------------------------------ the path
