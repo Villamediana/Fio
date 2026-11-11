@@ -37,6 +37,19 @@ data class Plan(
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
+
+    /**
+     * An item's text written as [Brain.SAID] stands for all she said, as she said it: the model on
+     * the phone doesn't write her words again (the slowest thing it does), Fio puts them there.
+     */
+    fun withSaid(said: String): Plan {
+        val words = said.trim()
+        fun String?.orSaid(): String? = if (this?.trim() == Brain.SAID) words else this
+        return copy(
+            create = create.map { it.copy(body = it.body.orSaid().orEmpty()) },
+            update = update.map { it.copy(append = it.append.orSaid(), body = it.body.orSaid()) },
+        )
+    }
 }
 
 @Serializable
@@ -132,6 +145,22 @@ Os campos que existem:
 - update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos}]
 - search, period {from, to}, show, show_photos, photo_description, keep_audio
 """.trim()
+
+    /** In place of an item's text: all she said, word for word ([Plan.withSaid]). */
+    const val SAID = "="
+
+    private const val DIARY_VOICE = "- Diário é dela: escreva em primeira pessoa, no idioma, no jeito e no tom em que ela falou, como se ela mesma tivesse escrito. Só tire repetições e hesitações; não reescreva no seu estilo nem resuma o que ela contou."
+    private const val LOCAL_DIARY_VOICE = "- Diário é dela, nas palavras dela. Quando o texto que vai pro diário é a fala dela inteira, não escreva a fala de novo: ponha só \"=\" no \"append\" (ou no \"body\" de um diário novo) e o Fio coloca ali a fala dela, palavra por palavra. Escreva o texto você mesmo só quando ele é uma parte da fala: em primeira pessoa, no idioma, no jeito e no tom dela, sem resumir."
+    private const val EXAMPLE = "{\"reply\": \"...\", \"create\": [{\"kind\": \"task\", \"title\": \"...\", \"due\": \"AAAA-MM-DD\"}], \"update\": [{\"id\": 12, \"add_steps\": [\"...\"]}]}"
+    private const val LOCAL_EXAMPLE = "Um relato do dia, a fala inteira no diário: {\"reply\": \"...\", \"update\": [{\"id\": 30, \"append\": \"=\"}]} quando há DIÁRIO DE HOJE (aqui, o #30), ou {\"reply\": \"...\", \"create\": [{\"kind\": \"diary\", \"title\": \"...\", \"body\": \"=\"}]} quando não há."
+
+    /**
+     * The instructions for the model on the phone: [SYSTEM], except that her words are not written
+     * again. Writing is the slow part there (a long story of the day took minutes to come back
+     * copied); with "=" the answer is a few words and the diary has what she said, as she said it.
+     * The API keeps [SYSTEM] as it is.
+     */
+    val LOCAL_SYSTEM: String = SYSTEM.replace(DIARY_VOICE, LOCAL_DIARY_VOICE).replace(EXAMPLE, EXAMPLE + "\n" + LOCAL_EXAMPLE)
 
     /**
      * What the model sees: now, the open tasks, the last things kept, what may be related (or,
@@ -346,17 +375,40 @@ Os campos que existem:
         return d.atTime(LocalTime.of(9, 0)).atZone(zone).toInstant().toEpochMilli()
     }
 
-    /** A JSON object grammar (GBNF) for the on-device model: the answer can only be JSON. */
-    val JSON_GRAMMAR: String = """
-root   ::= ws object ws
-object ::= "{" ws ( pair ( ws "," ws pair )* )? ws "}"
-pair   ::= string ws ":" ws value
-array  ::= "[" ws ( value ( ws "," ws value )* )? ws "]"
-value  ::= object | array | string | number | ("true" | "false" | "null")
-string ::= "\"" ( [^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}) )* "\""
-number ::= "-"? ([0-9] | [1-9] [0-9]{0,15}) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
-ws     ::= [ \t\n]{0,20}
+    /**
+     * The answer's grammar (GBNF) for the on-device model: only what reads as a [Plan] can come
+     * out — the fields that exist, each with its kind of value (an id is a number, a list of
+     * entities is a list of {name, type}…). A small model left to any JSON at all now and then
+     * writes one that can't be read; with this it can't.
+     */
+    val PLAN_GRAMMAR: String = """
+root     ::= ws "{" ws ( top ( ws "," ws top )* )? ws "}"
+top      ::= "\"reply\"" sep string | "\"create\"" sep items | "\"update\"" sep changes | "\"search\"" sep strings | "\"period\"" sep period | ( "\"show\"" | "\"show_photos\"" ) sep ints | "\"photo_description\"" sep text | "\"keep_audio\"" sep bool
+items    ::= "[" ws ( item ( ws "," ws item )* )? ws "]"
+item     ::= "{" ws "\"kind\"" sep ( "\"task\"" | "\"note\"" | "\"diary\"" ) ws "," ws "\"title\"" sep string ( ws "," ws itemfield )* ws "}"
+itemfield ::= ( "\"body\"" | "\"due\"" | "\"remind_at\"" | "\"check_in_at\"" | "\"status\"" ) sep text | ( "\"tags\"" | "\"steps\"" ) sep strings | "\"entities\"" sep entities | ( "\"sensitive\"" | "\"photos\"" ) sep bool | "\"related\"" sep ints
+changes  ::= "[" ws ( change ( ws "," ws change )* )? ws "]"
+change   ::= "{" ws "\"id\"" sep int ( ws "," ws changefield )* ws "}"
+changefield ::= ( "\"status\"" | "\"title\"" | "\"append\"" | "\"body\"" | "\"due\"" | "\"remind_at\"" | "\"check_in_at\"" ) sep text | ( "\"steps_done\"" | "\"add_steps\"" ) sep strings | "\"entities\"" sep entities | ( "\"delete\"" | "\"photos\"" ) sep bool
+entities ::= "[" ws ( entity ( ws "," ws entity )* )? ws "]"
+entity   ::= "{" ws "\"name\"" sep string ( ws "," ws "\"type\"" sep string )? ws "}"
+period   ::= "{" ws ( day ( ws "," ws day )? )? ws "}" | "null"
+day      ::= ( "\"from\"" | "\"to\"" ) sep text
+strings  ::= "[" ws ( string ( ws "," ws string )* )? ws "]"
+ints     ::= "[" ws ( int ( ws "," ws int )* )? ws "]"
+text     ::= string | "null"
+bool     ::= "true" | "false"
+int      ::= [0-9]{1,15}
+sep      ::= ws ":" ws
+string   ::= "\"" ( [^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}) )* "\""
+ws       ::= [ \t\n]{0,20}
 """.trim()
+
+    /**
+     * How long an answer on the phone may get, in tokens: room to write back all that was said
+     * (a long story of the day) and no more than that — a model that loses itself stops there.
+     */
+    fun answerRoom(user: String): Int = (800 + user.length / 3).coerceIn(1200, 4096)
 
     private const val MAX_TASKS = 30
     private const val MAX_RELATED = 8

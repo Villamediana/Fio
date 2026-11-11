@@ -21,6 +21,8 @@ val signingProps = Properties().apply {
 // a llama.cpp checkout that lives just for the build (tools/release.sh fetches it and deletes it).
 val llamaDir = (findProperty("fio.llama") as String?)?.takeIf { it.isNotBlank() }?.let { File(it) }
 val withNative = llamaDir != null && File(llamaDir, "CMakeLists.txt").exists()
+// The llama.cpp version the engine is built with (tools/fetch-llama.sh): the model's state kept on the phone is of it.
+val llamaTag = Regex("^TAG=(\\S+)", RegexOption.MULTILINE).find(rootProject.file("tools/fetch-llama.sh").readText())?.groupValues?.get(1).orEmpty()
 
 kotlin {
     jvmToolchain(21)
@@ -38,10 +40,11 @@ android {
         applicationId = "com.villamediana.fio"
         minSdk = 29
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.15.1"
+        versionCode = 21
+        versionName = "1.16.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
+        buildConfigField("String", "LLAMA", "\"$llamaTag\"")
         // Phones only (ML Kit's OCR alone ships ~11 MB per ABI).
         ndk { abiFilters += listOf("arm64-v8a") }
         if (withNative) {
