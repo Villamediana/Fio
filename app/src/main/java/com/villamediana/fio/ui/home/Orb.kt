@@ -90,7 +90,7 @@ fun Orb(
     val discarding = listening && dragging > 0.99f
     val fill by animateColorAsState(if (discarding) FioColors.TextMuted else FioColors.Accent, tween(260), label = "fill")
     val ring = FioColors.Accent
-    val iconTint = Color.White
+    val iconTint = FioColors.OnAccent
 
     // The clock only runs while something moves (listening, working, or settling back).
     var time by remember { mutableFloatStateOf(0f) }

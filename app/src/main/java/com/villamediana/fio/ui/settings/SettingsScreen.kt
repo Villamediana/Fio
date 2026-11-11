@@ -60,6 +60,7 @@ import com.villamediana.fio.settings.Source
 import com.villamediana.fio.settings.SpeechLang
 import com.villamediana.fio.settings.ThemeMode
 import com.villamediana.fio.ui.Nav
+import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.FioIcons
 import com.villamediana.fio.ui.components.FioMark
 import com.villamediana.fio.ui.components.Group
@@ -69,6 +70,7 @@ import com.villamediana.fio.ui.components.Segmented
 import com.villamediana.fio.ui.components.formatBytes
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.sheets.FioSheet
+import com.villamediana.fio.ui.theme.FioAccents
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.update.UpdateRow
 import kotlinx.coroutines.Dispatchers
@@ -208,12 +210,16 @@ fun SettingsScreen(nav: Nav) {
                     }
                 },
                 {
-                    Line(title = "Tema") {
-                        Segmented(
-                            listOf("Sistema", "Claro", "Escuro"),
-                            selected = ThemeMode.entries.indexOf(s.theme),
-                            onSelect = { i -> scope.launch { st.setTheme(ThemeMode.entries[i]) } },
-                        )
+                    // Light, dark and the thread's color live on their own page, with a preview.
+                    Line(title = "Tema", onClick = { nav.go(Screen.Theme) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                when (s.theme) { ThemeMode.SYSTEM -> "Sistema"; ThemeMode.LIGHT -> "Claro"; ThemeMode.DARK -> "Escuro" } + " · " + FioAccents.byId(s.accent).name.lowercase(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FioColors.TextMuted,
+                            )
+                            Icon(FioIcons.Chevron, null, tint = FioColors.TextFaint, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                        }
                     }
                 },
             )

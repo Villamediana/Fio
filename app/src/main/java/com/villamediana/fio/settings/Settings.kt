@@ -58,6 +58,8 @@ data class FioSettings(
     val hasApiKey: Boolean = false,
     val lang: SpeechLang = SpeechLang.AUTO,
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** The highlight color's id (see FioAccents); empty is the thread's own vermilion. */
+    val accent: String = "",
     /** The "segure ou toque" hint under the button was seen (it shows only until the first capture). */
     val hintSeen: Boolean = false,
 ) {
@@ -80,6 +82,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             hasApiKey = !p[API_KEY].isNullOrEmpty(),
             lang = SpeechLang.of(p[LANG]),
             theme = ThemeMode.of(p[THEME]),
+            accent = p[ACCENT].orEmpty(),
             hintSeen = p[HINT_SEEN] ?: false,
         )
     }
@@ -101,6 +104,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     }
     suspend fun setLang(lang: SpeechLang) = store.edit { it[LANG] = lang.key }
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
+    suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
 
     private companion object {
@@ -112,6 +116,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val API_KEY = stringPreferencesKey("api_key_sealed")
         val LANG = stringPreferencesKey("lang")
         val THEME = stringPreferencesKey("theme")
+        val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")
     }
 }

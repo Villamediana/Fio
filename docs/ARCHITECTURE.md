@@ -29,7 +29,10 @@ perde o lembrete.
 
 ## Visual
 
-Papel, tinta e um acento só (vermelhão `#EC4F2A`; `#FF6A43` no escuro). Nada de bloco preto: o
+Papel, tinta e um acento só (vermelhão `#EC4F2A`; `#FF6A43` no escuro, o padrão). Em Ajustes ›
+Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents`, como no
+FreeSong), com uma prévia da tela principal que muda junto; o que vai sobre o acento usa
+`OnAccent` (branco ou tinta, pela luminância da cor). Nada de bloco preto: o
 botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
 a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo,
 Conexões) com um ponto do fio sob a escolhida; Conexões é uma aba como as outras (o grafo ocupa o
