@@ -176,6 +176,20 @@ class Thinking(
         if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files, Brain.chatmlHead(Brain.SYSTEM))
     }
 
+    /** The phone thinks by itself, its model is there, and the instructions were never run on it (or changed since). */
+    suspend fun unprepared(): Boolean {
+        val s = settings.current()
+        return s.think == Source.LOCAL && readiness(s) == null && !engine.kept(model.files, Brain.chatmlHead(Brain.SYSTEM))
+    }
+
+    /**
+     * Runs the instructions on the phone's model ahead of the first thing said and keeps them
+     * ([LocalEngine.prepare]): what made the first answer take so long is done before it.
+     */
+    suspend fun prepare() {
+        if (unprepared()) engine.prepare(model.files, Brain.chatmlHead(Brain.SYSTEM))
+    }
+
     override fun stop() {
         engine.cancel()
         api.cancelAll()

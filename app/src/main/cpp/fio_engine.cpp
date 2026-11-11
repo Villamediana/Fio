@@ -44,8 +44,9 @@ struct Engine {
     std::string prefix_text;
     std::vector<uint8_t> prefix_state;
     llama_pos prefix_pos = 0;
-    // Where that snapshot is kept on disk (for this model and app version): the instructions run
-    // once, ever — not again each time the model was let go or the app opened.
+    // Where that snapshot is kept on disk (a file of its own for these instructions, this model
+    // and this llama.cpp; given with each prompt): the instructions run once, ever — not again
+    // each time the model was let go, the app opened or an update came.
     std::string cache_path;
 };
 
@@ -362,7 +363,7 @@ llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::str
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx, jstring jcache) {
+Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx) {
     llama_log_set(log_to_android, nullptr);
     mtmd_helper_log_set(log_to_android, nullptr);
     llama_backend_init();
@@ -371,7 +372,6 @@ Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, js
     const std::string mmproj_path = jstr(env, jmmproj);
 
     auto * e = new Engine();
-    e->cache_path = jstr(env, jcache);
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;
     e->model = llama_model_load_from_file(model_path.c_str(), mp);
@@ -482,11 +482,12 @@ Java_com_villamediana_fio_local_LocalEngine_nativeTranscribe(JNIEnv * env, jobje
  * still talking, so the answer after starts from there. True when it is ready.
  */
 JNIEXPORT jboolean JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativePrime(JNIEnv * env, jobject, jlong h, jbyteArray jprefix) {
+Java_com_villamediana_fio_local_LocalEngine_nativePrime(JNIEnv * env, jobject, jlong h, jbyteArray jprefix, jstring jcache) {
     auto * e = reinterpret_cast<Engine *>(h);
     if (!e) return JNI_FALSE;
     const std::string prefix = jbytes(env, jprefix);
     if (prefix.empty()) return JNI_FALSE;
+    e->cache_path = jstr(env, jcache);
     if (e->prefix_text == prefix && !e->prefix_state.empty()) return JNI_TRUE;
     if (read_cache(e, prefix)) return JNI_TRUE;
     e->cancel.store(false);
@@ -496,10 +497,11 @@ Java_com_villamediana_fio_local_LocalEngine_nativePrime(JNIEnv * env, jobject, j
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jint jkeep, jstring jgrammar, jbyteArray jimage, jint max_tokens, jobject jsink) {
+Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jint jkeep, jstring jgrammar, jbyteArray jimage, jint max_tokens, jstring jcache, jobject jsink) {
     auto * e = reinterpret_cast<Engine *>(h);
     if (!e) return nullptr;
     e->cancel.store(false);
+    e->cache_path = jstr(env, jcache);
 
     const std::string prompt = jbytes(env, jprompt);
     const std::string grammar = jstr(env, jgrammar);
