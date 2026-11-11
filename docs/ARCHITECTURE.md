@@ -118,6 +118,26 @@ app (`Mind.photos`, uma depois da outra, na ordem escolhida). A data é a de qua
 agora — então a foto cai no diário daquele dia e na busca por período. Quando é de outro dia, o
 contexto diz `O QUE ESTÁ NA FOTO (TIRADA EM …)` pro modelo não tratar como coisa de hoje.
 
+Mais na 1.14.0:
+
+- **Mosaico** (`ui/components/Mosaic`): fotos da mesma câmera têm todas o mesmo formato, então cada uma
+  ganha um formato pelo lugar (`Mosaic.shape`, recorte) e as linhas vão de ponta a ponta com larguras
+  diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
+- **Descrição só pra busca**: `Capture.description` nunca aparece na tela; o prompt diz que o que se vê na
+  foto não vai pro diário nem pra item (a foto já está no diário do dia).
+- **Girar**: no visualizador, um menu leve embaixo gira a foto um quarto pra direita, com animação e escala
+  que acompanha; o giro fica em `captures.turn` (banco v5) e o arquivo não é mexido (`uprightBitmap(turn)`).
+- **Câmera da frente**: botão ao lado do disparador quando o celular tem as duas; sem flash na da frente.
+- **Um diário por dia de verdade**: criar diário num dia que já tem vira continuação (`Keeper`); só entra
+  parágrafo novo, e o dia contado de novo do começo toma o lugar (`DayDiary.merge`, vale pro append de
+  diário). Dias que ficaram com dois viram um ao abrir o app e depois de importar (`Library.joinDayDiaries`).
+- **ANTES DISSO**: o contexto leva a última conversa (o que ela disse, a resposta, os itens com id) pra
+  "essa tarefa" ter referência; o prompt diz que é só pra entender, nunca pra criar de novo.
+- **Etapas**: notícia de tarefa se divide — a fazer vira `add_steps`, feito vai em `steps_done`/`status`,
+  o que completa vai em `append`, o que muda a tarefa reescreve `update.body`. Nada em dois lugares.
+- **Deslize**: a inclinação da tela principal volta a zero sempre que o dedo solta (antes ficava torta
+  quando ela voltava antes do fim da animação e a mesma tela era reaproveitada).
+
 ## Backup (1.14.0)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
