@@ -10,7 +10,7 @@ Orb (segurar / tocar / arrastar pra cima)
       Ears.transcribe     Hearing: LFM3-Omni no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      Thinking: LFM3-Omni no celular (gramática GBNF do próprio plano, foto pelo projetor a 768 px) ou API /chat/completions (json_object)
+      Thinker.answer      Thinking: LFM3-Omni no celular (gramática JSON GBNF, foto pelo projetor a 768 px) ou API /chat/completions (json_object)
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
@@ -164,9 +164,9 @@ Na 1.15.0:
   `EntryPhotos` na tela, Markdown do item no backup. Se o que ela disse não vai adiante, as fotos seguem
   sozinhas (`letGo`).
 - **Modelo local mais rápido**: o estado depois das instruções (~1.700 tokens) fica num arquivo
-  (`cacheDir/model/prompt-….bin`, `read_cache`/`write_cache` no `fio_engine.cpp`) e é preparado
-  enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o modelo era solto (5 min
-  parado) ou o app fechava. Desde a 1.16.0 fica pronto antes da primeira fala (abaixo).
+  (`cacheDir/model/prompt-<modelo>-<tamanho>-<versão>.bin`, `read_cache`/`write_cache` no
+  `fio_engine.cpp`) e é preparado enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o
+  modelo era solto (5 min parado) ou o app fechava.
 - **Tema fora das telas** (`ui/theme/Look`): a abertura segura até as configurações carregarem; claro/escuro
   pelo `UiModeManager.setApplicationNightMode` (12+), splash na cor dela por `setSplashScreenTheme` (13+,
   `Theme.Fio.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
@@ -174,28 +174,6 @@ Na 1.15.0:
 
 Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
 null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
-
-## Modelo no celular (1.16.0)
-
-- **Só sai o formato que o Fio lê** (`Brain.PLAN_GRAMMAR`): a gramática é a do plano, com os campos
-  e o tipo de cada um (lista de itens, número no `id`, texto ou `null`…), não mais "qualquer JSON".
-  Campo com tipo errado virava plano ilegível ("O modelo respondeu fora do formato"). O espaço da
-  resposta cresce com a fala (`Brain.answerRoom`, 1.200 a 4.096 tokens): um relato longo era cortado
-  no meio. O teste confere a gramática contra o `Plan` (toda regra citada existe; o que ela deixa
-  passar o `Brain.parse` lê).
-- **Instruções prontas antes da primeira fala**: o arquivo do estado se chama
-  `prompt-<modelo>-<tamanho>-<llama.cpp>-<hash das instruções>.bin` (`LocalEngine.snapshotFile`;
-  `BuildConfig.LLAMA` vem do `TAG` do `tools/fetch-llama.sh`) — uma atualização do app que não muda
-  as instruções nem o motor não o refaz mais (antes o nome levava a versão). Quando falta
-  (`Thinking.unprepared`), o `PrepareWorker` o prepara em segundo plano (`LocalEngine.prepare`,
-  trabalho único `prepare-local`): ao abrir o app, quando o modelo termina de baixar, ao passar pro
-  modelo local e depois de uma atualização (os receivers de `MY_PACKAGE_REPLACED` sobem o processo).
-  O caminho do arquivo vai em cada `nativePrime`/`nativeGenerate`, não mais no `nativeLoad`.
-- **A fala dela não é copiada** (`Brain.LOCAL_SYSTEM`, `Thinker.instructions`): escrever é a parte
-  lenta no celular. Quando o texto do diário é a fala inteira, o modelo local põe só `"="`
-  (`Brain.SAID`) no `append`/`body` e o `Plan.withSaid` coloca ali o que ela disse, como foi
-  transcrito. Pela API as instruções são as de sempre (`SYSTEM`): o diário sai sem repetições e
-  hesitações.
 
 ## Backup (1.14.0)
 
@@ -233,7 +211,7 @@ Fio/
 
 ## Economia (1.13.0)
 
-- **Celular**: `Brain.chatmlHead(LOCAL_SYSTEM)` (as instruções, ~1.250 tokens) é o começo fixo de toda
+- **Celular**: `Brain.chatmlHead(SYSTEM)` (as instruções, ~1.250 tokens) é o começo fixo de toda
   resposta. `nativeGenerate(keep=bytes)` roda esse começo uma vez e guarda o estado do modelo
   (`llama_state_seq_get_data`, retrato inteiro — o LFM tem camadas de convolução que não se cortam
   numa posição); nas próximas respostas `start_from` põe o retrato de volta e só roda o resto.
@@ -256,7 +234,7 @@ Fio/
 
 - `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR [in <idioma>].`,
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
-- `generate`: o mesmo modelo como texto, com a gramática do plano (`Brain.PLAN_GRAMMAR`).
+- `generate`: o mesmo modelo como texto, com a gramática JSON.
 
 O prompt de ASR é o mesmo do `llama-server` pro LFM3 (e o do card do LFM3-Omni) (`common_chat_get_asr_prompt`): sistema
 `Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.

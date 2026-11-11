@@ -557,8 +557,7 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos)
-        val system = thinking.instructions()
-        var plan = Brain.parse(thinking.answer(system, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
+        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
@@ -574,12 +573,12 @@ class Mind(
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
             val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos)
-            plan = Brain.parse(thinking.answer(system, next, image))
+            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.
         if (plan.isLookupOnly) plan = plan.copy(reply = plan.reply.ifBlank { NOTHING_FOUND })
-        return plan.copy(search = emptyList(), period = null).withSaid(said)
+        return plan.copy(search = emptyList(), period = null)
     }
 
     /** The previous turn of the conversation: what she said then, the answer, and the items it touched (as they are now, among [all]). */
