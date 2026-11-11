@@ -122,8 +122,8 @@ fun Modifier.bleed(by: Dp): Modifier = layout { measurable, constraints ->
 private val WHEN = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM · HH:mm", PT)
 
 /**
- * Photos big, on black, one beside the other: swipe between them; under each, what it shows (in
- * her words) and when it was taken. × or back closes.
+ * Photos big, on black, one beside the other: swipe between them; under each, when it was taken
+ * (what it shows, in the model's words, is only for the search — never on screen). × or back closes.
  */
 @Composable
 fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
@@ -145,9 +145,6 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             .navigationBarsPadding()
                             .padding(start = 22.dp, end = 22.dp, top = 40.dp, bottom = 22.dp),
                     ) {
-                        p.description?.let {
-                            Text(it, style = MaterialTheme.typography.bodyLarge, color = Color.White, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                        }
                         Text(
                             Instant.ofEpochMilli(p.takenAt).atZone(ZoneId.systemDefault()).format(WHEN).replaceFirstChar { it.titlecase(PT) },
                             style = MaterialTheme.typography.labelMedium,

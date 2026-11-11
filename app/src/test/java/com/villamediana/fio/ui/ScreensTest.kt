@@ -281,8 +281,8 @@ class ScreensTest {
         shot("22-gallery")
         compose.onNodeWithTag("gallery-photo-0").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
-        // Under the photo, what it shows.
-        compose.onNodeWithText("Pôr do sol na praia de Itacaré, céu laranja").assertExists()
+        // What it shows is only for the search: never under the photo.
+        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isEmpty())
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
 
