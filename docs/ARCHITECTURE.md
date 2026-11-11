@@ -155,6 +155,23 @@ Na 1.15.0:
   leve (`ui/entry/SoundRow`: barras de `Wav.levels`, só anda enquanto toca), e o backup leva em
   `Áudios/<ano>` (com `.nomedia`), põe `[Áudio](…)` no Markdown do item e traz de volta na importação.
 
+- **Fotos esperam e vão com o que ela diz**: câmera e galeria põem as fotos em `Mind.stage` (arquivos em
+  `captures/.staged`, sobrevivem ao app fechar); a Home mostra a faixa (× tira uma, seta = `sendStaged`, o
+  caminho de antes). Fala ou texto em seguida levam as fotos (`attach`: capturas de foto `DONE` com `partOf`):
+  uma chamada só, a imagem é uma grade com todas (`PhotoReader.jpeg(files)`, até 9), o contexto ganha
+  `AS FOTOS QUE ELA MANDOU JUNTO` e o modelo marca `"photos": true` no item a que pertencem
+  (`Outcome.photos`; mais fotos depois com `update.photos`). `data/Attached` diz as fotos de cada item:
+  `EntryPhotos` na tela, Markdown do item no backup. Se o que ela disse não vai adiante, as fotos seguem
+  sozinhas (`letGo`).
+- **Modelo local mais rápido**: o estado depois das instruções (~1.700 tokens) fica num arquivo
+  (`cacheDir/model/prompt-<modelo>-<tamanho>-<versão>.bin`, `read_cache`/`write_cache` no
+  `fio_engine.cpp`) e é preparado enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o
+  modelo era solto (5 min parado) ou o app fechava.
+- **Tema fora das telas** (`ui/theme/Look`): a abertura segura até as configurações carregarem; claro/escuro
+  pelo `UiModeManager.setApplicationNightMode` (12+), splash na cor dela por `setSplashScreenTheme` (13+,
+  `Theme.Fio.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
+  cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `FioActivity`.
+
 ## Backup (1.14.0)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
