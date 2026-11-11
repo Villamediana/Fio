@@ -138,6 +138,23 @@ Mais na 1.14.0:
 - **Deslize**: a inclinação da tela principal volta a zero sempre que o dedo solta (antes ficava torta
   quando ela voltava antes do fim da animação e a mesma tela era reaproveitada).
 
+Na 1.15.0:
+
+- **Tarefa feita sai do contexto**: o que o modelo recebe sozinho (lembranças, últimas coisas, ANTES DISSO)
+  deixa de fora tarefa `done`; só a busca que ele pede (pra responder sobre o passado) traz de volta.
+- **Contexto enxuto**: o que já está escrito acima é só apontado (`#id (acima)`); lembranças de 12 pra 8;
+  a `Recall` com tudo e o índice das fotos só são montados quando precisam.
+- **Foto**: a miniatura segue o giro na hora (`rememberPhoto` decodifica de novo quando o giro muda e mostra
+  a de antes até a nova ficar pronta). No visualizador, **Baixar** (`data/ToGallery`: MediaStore em
+  Imagens/Fio, giro no EXIF da cópia, data em que foi tirada) e **Remover** (pede um toque a mais;
+  `Library.removePhoto` tira a captura e o arquivo, o que foi guardado dela fica).
+- **Conexões escondida**: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora; o grafo fica em `ui/graph`.
+- **Áudio que vale guardar**: a gravação continua sumindo depois de ouvida, a não ser que o modelo marque
+  `keep_audio` (ela canta uma melodia pra lembrar, mostra um som). Aí `captures.sound` (banco v6) e
+  `audioPath` ficam; o áudio aparece nos itens que a gravação criou ou mudou (`data/Sounds`), com um player
+  leve (`ui/entry/SoundRow`: barras de `Wav.levels`, só anda enquanto toca), e o backup leva em
+  `Áudios/<ano>` (com `.nomedia`), põe `[Áudio](…)` no Markdown do item e traz de volta na importação.
+
 ## Backup (1.14.0)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
