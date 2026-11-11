@@ -11,6 +11,7 @@ sealed interface Screen {
     data class Library(val filter: Filter, val search: Boolean = false, val query: String = "", val topic: Long? = null) : Screen
     data class Entry(val id: Long) : Screen
     data object Settings : Screen
+    data object Theme : Screen
     data object Camera : Screen
 }
 

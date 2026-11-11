@@ -32,6 +32,7 @@ import com.villamediana.fio.ui.home.Orb
 import com.villamediana.fio.ui.home.OrbMode
 import com.villamediana.fio.ui.library.LibraryScreen
 import com.villamediana.fio.ui.settings.SettingsScreen
+import com.villamediana.fio.ui.settings.ThemeScreen
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.theme.FioTheme
 import kotlinx.coroutines.flow.first
@@ -239,6 +240,25 @@ class ScreensTest {
         slide(toLeft = false)
         compose.waitUntil(3_000) { nav.top == Screen.Home }
         assertEquals(1, nav.stack.size)
+    }
+
+    @Test
+    fun theme() {
+        val nav = Nav()
+        // (mode, accent, the main screen instead of Tema)
+        val look = androidx.compose.runtime.mutableStateOf(Triple(ThemeMode.LIGHT, "", false))
+        compose.setContent {
+            val (mode, accent, home) = look.value
+            FioTheme(mode, accent = accent) { if (home) HomeScreen(nav, talkAbout = null, onTalkHandled = {}) else ThemeScreen(nav) }
+        }
+        shot("14-theme")
+        runBlocking { graph.settings.setAccent("green"); graph.settings.setTheme(ThemeMode.DARK) }
+        look.value = Triple(ThemeMode.DARK, "green", false)
+        compose.mainClock.advanceTimeBy(600)
+        shot("15-theme-dark-green")
+        look.value = Triple(ThemeMode.DARK, "graphite", true)
+        compose.mainClock.advanceTimeBy(600)
+        shot("16-home-dark-graphite")
     }
 
     @Test

@@ -80,7 +80,7 @@ fun formatBytes(bytes: Long): String {
 
 /** The mark: one white thread that loops once and runs on (a thought kept), on vermilion. */
 @Composable
-fun FioMark(size: Dp = 40.dp, color: Color = Color.White, background: Color = FioColors.Accent) {
+fun FioMark(size: Dp = 40.dp, color: Color = FioColors.OnAccent, background: Color = FioColors.Accent) {
     Canvas(Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(background)) {
         val w = this.size.width
         val path = Path().apply {
@@ -232,7 +232,7 @@ fun CheckCircle(done: Boolean, color: Color, onClick: () -> Unit, size: Dp = 24.
             drawCircle(color.copy(alpha = 0.55f + 0.45f * fill), radius = r - 1.dp.toPx(), style = Stroke(1.6.dp.toPx()))
             if (fill > 0f) drawCircle(color, radius = (r - 1.dp.toPx()) * fill)
         }
-        if (done) Icon(FioIcons.Check, null, tint = Color.White, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
+        if (done) Icon(FioIcons.Check, null, tint = FioColors.OnAccent, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
     }
 }
 

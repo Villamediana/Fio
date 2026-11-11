@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         read(intent)
         setContent {
             val settings by FioApplication.graph.settings.now.collectAsStateWithLifecycle()
-            FioTheme(mode = settings.theme) {
+            FioTheme(mode = settings.theme, accent = settings.accent) {
                 FioRoot(ask = ask, onAskHandled = { ask = null })
             }
         }

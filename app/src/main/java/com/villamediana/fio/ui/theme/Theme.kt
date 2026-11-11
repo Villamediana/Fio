@@ -17,6 +17,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -77,6 +78,29 @@ object Palettes {
         danger = Color(0xFFFF6B6B),
         success = Color(0xFF3FBF9C),
     )
+}
+
+/** A highlight color to choose in Tema, tuned for each theme (paper and graphite). */
+data class AccentDef(val id: String, val name: String, val light: Color, val dark: Color)
+
+object FioAccents {
+    val all = listOf(
+        AccentDef("vermilion", "Vermelhão", Color(0xFFEC4F2A), Color(0xFFFF6A43)),
+        AccentDef("blue", "Azul", Color(0xFF4C6FFF), Color(0xFF7C9BFF)),
+        AccentDef("green", "Verde", Color(0xFF149E5C), Color(0xFF5FD69C)),
+        AccentDef("pink", "Rosa", Color(0xFFE0457B), Color(0xFFFF7AA8)),
+        AccentDef("purple", "Roxo", Color(0xFF7B4DFF), Color(0xFFA88BFF)),
+        AccentDef("teal", "Petróleo", Color(0xFF0E9C9C), Color(0xFF5ED8D8)),
+        AccentDef("graphite", "Grafite", Color(0xFF2B2E36), Color(0xFFE6E8EE)),
+    )
+
+    fun byId(id: String?): AccentDef = all.firstOrNull { it.id == id } ?: all.first()
+}
+
+/** [this] palette with [a] as its thread: the button, the marks, the chosen things. */
+fun Palette.withAccent(a: AccentDef): Palette {
+    val c = if (dark) a.dark else a.light
+    return copy(accent = c, onAccent = if (c.luminance() > 0.5f) Color(0xFF17171A) else Color.White)
 }
 
 val LocalPalette = staticCompositionLocalOf { Palettes.Light }
@@ -142,13 +166,13 @@ object Motion {
 }
 
 @Composable
-fun FioTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+fun FioTheme(mode: ThemeMode = ThemeMode.SYSTEM, accent: String? = null, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val p = if (dark) Palettes.Dark else Palettes.Light
+    val p = (if (dark) Palettes.Dark else Palettes.Light).withAccent(FioAccents.byId(accent))
     val scheme: ColorScheme = if (dark) {
         darkColorScheme(primary = p.accent, onPrimary = p.onAccent, background = p.background, surface = p.surface, onSurface = p.text, onBackground = p.text, surfaceVariant = p.surface2, onSurfaceVariant = p.textMuted, outline = p.line, error = p.danger)
     } else {
