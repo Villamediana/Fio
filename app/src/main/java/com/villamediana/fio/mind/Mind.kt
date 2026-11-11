@@ -257,10 +257,16 @@ class Mind(
         }
     }
 
-    /** Nothing going through or waiting in line, the microphone closed: nothing on its way. */
+    /** Nothing going through or waiting in line, the microphone closed: an import can replace everything. */
     val idle: Boolean
         get() = current == null && synchronized(queued) { queued.isEmpty() } && _state.value !is MindState.Listening && work.get() == 0
 
+    /** Everything was replaced by an import: the screen starts clean and what came unfinished goes on. */
+    fun restored() {
+        _state.value = MindState.Idle
+        retryPending()
+        scope.launch { refreshPending() }
+    }
 
     fun retry(captureId: Long) {
         scope.launch {

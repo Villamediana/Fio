@@ -8,6 +8,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,15 @@ enum class SpeechLang(val key: String, val asr: String?) {
     }
 }
 
+/** How often the backup goes to the folder by itself. */
+enum class BackupEvery(val key: String, val days: Long) {
+    OFF("off", 0), DAY("day", 1), WEEK("week", 7);
+
+    companion object {
+        fun of(key: String?): BackupEvery = entries.firstOrNull { it.key == key } ?: DAY
+    }
+}
+
 data class FioSettings(
     val hear: Source = Source.LOCAL,
     val hearModel: String = "",
@@ -62,6 +72,16 @@ data class FioSettings(
     val accent: String = "",
     /** The "segure ou toque" hint under the button was seen (it shows only until the first capture). */
     val hintSeen: Boolean = false,
+    /** The folder the backup goes to (a tree uri the app holds a permission for); empty = none. */
+    val backupFolder: String = "",
+    /** Where that is, to show: "Documents/Fio". */
+    val backupPlace: String = "",
+    val backupEvery: BackupEvery = BackupEvery.DAY,
+    /** When the last backup ended well (0 = never). */
+    val backupAt: Long = 0,
+    /** What the last backup took ("120 itens · 34 fotos"), or why it didn't go. */
+    val backupNote: String = "",
+    val backupFailed: Boolean = false,
 ) {
     val apiReady: Boolean get() = apiBase.isNotBlank() && hasApiKey
 }
@@ -84,6 +104,12 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             theme = ThemeMode.of(p[THEME]),
             accent = p[ACCENT].orEmpty(),
             hintSeen = p[HINT_SEEN] ?: false,
+            backupFolder = p[BACKUP_FOLDER].orEmpty(),
+            backupPlace = p[BACKUP_PLACE].orEmpty(),
+            backupEvery = BackupEvery.of(p[BACKUP_EVERY]),
+            backupAt = p[BACKUP_AT] ?: 0L,
+            backupNote = p[BACKUP_NOTE].orEmpty(),
+            backupFailed = p[BACKUP_FAILED] ?: false,
         )
     }
 
@@ -106,6 +132,23 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
+    suspend fun setBackupFolder(uri: String, place: String) = store.edit {
+        it[BACKUP_FOLDER] = uri
+        it[BACKUP_PLACE] = place
+        it.remove(BACKUP_AT)
+        it.remove(BACKUP_NOTE)
+        it.remove(BACKUP_FAILED)
+    }
+    suspend fun setBackupEvery(every: BackupEvery) = store.edit { it[BACKUP_EVERY] = every.key }
+    suspend fun setBackupDone(at: Long, note: String) = store.edit {
+        it[BACKUP_AT] = at
+        it[BACKUP_NOTE] = note
+        it[BACKUP_FAILED] = false
+    }
+    suspend fun setBackupFailed(note: String) = store.edit {
+        it[BACKUP_NOTE] = note
+        it[BACKUP_FAILED] = true
+    }
 
     private companion object {
         val HEAR = stringPreferencesKey("hear")
@@ -118,6 +161,12 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val THEME = stringPreferencesKey("theme")
         val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")
+        val BACKUP_FOLDER = stringPreferencesKey("backup_folder")
+        val BACKUP_PLACE = stringPreferencesKey("backup_place")
+        val BACKUP_EVERY = stringPreferencesKey("backup_every")
+        val BACKUP_AT = longPreferencesKey("backup_at")
+        val BACKUP_NOTE = stringPreferencesKey("backup_note")
+        val BACKUP_FAILED = booleanPreferencesKey("backup_failed")
     }
 }
 

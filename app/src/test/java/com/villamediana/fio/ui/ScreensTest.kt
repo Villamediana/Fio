@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.geometry.Offset
@@ -348,6 +349,29 @@ class ScreensTest {
         look.value = Triple(ThemeMode.DARK, "graphite", true)
         compose.mainClock.advanceTimeBy(600)
         shot("16-home-dark-graphite")
+    }
+
+    @Test
+    fun backupInSettings() {
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
+        // No folder yet: one line to choose it, and the import.
+        compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
+        assertTrue(compose.onAllNodesWithText("Automático").fetchSemanticsNodes().isEmpty())
+        runBlocking {
+            graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Fio")
+            graph.settings.setBackupDone(System.currentTimeMillis(), "120 itens · 34 fotos")
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Fio").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Importar backup").performScrollTo()
+        compose.onNodeWithText("Automático").assertExists()
+        compose.onNodeWithText("Diário").assertExists()
+        assertTrue(compose.onAllNodesWithText("último: hoje", substring = true).fetchSemanticsNodes().isNotEmpty())
+        compose.mainClock.advanceTimeBy(500)
+        shot("18-settings-backup")
+        runBlocking {
+            graph.settings.setBackupFolder("", "")
+        }
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.villamediana.fio
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import com.villamediana.fio.backup.Backup
+import com.villamediana.fio.backup.Backups
 import com.villamediana.fio.mind.PhotoDate
 import com.villamediana.fio.ai.Api
 import com.villamediana.fio.audio.AndroidMicHolder
@@ -115,6 +117,17 @@ class AppGraph(context: Context) {
             if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
         }
     }.getOrNull()
+
+    /** The backup to the folder she chose (Ajustes › Backup), and the import back. */
+    val backups: Backups by lazy {
+        Backups(
+            context = appContext,
+            core = Backup(db, captures, File(appContext.filesDir, "backup-state.json"), reminders, BuildConfig.VERSION_NAME),
+            settings = settings,
+            mind = mind,
+            scope = scope,
+        )
+    }
 
     /** The app updating itself from the GitHub releases (Ajustes › Sobre, the update sheet). */
     val updates: Updates by lazy { createUpdates(appContext, http, scope) }

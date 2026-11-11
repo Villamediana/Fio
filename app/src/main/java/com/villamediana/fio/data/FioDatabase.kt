@@ -149,6 +149,67 @@ interface ProgressDao {
     suspend fun latest(entryId: Long, limit: Int): List<Progress>
 }
 
+/** Everything at once: what a backup takes, and what an import puts back (ids kept). */
+@Dao
+interface BackupDao {
+    @Query("SELECT * FROM entries ORDER BY id")
+    suspend fun entries(): List<Entry>
+
+    @Query("SELECT * FROM captures ORDER BY id")
+    suspend fun captures(): List<Capture>
+
+    @Query("SELECT * FROM entities ORDER BY id")
+    suspend fun topics(): List<Topic>
+
+    @Query("SELECT * FROM entry_topics")
+    suspend fun ties(): List<EntryTopic>
+
+    @Query("SELECT * FROM links")
+    suspend fun links(): List<Link>
+
+    @Query("SELECT * FROM progress ORDER BY id")
+    suspend fun progress(): List<Progress>
+
+    @Query("SELECT (SELECT COUNT(*) FROM entries) + (SELECT COUNT(*) FROM captures)")
+    suspend fun count(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putEntries(list: List<Entry>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putCaptures(list: List<Capture>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putTopics(list: List<Topic>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun putTies(list: List<EntryTopic>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun putLinks(list: List<Link>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putProgress(list: List<Progress>)
+
+    @Query("DELETE FROM entry_topics")
+    suspend fun clearTies()
+
+    @Query("DELETE FROM links")
+    suspend fun clearLinks()
+
+    @Query("DELETE FROM progress")
+    suspend fun clearProgress()
+
+    @Query("DELETE FROM entries")
+    suspend fun clearEntries()
+
+    @Query("DELETE FROM entities")
+    suspend fun clearTopics()
+
+    @Query("DELETE FROM captures")
+    suspend fun clearCaptures()
+}
+
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
     version = 4,
@@ -160,6 +221,7 @@ abstract class FioDatabase : RoomDatabase() {
     abstract fun captures(): CaptureDao
     abstract fun graph(): GraphDao
     abstract fun progress(): ProgressDao
+    abstract fun backup(): BackupDao
 
     companion object {
         /**

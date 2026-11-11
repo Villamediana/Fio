@@ -29,6 +29,7 @@ enum class Status(val key: String) {
 data class Step(val text: String, val done: Boolean = false)
 
 /** A task, a note or a diary entry. */
+@Serializable
 @Entity(tableName = "entries", indices = [Index("kind"), Index("createdAt"), Index("captureId")])
 data class Entry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -61,6 +62,7 @@ data class Entry(
 }
 
 /** One thing said or photographed, and what came of it. */
+@Serializable
 @Entity(tableName = "captures", indices = [Index("createdAt")])
 data class Capture(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -120,6 +122,7 @@ data class Outcome(val entryId: Long, val action: String) {
 }
 
 /** A person, place, project, company or subject: the knots of the graph. */
+@Serializable
 @Entity(tableName = "entities", indices = [Index(value = ["norm"], unique = true)])
 data class Topic(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -128,6 +131,7 @@ data class Topic(
     val type: String = "topic",
 )
 
+@Serializable
 @Entity(
     tableName = "entry_topics",
     primaryKeys = ["entryId", "topicId"],
@@ -140,6 +144,7 @@ data class Topic(
 data class EntryTopic(val entryId: Long, val topicId: Long)
 
 /** Two entries the model saw as the same matter (always a < b). */
+@Serializable
 @Entity(
     tableName = "links",
     primaryKeys = ["a", "b"],
@@ -152,6 +157,7 @@ data class EntryTopic(val entryId: Long, val topicId: Long)
 data class Link(val a: Long, val b: Long)
 
 /** How a task went: each status change or bit of news, in order. */
+@Serializable
 @Entity(
     tableName = "progress",
     indices = [Index("entryId")],
