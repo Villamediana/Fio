@@ -172,6 +172,9 @@ Na 1.15.0:
   `Theme.Fio.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
   cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `FioActivity`.
 
+Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
+null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
+
 ## Backup (1.14.0)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada

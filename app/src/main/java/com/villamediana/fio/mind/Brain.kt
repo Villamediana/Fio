@@ -122,18 +122,15 @@ Como preencher:
 - keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
-- Deixe de fora os campos vazios ou null: a resposta fica curta.
+- Escreva só os campos que usar: vazio, null, false ou [] ficam de fora. A resposta fica curta.
 
-Responda somente com um objeto JSON neste formato:
-{"reply": "...",
- "create": [{"kind": "task|note|diary", "title": "...", "body": "...", "tags": ["..."], "entities": [{"name": "...", "type": "..."}], "due": null, "remind_at": null, "check_in_at": null, "steps": [], "status": "todo", "sensitive": false, "related": [], "photos": false}],
- "update": [{"id": 0, "status": null, "steps_done": [], "add_steps": [], "title": null, "append": null, "body": null, "due": null, "remind_at": null, "check_in_at": null, "entities": [], "delete": false, "photos": false}],
- "search": [],
- "period": {"from": null, "to": null},
- "show": [],
- "show_photos": [],
- "photo_description": null,
- "keep_audio": false}
+Responda somente com um objeto JSON. Um exemplo do jeito (só o que foi usado):
+{"reply": "...", "create": [{"kind": "task", "title": "...", "due": "AAAA-MM-DD"}], "update": [{"id": 12, "add_steps": ["..."]}]}
+Os campos que existem:
+- reply
+- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos}]
+- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos}]
+- search, period {from, to}, show, show_photos, photo_description, keep_audio
 """.trim()
 
     /**
