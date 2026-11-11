@@ -58,6 +58,9 @@ Tarefas, …, Conexões). Na principal, deslizar pra direita abre a câmera e pr
 (o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
 próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.
 
+Escrever em vez de falar: o lápis leve no canto da tela principal abre um campo; o texto vira uma captura
+`source = "text"` com `transcript` já preenchido e vai direto pro organizar (o modelo lê "O QUE ELA ESCREVEU").
+
 Ações que se entendem pelo desenho são ícones (`IconAction`, com o nome pro leitor de tela): descartar a
 gravação (×, no modo toque), parar o organizar (■), tentar de novo (↻), descartar (lixeira), baixar/parar/apagar o
 modelo, testar a API, prazo (calendário), lembrete (sino) e etapas (lista). Status, abas e "Ver feitas" seguem em

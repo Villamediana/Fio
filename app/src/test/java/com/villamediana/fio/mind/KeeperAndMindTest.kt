@@ -293,6 +293,23 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun writingGoesStraightToOrganizing() = runBlocking {
+        val ears = FakeEars("nunca") // must not be called: there is nothing to transcribe
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Anotei.","create":[{"kind":"task","title":"Comprar pão"}]}""")))
+        val m = mind(ears, thinker)
+        m.write("  comprar pão amanhã  ")
+        val a = withTimeout(10_000) { m.state.first { it is MindState.Answer } } as MindState.Answer
+        assertEquals("Anotei.", a.reply)
+        assertTrue(a.typed)
+        assertEquals("comprar pão amanhã", a.said)
+        assertEquals(0, ears.heard)
+        assertTrue(thinker.prompts.single().contains("O QUE ELA ESCREVEU:\n\"comprar pão amanhã\""))
+        val c = db.captures().get(a.captureId)!!
+        assertEquals(Capture.TEXT, c.source)
+        assertEquals(Capture.DONE, c.state)
+    }
+
+    @Test
     fun saysThinksKeepsAndAnswers() = runBlocking {
         val ears = FakeEars("amanhã preciso ligar pro dentista às 9")
         val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Anotei: ligar pro dentista amanhã às 9.","create":[{"kind":"task","title":"Ligar pro dentista","due":"2026-11-12T09:00","remind_at":"2026-11-12T08:45"}]}""")))

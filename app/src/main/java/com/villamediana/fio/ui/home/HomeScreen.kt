@@ -49,6 +49,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.imePadding
+import com.villamediana.fio.ui.sheets.FioSheet
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.villamediana.fio.ui.components.IconAction
@@ -97,6 +100,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val entries by graph.library.all().collectAsStateWithLifecycle(initialValue = emptyList())
 
     var focus by remember { mutableStateOf<Entry?>(null) }
+    var writing by remember { mutableStateOf(false) }
     var inCancelZone by remember { mutableStateOf(false) }
     var wantsAfterPermission by remember { mutableStateOf<Long?>(null) }
 
@@ -148,7 +152,10 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
             ),
     ) {
         Column(Modifier.fillMaxSize().graphicsLayer { translationX = lean.floatValue }.statusBarsPadding().navigationBarsPadding()) {
-            Box(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), contentAlignment = Alignment.CenterEnd) {
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Writing instead of talking: a light pencil, there for whoever wants it.
+                if (state !is MindState.Listening) QuietIcon(FioIcons.Pencil, "Escrever", { writing = true }, alpha = 0.4f)
+                Spacer(Modifier.weight(1f))
                 QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.55f)
             }
 
@@ -218,6 +225,40 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                 onToday = { nav.go(Screen.Library(Filter.TODAY)) },
                 onSearch = { nav.go(Screen.Library(Filter.ALL, search = true)) },
             )
+        }
+    }
+
+    if (writing) {
+        WriteSheet(
+            about = focus,
+            onSend = { text -> writing = false; mind.write(text) },
+            onDismiss = { writing = false },
+        )
+    }
+}
+
+/** Writing instead of talking: the text goes straight to organizing, nothing to transcribe. */
+@Composable
+private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val field = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
+    FioSheet(onDismissRequest = onDismiss) {
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp).imePadding(), verticalAlignment = Alignment.Bottom) {
+            Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                if (text.isEmpty()) Text("O que está na sua cabeça?", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
+                androidx.compose.foundation.text.BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(FioColors.Accent),
+                    minLines = 3,
+                    maxLines = 10,
+                    modifier = Modifier.fillMaxWidth().focusRequester(field),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            IconAction(FioIcons.Send, "Guardar", { if (text.isNotBlank()) onSend(text) }, primary = text.isNotBlank(), modifier = Modifier.padding(bottom = 4.dp))
         }
     }
 }
@@ -388,7 +429,7 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             }
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (s.said.isNotBlank()) {
-                    QuietWord(if (showSaid) "esconder" else if (s.photo) "da foto" else "o que você disse") { showSaid = !showSaid }
+                    QuietWord(if (showSaid) "esconder" else if (s.photo) "da foto" else if (s.typed) "o que você escreveu" else "o que você disse") { showSaid = !showSaid }
                 }
                 Box(Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onDismiss).semantics { contentDescription = "Fechar" }, contentAlignment = Alignment.Center) {
                     Icon(FioIcons.Close, null, tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))

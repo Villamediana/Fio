@@ -252,7 +252,11 @@ fun EntryScreen(nav: Nav, id: Long) {
                     Modifier.padding(top = 18.dp).clip(RoundedCornerShape(10.dp)).clickable { showSaid = !showSaid }.padding(vertical = 8.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(if (capture?.source == "photo") "Da foto" else "O que você disse", style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted)
+                    Text(
+                        when (capture?.source) { "photo" -> "Da foto"; com.villamediana.fio.data.Capture.TEXT -> "O que você escreveu"; else -> "O que você disse" },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = FioColors.TextMuted,
+                    )
                     Icon(
                         FioIcons.Chevron, null, tint = FioColors.TextFaint,
                         modifier = Modifier.padding(start = 4.dp).size(16.dp).graphicsLayer { rotationZ = if (showSaid) 90f else 0f },

@@ -34,7 +34,7 @@ sealed interface MindState {
     /** The microphone is open. [locked]: tapped (stays open until tapped again), not held. */
     data class Listening(val startedAt: Long, val locked: Boolean, val focusId: Long?) : MindState
 
-    data class Working(val captureId: Long, val stage: Stage, val text: String, val photo: Boolean = false) : MindState
+    data class Working(val captureId: Long, val stage: Stage, val text: String, val photo: Boolean = false, val typed: Boolean = false) : MindState
 
     data class Answer(
         val captureId: Long,
@@ -43,6 +43,8 @@ sealed interface MindState {
         val outcomes: List<Outcome>,
         val shown: List<Long>,
         val photo: Boolean,
+        /** Written instead of said. */
+        val typed: Boolean = false,
     ) : MindState
 
     data class Problem(val captureId: Long?, val need: Need?, val message: String, val said: String? = null) : MindState
@@ -212,6 +214,23 @@ class Mind(
         _state.value = MindState.Idle
     }
 
+    /** Something written instead of said: it is already text, so it goes straight to organizing. */
+    fun write(text: String) {
+        val said = text.trim()
+        if (said.isEmpty()) return
+        begin()
+        show(MindState.Working(0L, Stage.THINKING, said, typed = true))
+        scope.launch {
+            try {
+                val id = db.captures().insert(Capture(createdAt = clock(), source = Capture.TEXT, transcript = said, state = Capture.RECORDED))
+                show(MindState.Working(id, Stage.THINKING, said, typed = true))
+                enqueue(id)
+            } finally {
+                end()
+            }
+        }
+    }
+
     /** A photo taken in the app's camera: read, understood and kept like something said. */
     fun photo(file: File) {
         begin()
@@ -230,7 +249,7 @@ class Mind(
         scope.launch {
             var c = db.captures().get(captureId) ?: return@launch
             if (c.tries > 0 && !busy(c.id)) c = c.copy(tries = 0).also { db.captures().update(it) }
-            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript ?: c.heard.orEmpty(), c.source == "photo"))
+            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript ?: c.heard.orEmpty(), c.source == "photo", c.source == Capture.TEXT))
             enqueue(captureId)
         }
     }
@@ -318,6 +337,7 @@ class Mind(
         var c = db.captures().get(id) ?: return
         if (c.state == Capture.DONE) return
         val photo = c.source == "photo"
+        val typed = c.source == Capture.TEXT
         // A run that starts counts until it ends by itself (an answer, a problem on the screen, a
         // stop); one that never ends is an app that closed or fell in the middle.
         c = c.copy(tries = c.tries + 1).also { db.captures().update(it) }
@@ -353,8 +373,8 @@ class Mind(
                 return
             }
             c = c.copy(state = Capture.THINKING).also { db.captures().update(it) }
-            say(MindState.Working(id, Stage.THINKING, said, photo))
-            val plan = think(c, said, photo)
+            say(MindState.Working(id, Stage.THINKING, said, photo, typed))
+            val plan = think(c, said, photo, typed)
             val result = keeper.apply(plan, id)
             runCatching { reminders.sync(result.touched) }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
@@ -369,7 +389,7 @@ class Mind(
                 ),
             )
             c.audioPath?.let { File(it).delete() }
-            say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo))
+            say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo, typed))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
@@ -392,7 +412,7 @@ class Mind(
      * One look at the context; while the model asks to look something up (words, a stretch of
      * days), another look with everything found so far — [MAX_LOOKUPS] times at most.
      */
-    private suspend fun think(c: Capture, said: String, photo: Boolean): Plan {
+    private suspend fun think(c: Capture, said: String, photo: Boolean, typed: Boolean = false): Plan {
         val now = clock()
         val z = zone()
         val all = db.entries().all()
@@ -406,7 +426,7 @@ class Mind(
 
         val recent = all.take(RECENT) // all() comes newest first
 
-        val first = Brain.context(heard, now, z, open, hits, focus, focusProgress, recent, photo = photo)
+        val first = Brain.context(heard, now, z, open, hits, focus, focusProgress, recent, photo = photo, typed = typed)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         val looked = ArrayList<String>()
@@ -419,7 +439,7 @@ class Mind(
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
             found = (found + byWords + byTime).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, focusProgress, recent, looked = looked.joinToString(" · "), photo = photo)
+            val next = Brain.context(heard, now, z, open, found, focus, focusProgress, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
