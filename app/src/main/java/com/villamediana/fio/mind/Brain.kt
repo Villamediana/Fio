@@ -37,6 +37,19 @@ data class Plan(
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
+
+    /**
+     * An item's text written as [Brain.SAID] stands for all she said, as she said it: the model on
+     * the phone doesn't write her words again (the slowest thing it does), Fio puts them there.
+     */
+    fun withSaid(said: String): Plan {
+        val words = said.trim()
+        fun String?.orSaid(): String? = if (this?.trim() == Brain.SAID) words else this
+        return copy(
+            create = create.map { it.copy(body = it.body.orSaid().orEmpty()) },
+            update = update.map { it.copy(append = it.append.orSaid(), body = it.body.orSaid()) },
+        )
+    }
 }
 
 @Serializable
@@ -132,6 +145,22 @@ Os campos que existem:
 - update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos}]
 - search, period {from, to}, show, show_photos, photo_description, keep_audio
 """.trim()
+
+    /** In place of an item's text: all she said, word for word ([Plan.withSaid]). */
+    const val SAID = "="
+
+    private const val DIARY_VOICE = "- Diário é dela: escreva em primeira pessoa, no idioma, no jeito e no tom em que ela falou, como se ela mesma tivesse escrito. Só tire repetições e hesitações; não reescreva no seu estilo nem resuma o que ela contou."
+    private const val LOCAL_DIARY_VOICE = "- Diário é dela, nas palavras dela. Quando o texto que vai pro diário é a fala dela inteira, não escreva a fala de novo: ponha só \"=\" no \"append\" (ou no \"body\" de um diário novo) e o Fio coloca ali a fala dela, palavra por palavra. Escreva o texto você mesmo só quando ele é uma parte da fala: em primeira pessoa, no idioma, no jeito e no tom dela, sem resumir."
+    private const val EXAMPLE = "{\"reply\": \"...\", \"create\": [{\"kind\": \"task\", \"title\": \"...\", \"due\": \"AAAA-MM-DD\"}], \"update\": [{\"id\": 12, \"add_steps\": [\"...\"]}]}"
+    private const val LOCAL_EXAMPLE = "Um relato do dia, a fala inteira no diário: {\"reply\": \"...\", \"update\": [{\"id\": 30, \"append\": \"=\"}]} quando há DIÁRIO DE HOJE (aqui, o #30), ou {\"reply\": \"...\", \"create\": [{\"kind\": \"diary\", \"title\": \"...\", \"body\": \"=\"}]} quando não há."
+
+    /**
+     * The instructions for the model on the phone: [SYSTEM], except that her words are not written
+     * again. Writing is the slow part there (a long story of the day took minutes to come back
+     * copied); with "=" the answer is a few words and the diary has what she said, as she said it.
+     * The API keeps [SYSTEM] as it is.
+     */
+    val LOCAL_SYSTEM: String = SYSTEM.replace(DIARY_VOICE, LOCAL_DIARY_VOICE).replace(EXAMPLE, EXAMPLE + "\n" + LOCAL_EXAMPLE)
 
     /**
      * What the model sees: now, the open tasks, the last things kept, what may be related (or,

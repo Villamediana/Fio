@@ -45,6 +45,9 @@ interface Thinker {
     /** The long side of the photo it gets, in px (a small model on the phone wants a smaller one). */
     suspend fun imageSide(): Int = 1600
 
+    /** The instructions this model answers by (the one on the phone has its own: [Brain.LOCAL_SYSTEM]). */
+    suspend fun instructions(): String = Brain.SYSTEM
+
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
 
     /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
@@ -170,16 +173,21 @@ class Thinking(
     /** What each API server took and refused, so a refusal is paid once. */
     private val asks = ApiAsks()
 
+    override suspend fun instructions(): String = if (settings.current().think == Source.LOCAL) Brain.LOCAL_SYSTEM else Brain.SYSTEM
+
+    /** The start of every prompt on the phone: what is run once and kept. */
+    private val localHead: String by lazy { Brain.chatmlHead(Brain.LOCAL_SYSTEM) }
+
     override suspend fun warm() {
         val s = settings.current()
         // The instructions too: on the phone they are most of the work of organizing.
-        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files, Brain.chatmlHead(Brain.SYSTEM))
+        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files, localHead)
     }
 
     /** The phone thinks by itself, its model is there, and the instructions were never run on it (or changed since). */
     suspend fun unprepared(): Boolean {
         val s = settings.current()
-        return s.think == Source.LOCAL && readiness(s) == null && !engine.kept(model.files, Brain.chatmlHead(Brain.SYSTEM))
+        return s.think == Source.LOCAL && readiness(s) == null && !engine.kept(model.files, localHead)
     }
 
     /**
@@ -187,7 +195,7 @@ class Thinking(
      * ([LocalEngine.prepare]): what made the first answer take so long is done before it.
      */
     suspend fun prepare() {
-        if (unprepared()) engine.prepare(model.files, Brain.chatmlHead(Brain.SYSTEM))
+        if (unprepared()) engine.prepare(model.files, localHead)
     }
 
     override fun stop() {

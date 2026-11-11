@@ -184,4 +184,25 @@ class BrainTest {
         assertEquals(2800, Brain.answerRoom("x".repeat(6000)))
         assertEquals(4096, Brain.answerRoom("x".repeat(60_000)))
     }
+
+    @Test
+    fun onThePhoneHerWordsAreNotWrittenAgain() {
+        // The API's instructions stay as they were; only the phone's have "=".
+        assertTrue(Brain.SYSTEM.contains("Só tire repetições e hesitações"))
+        assertFalse(Brain.SYSTEM.contains("\"=\""))
+        assertFalse(Brain.LOCAL_SYSTEM.contains("Só tire repetições e hesitações"))
+        assertTrue(Brain.LOCAL_SYSTEM.contains("ponha só \"=\" no \"append\""))
+        assertTrue(Brain.LOCAL_SYSTEM.contains("""{"id": 30, "append": "="}"""))
+        // The rest is the same text: one rule changed, one example more.
+        assertEquals(Brain.SYSTEM.lines().size + 1, Brain.LOCAL_SYSTEM.lines().size)
+        assertEquals(1, Brain.SYSTEM.lines().zip(Brain.LOCAL_SYSTEM.lines().filterNot { it.startsWith("Um relato do dia") }).count { (a, b) -> a != b })
+
+        val plan = Brain.parse(
+            """{"reply":"ok","create":[{"kind":"diary","title":"Dia","body":"="},{"kind":"task","title":"Comprar pão","body":"na volta"}],
+               "update":[{"id":30,"append":" = "},{"id":31,"body":"=","append":"outra coisa"},{"id":32,"status":"done"}]}""",
+        )!!.withSaid("  subí para ir al baño  ")
+        assertEquals(listOf("subí para ir al baño", "na volta"), plan.create.map { it.body })
+        assertEquals(listOf("subí para ir al baño", "outra coisa", null), plan.update.map { it.append })
+        assertEquals(listOf(null, "subí para ir al baño", null), plan.update.map { it.body })
+    }
 }

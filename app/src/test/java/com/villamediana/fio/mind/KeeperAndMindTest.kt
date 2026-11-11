@@ -135,6 +135,26 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun whatSheSaidGoesToTheDiaryWordForWordWhenTheModelPointsToIt() = runBlocking {
+        val today = db.entries().insert(Entry(kind = "diary", title = "Una mañana interesante", body = "Me desperté temprano.", createdAt = now - 3_600_000, updatedAt = now - 3_600_000))
+        val asked = mutableListOf<String>()
+        // The model on the phone: its own instructions, and "=" for all she said.
+        val thinker = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun instructions() = Brain.LOCAL_SYSTEM
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String {
+                asked += system
+                return """{"reply":"Anotado.","update":[{"id":$today,"append":"="}]}"""
+            }
+        }
+        val m = mind(FakeEars(""), thinker)
+        m.write("Le di un besito a mi esposita y subí para echarme un baño, eh, para poder relajarme")
+        answered(m)
+        assertEquals(listOf(Brain.LOCAL_SYSTEM), asked)
+        assertEquals("Me desperté temprano.\n\nLe di un besito a mi esposita y subí para echarme un baño, eh, para poder relajarme", db.entries().get(today)!!.body)
+    }
+
+    @Test
     fun oldAndamentoJoinsTheText() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma", body = "Voy al aeropuerto a pasar un tiempo con Alma.", status = "doing", createdAt = now, updatedAt = now))
         val bare = db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", createdAt = now, updatedAt = now))
