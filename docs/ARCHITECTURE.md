@@ -47,13 +47,13 @@ Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents
 FreeSong), com uma prévia da tela principal que muda junto; o que vai sobre o acento usa
 `OnAccent` (branco ou tinta, pela luminância da cor). Nada de bloco preto: o
 botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
-a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo,
-Conexões) com um ponto do fio sob a escolhida; Conexões é uma aba como as outras (o grafo ocupa o
-espaço embaixo). Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
+a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria,
+Tudo) com um ponto do fio sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por
+enquanto: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
 Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`) em vez de texto explicando.
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
-Tarefas, …, Conexões). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
+Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
 (`swipeNav`); na biblioteca as abas são um `HorizontalPager`, e na Hoje deslizar pra direita volta
 (o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
 próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.

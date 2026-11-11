@@ -209,14 +209,10 @@ class ScreensTest {
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Settings
         shot("08-settings")
-        screen.value = Screen.Library(Filter.LINKS)
-        repeat(8) { compose.mainClock.advanceTimeBy(250); Thread.sleep(150) }
-        shot("09-graph")
-        screen.value = Screen.Library(Filter.LINKS, topic = ids["topic-pedro"])
-        // The touched knot lifts its entries in a card at the bottom.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
-        repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(100) }
-        shot("12-graph-topic")
+        // Conexões is hidden for now: no tab for it, the last one is Tudo.
+        screen.value = Screen.Library(Filter.ALL)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Tudo").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
