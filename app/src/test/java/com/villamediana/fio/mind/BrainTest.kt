@@ -17,7 +17,7 @@ class BrainTest {
     fun parsesAPlanInsideFencesAndThinking() {
         val raw = """<think>vou ver</think>
 ```json
-{"reply":"Guardei duas coisas.","create":[{"kind":"task","title":"Ligar pro dentista","due":"2026-11-12T09:00","steps":["achar o número"],"entities":[{"name":"Dentista","type":"person"}]},{"kind":"diary","title":"Dia corrido","body":"muito trabalho"},{"kind":"poema","title":"x"}],"update":[{"id":7,"status":"done","progress":"terminei"}],"search":[],"show":[]}
+{"reply":"Guardei duas coisas.","create":[{"kind":"task","title":"Ligar pro dentista","due":"2026-11-12T09:00","steps":["achar o número"],"entities":[{"name":"Dentista","type":"person"}]},{"kind":"diary","title":"Dia corrido","body":"muito trabalho"},{"kind":"poema","title":"x"}],"update":[{"id":7,"status":"done","append":"terminei"}],"search":[],"show":[]}
 ```"""
         val plan = Brain.parse(raw)!!
         assertEquals("Guardei duas coisas.", plan.reply)
@@ -25,6 +25,7 @@ class BrainTest {
         assertEquals("2026-11-12T09:00", plan.create[0].due)
         assertEquals(7L, plan.update.single().id)
         assertEquals("done", plan.update.single().status)
+        assertEquals("terminei", plan.update.single().append)
         assertFalse(plan.isLookupOnly)
     }
 

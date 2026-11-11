@@ -342,7 +342,7 @@ private fun StatusArea(
 }
 
 @Composable
-private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCancel: () -> Unit) {
+internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCancel: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.startedAt) {
         while (true) { now = System.currentTimeMillis(); delay(250) }
@@ -364,10 +364,11 @@ private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCance
         color = if (inCancelZone) FioColors.Danger else FioColors.TextMuted,
         textAlign = TextAlign.Center,
     )
-    // Listening by itself (tapped): throwing it away is one touch, without saying it.
+    // Listening by itself (tapped): throwing it away is one touch, without saying it — a quiet ×,
+    // no circle around it, so the button stays the one thing that stands out.
     if (s.locked) {
-        Spacer(Modifier.height(18.dp))
-        IconAction(FioIcons.Close, "Descartar a gravação", onCancel)
+        Spacer(Modifier.height(10.dp))
+        QuietIcon(FioIcons.Close, "Cancelar", onCancel, alpha = 0.45f)
     }
 }
 

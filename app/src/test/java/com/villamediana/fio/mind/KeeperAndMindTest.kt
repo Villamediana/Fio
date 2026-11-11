@@ -67,16 +67,18 @@ class KeeperAndMindTest {
     }
 
     @Test
-    fun updatesStatusStepsAndProgress() = runBlocking {
+    fun updatesStatusStepsAndTheText() = runBlocking {
         val id = db.entries().insert(
-            Entry(kind = "task", title = "Contrato", status = "doing", steps = Steps.write(listOf(com.villamediana.fio.data.Step("pedir orçamento"), com.villamediana.fio.data.Step("assinar"))), checkInAt = now + 5000, createdAt = now, updatedAt = now),
+            Entry(kind = "task", title = "Contrato", body = "Fechar com o fornecedor novo.", status = "doing", steps = Steps.write(listOf(com.villamediana.fio.data.Step("pedir orçamento"), com.villamediana.fio.data.Step("assinar"))), checkInAt = now + 5000, createdAt = now, updatedAt = now),
         )
         val k = keeper()
-        val r1 = k.apply(Brain.parse("""{"update":[{"id":$id,"steps_done":["pedir orcamento"],"progress":"o fornecedor mandou o orçamento"}]}""")!!, null)
+        val r1 = k.apply(Brain.parse("""{"update":[{"id":$id,"steps_done":["pedir orcamento"],"append":"O fornecedor mandou o orçamento."}]}""")!!, null)
         assertEquals(Outcome.UPDATED, r1.outcomes.single().action)
         val e1 = db.entries().get(id)!!
         assertTrue(Steps.read(e1.steps)[0].done)
-        assertEquals("o fornecedor mandou o orçamento", db.progress().latest(id, 5).single().text)
+        // One text: the news joins it, nothing kept apart that says it again.
+        assertEquals("Fechar com o fornecedor novo.\n\nO fornecedor mandou o orçamento.", e1.body)
+        assertTrue(db.progress().latest(id, 5).isEmpty())
 
         val r2 = k.apply(Brain.parse("""{"update":[{"id":$id,"status":"done"}]}""")!!, null)
         assertEquals(Outcome.DONE, r2.outcomes.single().action)
@@ -84,6 +86,22 @@ class KeeperAndMindTest {
         assertEquals(Status.DONE, e2.statusEnum)
         assertNull(e2.checkInAt) // nothing left to ask about
         assertEquals("done", db.progress().latest(id, 1).single().status)
+        assertEquals("", db.progress().latest(id, 1).single().text)
+    }
+
+    @Test
+    fun oldAndamentoJoinsTheText() = runBlocking {
+        val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma", body = "Voy al aeropuerto a pasar un tiempo con Alma.", status = "doing", createdAt = now, updatedAt = now))
+        val bare = db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", createdAt = now, updatedAt = now))
+        db.progress().insert(com.villamediana.fio.data.Progress(entryId = task, at = now + 2, text = "Llega a São Paulo a las 9:00.", status = null))
+        db.progress().insert(com.villamediana.fio.data.Progress(entryId = task, at = now + 1, text = "Vuelve antes de la misión.", status = "doing"))
+        db.progress().insert(com.villamediana.fio.data.Progress(entryId = task, at = now + 3, text = "", status = "waiting"))
+        db.progress().insert(com.villamediana.fio.data.Progress(entryId = bare, at = now, text = " caixas prontas ", status = null))
+        com.villamediana.fio.data.FioDatabase.MIGRATION_2_3.migrate(db.openHelper.writableDatabase)
+        assertEquals("Voy al aeropuerto a pasar un tiempo con Alma.\n\nVuelve antes de la misión.\n\nLlega a São Paulo a las 9:00.", db.entries().get(task)!!.body)
+        assertEquals("caixas prontas", db.entries().get(bare)!!.body)
+        assertTrue(db.progress().latest(task, 10).all { it.text.isEmpty() })
+        assertEquals(3, db.progress().latest(task, 10).size) // the status changes stay
     }
 
     @Test
@@ -407,7 +425,7 @@ class KeeperAndMindTest {
     @Test
     fun aCheckInAnswerGoesToItsTask() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Mudança de escritório", status = "doing", createdAt = now, updatedAt = now))
-        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Boa! Anotei o andamento.","update":[{"id":$task,"progress":"caixas prontas","check_in_at":"2026-11-13"}]}""")))
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Boa! Anotei o andamento.","update":[{"id":$task,"append":"Caixas prontas.","check_in_at":"2026-11-13"}]}""")))
         val m = mind(FakeEars("já empacotei tudo"), thinker)
         val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, state = Capture.RECORDED, focusEntryId = task))
         m.retry(id)
@@ -415,6 +433,7 @@ class KeeperAndMindTest {
         assertEquals(Outcome(task, Outcome.UPDATED), a.outcomes.single())
         assertTrue(thinker.prompts.single().contains("ELA ESTÁ RESPONDENDO SOBRE ESTE ITEM"))
         assertNotNull(db.entries().get(task)!!.checkInAt)
+        assertEquals("Caixas prontas.", db.entries().get(task)!!.body)
     }
 
     @Test
