@@ -49,6 +49,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.villamediana.fio.ui.components.swipeNav
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -129,8 +131,20 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val hasContent = state is MindState.Answer || state is MindState.Problem || state is MindState.Working
     val lift by animateFloatAsState(if (hasContent) 1f else 0f, spring(0.86f, 260f), label = "lift")
 
-    Box(Modifier.fillMaxSize().background(FioColors.Background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+    // The main screen sits between the camera (on its left) and the library (on its right):
+    // a swipe to the right opens the camera, to the left the library's first tab.
+    val lean = remember { mutableFloatStateOf(0f) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(FioColors.Background)
+            .swipeNav(
+                onLeft = { nav.go(Screen.Library(Filter.TODAY)) },
+                onRight = { nav.go(Screen.Camera) },
+                follow = lean,
+            ),
+    ) {
+        Column(Modifier.fillMaxSize().graphicsLayer { translationX = lean.floatValue }.statusBarsPadding().navigationBarsPadding()) {
             Box(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), contentAlignment = Alignment.CenterEnd) {
                 QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.55f)
             }
