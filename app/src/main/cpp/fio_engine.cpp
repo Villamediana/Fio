@@ -1,9 +1,9 @@
-// Fio's on-device model: LFM3-Audio through llama.cpp (libllama + libmtmd).
+// Fio's on-device model: LFM3-Omni through llama.cpp (libllama + libmtmd).
 //
 // Two jobs, one model in memory:
 //   transcribe(): 16 kHz PCM in, the text that was said out ("Perform ASR" system prompt);
-//   generate():   a rendered chat prompt in, text out (optionally held to a GBNF grammar: the JSON
-//                 the brain answers with).
+//   generate():   a rendered chat prompt in (and maybe a photo, at the media marker), text out
+//                 (optionally held to a GBNF grammar: the JSON the brain answers with).
 // Text comes back as UTF-8 bytes (Java's modified UTF-8 can't carry emoji), streamed to a
 // TokenSink as it is produced. One call at a time per engine (the Kotlin side holds a mutex).
 
@@ -158,6 +158,41 @@ std::string jbytes(JNIEnv * env, jbyteArray a) {
     return out;
 }
 
+/** [prompt] without the media marker (a photo that could not be read: the text alone goes on). */
+std::string without_marker(std::string prompt) {
+    const std::string m = mtmd_default_marker();
+    for (size_t at = prompt.find(m); at != std::string::npos; at = prompt.find(m)) prompt.erase(at, m.size());
+    return prompt;
+}
+
+/** The photo and the prompt (with the media marker where the photo goes) through the projector; -1 on failure. */
+llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::string & image) {
+    mtmd_helper_bitmap_wrapper w = mtmd_helper_bitmap_init_from_buf(
+        e->mtmd, reinterpret_cast<const unsigned char *>(image.data()), image.size(), false, mtmd_helper_init_opt_default());
+    if (!w.bitmap) { LOGE("image decode failed"); return -1; }
+    mtmd_input_text text{ prompt.c_str(), prompt.size(), false, true };
+    mtmd_input_chunks * chunks = mtmd_input_chunks_init();
+    const mtmd_bitmap * bitmaps[] = { w.bitmap };
+    llama_pos n_past = -1;
+    int32_t rc = mtmd_tokenize(e->mtmd, chunks, &text, bitmaps, 1);
+    if (rc == 0) {
+        const int ctx_size = (int) llama_n_ctx(e->ctx);
+        const int n = (int) mtmd_helper_get_n_tokens(chunks);
+        if (n + 16 >= ctx_size) {
+            LOGE("prompt with image too long: %d tokens (ctx %d)", n, ctx_size);
+        } else {
+            llama_pos past = 0;
+            rc = mtmd_helper_eval_chunks(e->mtmd, e->ctx, chunks, 0, 0, e->n_batch, true, &past);
+            if (rc == 0) n_past = past; else LOGE("image eval failed: %d", rc);
+        }
+    } else {
+        LOGE("tokenize with image failed: %d", rc);
+    }
+    mtmd_input_chunks_free(chunks);
+    mtmd_bitmap_free(w.bitmap);
+    return n_past;
+}
+
 } // namespace
 
 extern "C" {
@@ -278,36 +313,48 @@ Java_com_villamediana_fio_local_LocalEngine_nativeTranscribe(JNIEnv * env, jobje
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jstring jgrammar, jint max_tokens, jobject jsink) {
+Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jstring jgrammar, jbyteArray jimage, jint max_tokens, jobject jsink) {
     auto * e = reinterpret_cast<Engine *>(h);
     if (!e) return nullptr;
     e->cancel.store(false);
     llama_memory_clear(llama_get_memory(e->ctx), true);
 
-    const std::string prompt = jbytes(env, jprompt);
+    std::string prompt = jbytes(env, jprompt);
     const std::string grammar = jstr(env, jgrammar);
-    std::vector<llama_token> toks(prompt.size() + 16);
-    int n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
-    if (n < 0) {
-        toks.resize((size_t) -n);
-        n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
-    }
-    if (n <= 0) return nullptr;
     const int ctx_size = (int) llama_n_ctx(e->ctx);
-    if (n + 16 >= ctx_size) { LOGE("prompt too long: %d tokens (ctx %d)", n, ctx_size); return nullptr; }
-    toks.resize((size_t) n);
+    llama_pos n_past = -1;
 
-    for (int i = 0; i < n && !e->cancel.load(); i += e->n_batch) {
-        const int len = std::min(e->n_batch, n - i);
-        llama_batch b = llama_batch_get_one(toks.data() + i, len);
-        if (llama_decode(e->ctx, b) != 0) { LOGE("prompt decode failed"); return nullptr; }
+    // A photo goes in through the projector when the model sees; otherwise the text alone.
+    const std::string image = jbytes(env, jimage);
+    if (!image.empty() && e->mtmd && mtmd_support_vision(e->mtmd)) {
+        n_past = eval_with_image(e, prompt, image);
+        if (n_past < 0) llama_memory_clear(llama_get_memory(e->ctx), true);
+    }
+    if (n_past < 0) {
+        prompt = without_marker(prompt);
+        std::vector<llama_token> toks(prompt.size() + 16);
+        int n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
+        if (n < 0) {
+            toks.resize((size_t) -n);
+            n = llama_tokenize(e->vocab, prompt.c_str(), (int32_t) prompt.size(), toks.data(), (int32_t) toks.size(), false, true);
+        }
+        if (n <= 0) return nullptr;
+        if (n + 16 >= ctx_size) { LOGE("prompt too long: %d tokens (ctx %d)", n, ctx_size); return nullptr; }
+        toks.resize((size_t) n);
+
+        for (int i = 0; i < n && !e->cancel.load(); i += e->n_batch) {
+            const int len = std::min(e->n_batch, n - i);
+            llama_batch b = llama_batch_get_one(toks.data() + i, len);
+            if (llama_decode(e->ctx, b) != 0) { LOGE("prompt decode failed"); return nullptr; }
+        }
+        n_past = n;
     }
     if (e->cancel.load()) return to_bytes(env, std::string());
 
     llama_sampler * chain = make_chain(e, grammar.c_str());
     Sink sink(env, jsink);
-    const int room = std::max(16, std::min((int) max_tokens, ctx_size - n - 8));
-    std::string out = sample_loop(e, chain, n, room, sink);
+    const int room = std::max(16, std::min((int) max_tokens, ctx_size - (int) n_past - 8));
+    std::string out = sample_loop(e, chain, n_past, room, sink);
     llama_sampler_free(chain);
     return to_bytes(env, out);
 }

@@ -126,7 +126,7 @@ class KeeperAndMindTest {
         override fun stop(): Pair<File, Long>? { if (!on) return null; on = false; return wav() to 2000L }
     }
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
-    private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File) = ByteArray(0) }
+    private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
     private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic) = Mind(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),

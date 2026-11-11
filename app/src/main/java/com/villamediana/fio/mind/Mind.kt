@@ -53,7 +53,9 @@ enum class Stage { HEARING, READING, THINKING, LOOKING }
 /** Turns the photo into what the model reads: its text, and the picture itself for a model that sees. */
 interface PhotoReader {
     suspend fun text(file: File): String
-    suspend fun jpeg(file: File): ByteArray
+
+    /** The photo as a JPEG at most [side] px on its long side. */
+    suspend fun jpeg(file: File, side: Int = 1600): ByteArray
 }
 
 /** Keeps reminders in step with the entries (AlarmManager in the app; a fake in the tests). */
@@ -374,7 +376,7 @@ class Mind(
         val focus = c.focusEntryId?.let { db.entries().get(it) }
         val focusProgress = focus?.let { db.progress().latest(it.id, 5) }.orEmpty()
         val hits = recall.search(said, 12, now).map { it.entry }
-        val image = if (photo && thinking.seesImages()) runCatching { photos.jpeg(File(c.imagePath!!)) }.getOrNull() else null
+        val image = if (photo && thinking.seesImages()) runCatching { photos.jpeg(File(c.imagePath!!), thinking.imageSide()) }.getOrNull() else null
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
 
         val recent = all.take(RECENT) // all() comes newest first

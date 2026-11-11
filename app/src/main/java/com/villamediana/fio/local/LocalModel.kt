@@ -15,38 +15,31 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * A model that lives on the phone (Liquid AI's LFM3 family): [Spec.AUDIO] hears (the text model in
- * 4 bits and its audio projector in 8 bits), [Spec.OMNI] thinks (its text model in 4 bits; the
- * vision/audio projector is not needed to organize). Downloaded once from Hugging Face by Android's
- * DownloadManager (it resumes by itself) and checked against the SHA-256 Hugging Face publishes.
+ * The model that lives on the phone: LFM3-Omni-2B (Liquid AI) — it hears, thinks and looks at the
+ * photos. Its text model in 4 bits and its vision/audio projector in 8 bits, downloaded once from
+ * Hugging Face by Android's DownloadManager (it resumes by itself) and checked against the SHA-256
+ * Hugging Face publishes.
  */
-class LocalModel(private val context: Context, private val scope: CoroutineScope, val spec: Spec) {
+class LocalModel(private val context: Context, private val scope: CoroutineScope, val spec: Spec = Spec.OMNI) {
     data class Part(val name: String, val url: String, val size: Long, val sha256: String)
     data class Files(val model: File, val projector: File?)
 
-    /** [memo]: the file that says "downloaded and checked" (the first model kept its old name). */
+    /** [memo]: the file that says "downloaded and checked". */
     data class Spec(val name: String, val model: Part, val projector: Part?, val memo: String) {
         val parts: List<Part> get() = listOfNotNull(model, projector)
 
         companion object {
-            private const val AUDIO_REPO = "https://huggingface.co/LiquidAI/LFM3-Audio-2B-GGUF/resolve/main/"
             private const val OMNI_REPO = "https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/"
 
-            /** Hears: speech → text. */
-            val AUDIO = Spec(
-                "LFM3-Audio 2B",
-                Part("LFM3-Audio-2B-Q4_0.gguf", AUDIO_REPO + "LFM3-Audio-2B-Q4_0.gguf", 1_049_613_856, "112e4acb79be79dcd8df5749495614817e51c064cd9ca576aead02b64b2b7584"),
-                Part("mmproj-LFM3-Audio-2B-Q8_0.gguf", AUDIO_REPO + "mmproj-LFM3-Audio-2B-Q8_0.gguf", 303_811_840, "2b6648b1fd48af16aa0877b0592b144d15070783673e038a379fdbc51d40e365"),
-                memo = "ready.txt",
-            )
-
-            /** Thinks: what was said → the plan (the general model of the family, better at following the instructions). */
             val OMNI = Spec(
                 "LFM3-Omni 2B",
                 Part("LFM3-Omni-2B-Q4_0.gguf", OMNI_REPO + "LFM3-Omni-2B-Q4_0.gguf", 1_049_617_920, "6d2273a383b92dd7c5db0eb4c8dfeae13e805b485a6621c4b391ae179c2b5f28"),
-                projector = null,
+                Part("mmproj-LFM3-Omni-2B-Q8_0.gguf", OMNI_REPO + "mmproj-LFM3-Omni-2B-Q8_0.gguf", 506_842_528, "8a25f9d1931244429de404fccacfb7fb933970a36aa5688d2f5069f29c6b27b1"),
                 memo = "ready-omni.txt",
             )
+
+            /** What the phone kept of the model that used to hear (LFM3-Audio, until 1.6): it goes, it's not used any more. */
+            val LEFTOVERS = listOf("LFM3-Audio-2B-Q4_0.gguf", "mmproj-LFM3-Audio-2B-Q8_0.gguf", "ready.txt")
         }
     }
 
@@ -69,7 +62,20 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     private var watch: Job? = null
 
     init {
-        scope.launch(Dispatchers.IO) { refresh() }
+        scope.launch(Dispatchers.IO) {
+            leftovers()
+            refresh()
+        }
+    }
+
+    private fun leftovers() {
+        Spec.LEFTOVERS.forEach { name ->
+            File(dir, "$name.id").takeIf { it.isFile }?.let { id ->
+                id.readText().trim().toLongOrNull()?.let { runCatching { manager.remove(it) } }
+                id.delete()
+            }
+            File(dir, name).delete()
+        }
     }
 
     val files: Files get() = Files(File(dir, spec.model.name), spec.projector?.let { File(dir, it.name) })

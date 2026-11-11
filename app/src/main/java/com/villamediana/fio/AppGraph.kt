@@ -42,9 +42,8 @@ class AppGraph(context: Context) {
     val settings: Settings by lazy { Settings(appContext, scope) }
     val api: Api by lazy { Api(http) }
     val engine: LocalEngine by lazy { LocalEngine() }
-    /** On the phone: the model that hears and the one that thinks. */
-    val localAudio: LocalModel by lazy { LocalModel(appContext, scope, LocalModel.Spec.AUDIO) }
-    val localOmni: LocalModel by lazy { LocalModel(appContext, scope, LocalModel.Spec.OMNI) }
+    /** On the phone: LFM3-Omni hears, thinks and sees. */
+    val localModel: LocalModel by lazy { LocalModel(appContext, scope) }
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
@@ -56,8 +55,8 @@ class AppGraph(context: Context) {
             scope = scope,
             db = db,
             recorder = recorder,
-            hearing = Hearing(settings, api, engine, localAudio, appContext.cacheDir),
-            thinking = Thinking(settings, api, engine, localOmni),
+            hearing = Hearing(settings, api, engine, localModel, appContext.cacheDir),
+            thinking = Thinking(settings, api, engine, localModel),
             keeper = Keeper(db),
             reminders = reminders,
             photos = MlKitPhotoReader(appContext),
