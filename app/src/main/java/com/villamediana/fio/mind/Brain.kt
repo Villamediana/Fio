@@ -126,6 +126,7 @@ Responda somente com um objeto JSON neste formato:
         recent: List<Entry> = emptyList(),
         looked: String? = null,
         photo: Boolean = false,
+        typed: Boolean = false,
     ): String = buildString {
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
@@ -161,7 +162,13 @@ Responda somente com um objeto JSON neste formato:
                 append("\nA BUSCA (").append(looked).append(") NÃO ACHOU NADA. Responda com o que há.\n")
             }
         }
-        append(if (photo) "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n" else "\nO QUE ELA DISSE:\n")
+        append(
+            when {
+                photo -> "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n"
+                typed -> "\nO QUE ELA ESCREVEU:\n"
+                else -> "\nO QUE ELA DISSE:\n"
+            },
+        )
         append('"').append(said.trim()).append("\"\n")
     }
 

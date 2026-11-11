@@ -65,7 +65,7 @@ data class Entry(
 data class Capture(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val createdAt: Long,
-    /** "voice" or "photo". */
+    /** "voice", "photo" or "text" (written instead of said). */
     val source: String,
     val audioPath: String? = null,
     val imagePath: String? = null,
@@ -99,6 +99,9 @@ data class Capture(
 
         /** Stopped by hand while it was going through: it waits for a "Tentar de novo", never retried on its own. */
         const val STOPPED = "stopped"
+
+        /** [source] of something written instead of said. */
+        const val TEXT = "text"
     }
 }
 
