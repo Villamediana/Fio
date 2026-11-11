@@ -8,7 +8,27 @@
 
     <style name="Theme.Fio.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/window_bg</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_vermilion</item>
         <item name="postSplashScreenTheme">@style/Theme.Fio</item>
+    </style>
+
+    <!-- The splash in the accent she chose (Android 13+ keeps it for the next openings: LauncherIcon). -->
+    <style name="Theme.Fio.Splash.Blue">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_blue</item>
+    </style>
+    <style name="Theme.Fio.Splash.Green">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_green</item>
+    </style>
+    <style name="Theme.Fio.Splash.Pink">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_pink</item>
+    </style>
+    <style name="Theme.Fio.Splash.Purple">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_purple</item>
+    </style>
+    <style name="Theme.Fio.Splash.Teal">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_teal</item>
+    </style>
+    <style name="Theme.Fio.Splash.Graphite">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_graphite</item>
     </style>
 </resources>

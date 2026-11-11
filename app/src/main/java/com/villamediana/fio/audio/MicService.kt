@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.villamediana.fio.FioApplication
-import com.villamediana.fio.MainActivity
+import com.villamediana.fio.FioActivity
 import com.villamediana.fio.Notifications
 import com.villamediana.fio.R
 import com.villamediana.fio.mind.MicHolder
@@ -62,7 +62,7 @@ class MicService : Service() {
 
     private fun foreground() {
         Notifications.createChannels(this)
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(this, 0, Intent(this, FioActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
         val b = NotificationCompat.Builder(this, Notifications.CHANNEL_MIC)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(this, R.color.accent))
