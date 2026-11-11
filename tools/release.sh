@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 REPO=Villamediana/Fio
 PACKAGE=com.villamediana.fio
 # SHA-256 do certificado da chave de release (~/keystores/fio-release.jks).
-CERT_SHA256=f538e5002e8ae68cac35b25785e655d40a1e6bf54f9db60649350063d48bffc
+CERT_SHA256=f538e5002e8ae68cac35b25785e655d40a1e6bf54f9db606493500633d48bffc
 
 die() { echo "release: $*" >&2; exit 1; }
 
