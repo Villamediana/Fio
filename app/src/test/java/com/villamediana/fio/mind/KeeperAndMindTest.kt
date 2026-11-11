@@ -90,6 +90,51 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun aDayToldThatIsAlsoNewsOfATaskGoesToTheTaskAndANewParagraphOfTodaysDiary() = runBlocking {
+        val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma en el aeropuerto", body = "Llega a São Paulo a las 9:00.", status = "doing", createdAt = now - 3000, updatedAt = now - 3000))
+        val diary = db.entries().insert(Entry(kind = "diary", title = "Mi martes", body = "Me desperté temprano para ir al aeropuerto.", createdAt = now - 2000, updatedAt = now - 2000))
+        // What the prompt asks for a story of the day that is also news: the task gets what is new
+        // for it; today's diary gets the story as a paragraph of its own, nothing of it rewritten.
+        val plan = Brain.parse(
+            """{"reply":"Guardé en tu diario y en la tarea.","update":[{"id":$task,"append":"Ya llegué a la estación Luz; espero el Expreso Aeropuerto."},{"id":$diary,"append":"Ya llegué a la estación Luz y estoy esperando el Expreso Aeropuerto. Se sentó un señor a mi lado y comenzó a llamarme, pero por suerte estoy de audífonos."}]}""",
+        )!!
+        val r = keeper().apply(plan, captureId = null)
+        assertEquals(listOf(Outcome.UPDATED, Outcome.UPDATED), r.outcomes.map { it.action })
+        assertEquals("Llega a São Paulo a las 9:00.\n\nYa llegué a la estación Luz; espero el Expreso Aeropuerto.", db.entries().get(task)!!.body)
+        val day = db.entries().get(diary)!!
+        assertEquals("Mi martes", day.title)
+        assertEquals(
+            "Me desperté temprano para ir al aeropuerto.\n\nYa llegué a la estación Luz y estoy esperando el Expreso Aeropuerto. Se sentó un señor a mi lado y comenzó a llamarme, pero por suerte estoy de audífonos.",
+            day.body,
+        )
+    }
+
+    @Test
+    fun theModelSeesTodaysDiaryToGoOnInIt() = runBlocking {
+        db.entries().insert(Entry(kind = "diary", title = "Ayer", body = "Día largo.", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
+        val today = db.entries().insert(Entry(kind = "diary", title = "Mi martes", body = "Me desperté temprano.", createdAt = now - 2000, updatedAt = now - 2000))
+        val ears = object : Ears {
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = "Ya llegué a la estación Luz"
+        }
+        val thinker = object : Thinker {
+            val prompts = mutableListOf<String>()
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String {
+                prompts += user
+                return """{"reply":"ok","update":[{"id":$today,"append":"Ya llegué a la estación Luz."}]}"""
+            }
+        }
+        val m = mind(ears, thinker)
+        m.write("Ya llegué a la estación Luz")
+        answered(m)
+        val prompt = thinker.prompts.single()
+        assertTrue(prompt, prompt.contains("DIÁRIO DE HOJE:\n#$today diário"))
+        // Shown once, as today's diary — not again among the last things kept.
+        assertEquals(prompt, 1, Regex("#$today ").findAll(prompt).count())
+        assertEquals("Me desperté temprano.\n\nYa llegué a la estación Luz.", db.entries().get(today)!!.body)
+    }
+
+    @Test
     fun oldAndamentoJoinsTheText() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma", body = "Voy al aeropuerto a pasar un tiempo con Alma.", status = "doing", createdAt = now, updatedAt = now))
         val bare = db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", createdAt = now, updatedAt = now))

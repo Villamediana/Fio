@@ -91,6 +91,12 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 `Brain.SYSTEM` descreve as ideias (o que é tarefa, nota, diário, notícia, pergunta), nunca listas de
 palavras-gatilho. O modelo decide; o código só valida (tipos conhecidos, ids que existem, datas futuras).
 
+Diário (1.12.0): todo relato do dia vai pro diário, mesmo quando também é notícia de uma tarefa —
+aí as duas coisas: o item recebe só o que muda pra ele, o diário o relato inteiro. Um diário por dia:
+`Brain.todaysDiary` (o mais novo criado hoje) vai no contexto como `DIÁRIO DE HOJE` (texto inteiro,
+fora das outras listas) e o relato entra nele por `update.append` — parágrafo novo no fim, sem mexer
+no que já está nem no título; sem diário hoje, cria.
+
 ## Motor no celular
 
 `fio_engine.cpp` usa só as APIs C de `llama.h`, `mtmd.h` e `mtmd-helper.h` (llama.cpp v0.9.0):

@@ -79,10 +79,10 @@ Você é o Fio, a memória externa de uma pessoa. Ela fala o que vem à cabeça,
 Numa mesma fala pode haver várias coisas:
 - tarefa (task): algo que ela precisa ou quer fazer.
 - nota (note): algo pra guardar e achar depois — ideia, informação, dado, senha, referência, decisão.
-- diário (diary): um relato do dia — o que viveu, fez, sentiu. Se o relato traz coisas a fazer ou a guardar, crie o diário E também essas tarefas/notas.
+- diário (diary): um relato do dia — o que viveu, fez, sentiu, o que está acontecendo com ela. Todo relato assim vai pro diário, mesmo quando também traz coisas a fazer ou a guardar, ou é notícia de algo que já existe: aí faça as duas coisas — o diário com o relato e, além dele, as tarefas/notas ou o "update" do item. O diário é um por dia: se há DIÁRIO DE HOJE, o relato entra nele em "update" com "append" — um parágrafo novo no fim, sem mudar o que já está escrito nem o título; se não há, crie o diário do dia.
 
 Ela também pode:
-- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie um novo. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status".
+- dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie outro igual a ele. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele e só o que muda pra ele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status". Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
 - corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem. Pergunta não cria item.
 
@@ -124,6 +124,7 @@ Responda somente com um objeto JSON neste formato:
         looked: String? = null,
         photo: Boolean = false,
         typed: Boolean = false,
+        diary: Entry? = null,
     ): String = buildString {
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
@@ -133,18 +134,25 @@ Responda somente com um objeto JSON neste formato:
             // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
             append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
         }
-        val tasks = openTasks.filter { it.id != focus?.id }.take(MAX_TASKS)
+        val today = diary?.takeIf { it.id != focus?.id }
+        if (today != null) {
+            // Whole (up to a point): the day's story goes on in it without repeating it.
+            append("\nDIÁRIO DE HOJE:\n")
+            append(line(today, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
+        }
+        val shown = setOfNotNull(focus?.id, today?.id)
+        val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
         if (tasks.isNotEmpty()) {
             append("\nTAREFAS ABERTAS:\n")
             tasks.forEach { append(line(it, zone, now)).append('\n') }
         }
-        val last = recent.filter { it.id != focus?.id }.take(MAX_RECENT)
+        val last = recent.filter { it.id !in shown }.take(MAX_RECENT)
         if (last.isNotEmpty()) {
             append("\nÚLTIMAS COISAS GUARDADAS (a mais nova primeiro):\n")
             last.forEach { append(line(it, zone, now, long = true)).append('\n') }
         }
         if (looked == null) {
-            val rel = related.filter { r -> r.id != focus?.id && tasks.none { it.id == r.id } && last.none { it.id == r.id } }.take(MAX_RELATED)
+            val rel = related.filter { r -> r.id !in shown && tasks.none { it.id == r.id } && last.none { it.id == r.id } }.take(MAX_RELATED)
             if (rel.isNotEmpty()) {
                 append("\nLEMBRANÇAS QUE PODEM TER A VER:\n")
                 rel.forEach { append(line(it, zone, now, long = true)).append('\n') }
@@ -167,6 +175,14 @@ Responda somente com um objeto JSON neste formato:
             },
         )
         append('"').append(said.trim()).append("\"\n")
+    }
+
+    /** Today's diary (the newest one of the day in [zone]), where the day's story goes on; null before the first. */
+    fun todaysDiary(entries: List<Entry>, now: Long, zone: ZoneId): Entry? {
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        return entries
+            .filter { it.kindEnum == Kind.DIARY && Instant.ofEpochMilli(it.createdAt).atZone(zone).toLocalDate() == today }
+            .maxByOrNull { it.createdAt }
     }
 
     /** One entry in a line the model can read and point to (#id). */
