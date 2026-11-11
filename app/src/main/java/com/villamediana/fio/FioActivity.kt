@@ -44,7 +44,8 @@ class FioActivity : ComponentActivity() {
         read(intent)
         val graph = FioApplication.graph
         lifecycleScope.launch {
-            val s = graph.settings.current()
+            // Settings that can't be read (a broken file) never keep the app from opening.
+            val s = runCatching { graph.settings.current() }.getOrDefault(FioSettings())
             Look.screen(this@FioActivity, s)
             setContent {
                 val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = s)
