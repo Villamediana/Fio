@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,19 +70,25 @@ fun CameraScreen(nav: Nav) {
 
     val capture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
     var flash by remember { mutableStateOf(false) }
+    // The back camera, or the front one for a selfie; the turn shows only when the phone has both.
+    var front by rememberSaveable { mutableStateOf(false) }
+    var canFlip by remember { mutableStateOf(false) }
+    val spin = remember { Animatable(0f) }
     var busy by remember { mutableStateOf(false) }
     val shutter = remember { Animatable(0f) }
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER; implementationMode = PreviewView.ImplementationMode.COMPATIBLE } }
 
-    DisposableEffect(granted) {
+    DisposableEffect(granted, front) {
         if (!granted) return@DisposableEffect onDispose { }
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
             val provider = future.get()
+            canFlip = runCatching { provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) && provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) }.getOrDefault(false)
+            val selector = if (front && canFlip) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
             runCatching {
                 provider.unbindAll()
-                provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                provider.bindToLifecycle(owner, selector, preview, capture)
             }
         }, ContextCompat.getMainExecutor(context))
         onDispose { runCatching { future.get().unbindAll() } }
@@ -95,42 +103,58 @@ fun CameraScreen(nav: Nav) {
 
         Box(Modifier.fillMaxSize().statusBarsPadding().padding(8.dp)) {
             RoundIcon(FioIcons.Close, "Fechar", Modifier.align(Alignment.TopStart)) { nav.back() }
-            RoundIcon(if (flash) FioIcons.FlashOn else FioIcons.FlashOff, "Flash", Modifier.align(Alignment.TopEnd)) { flash = !flash }
+            // The front camera has no flash.
+            if (!front) RoundIcon(if (flash) FioIcons.FlashOn else FioIcons.FlashOff, "Flash", Modifier.align(Alignment.TopEnd)) { flash = !flash }
         }
 
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("O Fio lê e guarda o que estiver na foto", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
             Spacer(Modifier.height(18.dp))
-            val interaction = remember { MutableInteractionSource() }
-            val inner by animateFloatAsState(if (busy) 0.55f else 0.82f, tween(220), label = "shutter")
-            Canvas(
-                Modifier
-                    .size(78.dp)
-                    .pressScale(interaction, 0.9f)
-                    .clip(CircleShape)
-                    .clickable(interactionSource = interaction, indication = null, enabled = !busy && granted) {
-                        busy = true
-                        scope.launch { shutter.snapTo(0.85f); shutter.animateTo(0f, tween(260)) }
-                        val file = FioApplication.graph.newPhotoFile()
-                        capture.takePicture(
-                            ImageCapture.OutputFileOptions.Builder(file).build(),
-                            ContextCompat.getMainExecutor(context),
-                            object : ImageCapture.OnImageSavedCallback {
-                                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                    FioApplication.graph.mind.photo(file)
-                                    nav.back()
-                                }
+            // The shutter in the middle; the turn to the selfie camera on its right.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                if (canFlip) {
+                    RoundIcon(
+                        FioIcons.FlipCamera,
+                        if (front) "Câmera de trás" else "Câmera da frente",
+                        Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).graphicsLayer { rotationZ = spin.value },
+                    ) {
+                        if (!busy) {
+                            front = !front
+                            scope.launch { spin.animateTo(spin.value + 180f, tween(320)) }
+                        }
+                    }
+                }
+                val interaction = remember { MutableInteractionSource() }
+                val inner by animateFloatAsState(if (busy) 0.55f else 0.82f, tween(220), label = "shutter")
+                Canvas(
+                    Modifier
+                        .size(78.dp)
+                        .pressScale(interaction, 0.9f)
+                        .clip(CircleShape)
+                        .clickable(interactionSource = interaction, indication = null, enabled = !busy && granted) {
+                            busy = true
+                            scope.launch { shutter.snapTo(0.85f); shutter.animateTo(0f, tween(260)) }
+                            val file = FioApplication.graph.newPhotoFile()
+                            capture.takePicture(
+                                ImageCapture.OutputFileOptions.Builder(file).build(),
+                                ContextCompat.getMainExecutor(context),
+                                object : ImageCapture.OnImageSavedCallback {
+                                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                        FioApplication.graph.mind.photo(file)
+                                        nav.back()
+                                    }
 
-                                override fun onError(exception: ImageCaptureException) {
-                                    busy = false
-                                    file.delete()
-                                }
-                            },
-                        )
-                    },
-            ) {
-                drawCircle(Color.White, radius = size.minDimension / 2 - 2.dp.toPx(), style = Stroke(3.dp.toPx()))
-                drawCircle(Color.White, radius = size.minDimension / 2 * inner)
+                                    override fun onError(exception: ImageCaptureException) {
+                                        busy = false
+                                        file.delete()
+                                    }
+                                },
+                            )
+                        },
+                ) {
+                    drawCircle(Color.White, radius = size.minDimension / 2 - 2.dp.toPx(), style = Stroke(3.dp.toPx()))
+                    drawCircle(Color.White, radius = size.minDimension / 2 * inner)
+                }
             }
         }
     }

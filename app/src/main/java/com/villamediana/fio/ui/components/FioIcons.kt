@@ -9,6 +9,7 @@ import com.villamediana.fio.R
 object FioIcons {
     val Mic: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_mic)
     val PhotoCamera: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_photo_camera)
+    val FlipCamera: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flip_camera)
     val Gallery: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_gallery)
     val Upload: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_upload)
     val Tune: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_tune)
