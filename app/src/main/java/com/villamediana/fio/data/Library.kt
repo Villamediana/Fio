@@ -20,6 +20,12 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
     fun photos(day: LongRange): Flow<List<com.villamediana.fio.mind.Photo>> =
         db.captures().observePhotos(day.first, day.last).map { list -> list.mapNotNull(com.villamediana.fio.mind.Photo::of) }
 
+    /** The photos [entryId] holds (sent with what she said; see [Attached]), in order. */
+    fun photosOf(entryId: Long): Flow<List<com.villamediana.fio.mind.Photo>> =
+        db.captures().observeAttachments()
+            .map { list -> Attached.photosOf(entryId, list).filter { java.io.File(it.imagePath!!).isFile }.mapNotNull(com.villamediana.fio.mind.Photo::of) }
+            .flowOn(kotlinx.coroutines.Dispatchers.IO)
+
     /** The sounds kept that go with [entry] (see [Sounds]), the oldest first. */
     fun sounds(entry: Entry): Flow<List<Capture>> =
         db.captures().observeSounds()

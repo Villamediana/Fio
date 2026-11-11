@@ -40,6 +40,33 @@ class MlKitPhotoReader(private val context: Context) : PhotoReader {
         }
     }
 
+    override suspend fun jpeg(files: List<File>, side: Int): ByteArray {
+        if (files.size == 1) return jpeg(files.first(), side)
+        return withContext(Dispatchers.Default) {
+            // A grid, in order: each photo whole in its square, a thin line between them.
+            val cols = kotlin.math.ceil(kotlin.math.sqrt(files.size.toDouble())).toInt()
+            val rows = (files.size + cols - 1) / cols
+            val cell = side / cols
+            val gap = 6
+            val grid = Bitmap.createBitmap(cols * cell, rows * cell, Bitmap.Config.RGB_565)
+            val canvas = android.graphics.Canvas(grid).apply { drawColor(android.graphics.Color.WHITE) }
+            files.forEachIndexed { i, f ->
+                val b = load(f, cell) ?: return@forEachIndexed
+                val box = cell - gap
+                val scale = minOf(box.toFloat() / b.width, box.toFloat() / b.height)
+                val w = (b.width * scale).toInt()
+                val h = (b.height * scale).toInt()
+                val x = (i % cols) * cell + (cell - w) / 2
+                val y = (i / cols) * cell + (cell - h) / 2
+                canvas.drawBitmap(b, null, android.graphics.Rect(x, y, x + w, y + h), null)
+            }
+            ByteArrayOutputStream().use { out ->
+                grid.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                out.toByteArray()
+            }
+        }
+    }
+
     private fun load(file: File, max: Int): Bitmap? = uprightBitmap(file, max)
 }
 

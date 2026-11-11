@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "fd08fff31c64bc6295cfcfec278cfae0",
+    "identityHash": "52e7a54ab70205f47aff9f3d40ef3587",
     "entities": [
       {
         "tableName": "entries",
@@ -137,7 +137,7 @@
       },
       {
         "tableName": "captures",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `createdAt` INTEGER NOT NULL, `source` TEXT NOT NULL, `audioPath` TEXT, `imagePath` TEXT, `durationMs` INTEGER NOT NULL, `transcript` TEXT, `state` TEXT NOT NULL, `error` TEXT, `reply` TEXT, `outcomes` TEXT NOT NULL, `shown` TEXT NOT NULL, `focusEntryId` INTEGER, `heard` TEXT, `heardPieces` INTEGER NOT NULL DEFAULT 0, `heardBy` TEXT, `tries` INTEGER NOT NULL DEFAULT 0, `description` TEXT, `shownPhotos` TEXT NOT NULL DEFAULT '[]', `turn` INTEGER NOT NULL DEFAULT 0, `sound` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `createdAt` INTEGER NOT NULL, `source` TEXT NOT NULL, `audioPath` TEXT, `imagePath` TEXT, `durationMs` INTEGER NOT NULL, `transcript` TEXT, `state` TEXT NOT NULL, `error` TEXT, `reply` TEXT, `outcomes` TEXT NOT NULL, `shown` TEXT NOT NULL, `focusEntryId` INTEGER, `heard` TEXT, `heardPieces` INTEGER NOT NULL DEFAULT 0, `heardBy` TEXT, `tries` INTEGER NOT NULL DEFAULT 0, `description` TEXT, `shownPhotos` TEXT NOT NULL DEFAULT '[]', `turn` INTEGER NOT NULL DEFAULT 0, `sound` INTEGER NOT NULL DEFAULT 0, `partOf` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -260,6 +260,11 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "partOf",
+            "columnName": "partOf",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -516,7 +521,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fd08fff31c64bc6295cfcfec278cfae0')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '52e7a54ab70205f47aff9f3d40ef3587')"
     ]
   }
 }

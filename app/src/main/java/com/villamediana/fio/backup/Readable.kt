@@ -1,5 +1,6 @@
 package com.villamediana.fio.backup
 
+import com.villamediana.fio.data.Attached
 import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.EntryTopic
@@ -128,7 +129,10 @@ object Readable {
             val photos = if (e.kindEnum == Kind.DIARY) {
                 val day = DayDiary.bounds(e.createdAt, zone).first
                 if (diaryOfDay[day] == e.id) dayOfPhotos[day].orEmpty().sortedBy { it.createdAt }.mapNotNull { s.photos[it.id] } else emptyList()
-            } else emptyList()
+            } else {
+                // The photos it holds (sent with what she said).
+                Attached.photosOf(e.id, s.captures).mapNotNull { s.photos[it.id] }
+            }
             val sounds = soundCaptures.filter { Sounds.goesWith(it, e) }.mapNotNull { s.sounds[it.id] }
             markdown(e, topicsOf[e.id].orEmpty(), photos.map { "../".repeat(depth) + it }, zone, sounds.map { "../".repeat(depth) + it })
         }

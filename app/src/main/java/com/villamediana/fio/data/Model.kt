@@ -99,6 +99,8 @@ data class Capture(
     @ColumnInfo(defaultValue = "0") val turn: Int = 0,
     /** Something said whose sound itself was kept (a melody sung, a sound): [audioPath] stays, with what came of it. */
     @ColumnInfo(defaultValue = "0") val sound: Boolean = false,
+    /** A photo sent together with something said or written (that capture's id): it goes where that went. */
+    val partOf: Long? = null,
 ) {
     companion object {
         const val RECORDED = "recorded"
@@ -116,7 +118,12 @@ data class Capture(
 }
 
 @Serializable
-data class Outcome(val entryId: Long, val action: String) {
+data class Outcome(
+    val entryId: Long,
+    val action: String,
+    /** The photos sent with what was said stay with this entry. */
+    val photos: Boolean = false,
+) {
     companion object {
         const val CREATED = "created"
         const val UPDATED = "updated"

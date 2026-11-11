@@ -265,6 +265,45 @@ class KeeperAndMindTest {
         assertTrue(!File(tmp.root, "v2.wav").exists())
     }
 
+    private fun jpegFile(name: String): File = File(tmp.root, name).apply { writeBytes(ByteArray(1024) { it.toByte() }) }
+
+    @Test
+    fun photosWaitAndGoWithWhatSheSays() = runBlocking {
+        val made = """{"reply":"Anotei: comprar pra Alma.","create":[{"kind":"task","title":"Comprar o tênis azul pra Alma","photos":true}],"photo_description":"tênis azul numa vitrine"}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made)))
+        val m = mind(FakeEars(""), thinker)
+        m.stage(listOf(jpegFile("a.jpg") to now - 60_000, jpegFile("b.jpg") to now - 30_000, jpegFile("c.jpg") to now))
+        assertEquals(3, m.staged.value.size)
+        // One let go before sending.
+        m.unstage(m.staged.value[2])
+        assertEquals(2, m.staged.value.size)
+
+        m.write("lembra de comprar isso pra Alma")
+        answered(m)
+        assertTrue(m.staged.value.isEmpty())
+        // One look for all: what she wrote with the two photos.
+        val prompt = thinker.prompts.single()
+        assertTrue(prompt, prompt.contains("AS FOTOS QUE ELA MANDOU JUNTO (2, na imagem, em ordem):"))
+        val said = db.backup().captures().single { it.source == Capture.TEXT }
+        val sent = db.captures().attachedTo(said.id)
+        assertEquals(2, sent.size)
+        assertTrue(sent.all { it.description == "tênis azul numa vitrine" && it.state == Capture.DONE && File(it.imagePath!!).isFile })
+        // They stay with the task, and the day's diary shows them too.
+        val task = db.entries().all().single { it.kindEnum == com.villamediana.fio.data.Kind.TASK }
+        val lib = com.villamediana.fio.data.Library(db, Synced())
+        assertEquals(sent.map { it.id }, lib.photosOf(task.id).first().map { it.id })
+        val day = DayDiary.bounds(now, zone)
+        assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
+    }
+
+    @Test
+    fun morePhotosJoinATaskAlreadyThere() = runBlocking {
+        val id = db.entries().insert(Entry(kind = "task", title = "Presente da Alma", status = "todo", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
+        val r = keeper().apply(Brain.parse("""{"update":[{"id":$id,"photos":true}]}""")!!, 7L)
+        assertEquals(listOf(Outcome(id, Outcome.UPDATED, photos = true)), r.outcomes)
+        assertEquals(now, db.entries().get(id)!!.updatedAt)
+    }
+
     /** A model that hangs and doesn't listen to anything (like a native call that won't come back). */
     private class StuckThinker(val reply: String) : Thinker {
         @Volatile var stuck = true

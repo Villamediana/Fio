@@ -241,6 +241,17 @@ class BackupTest {
     }
 
     @Test
+    fun photosATaskHoldsAreInItsFile() = runBlocking {
+        val task = db.entries().insert(Entry(kind = "task", title = "Comprar o tênis da Alma", status = "todo", createdAt = now, updatedAt = now))
+        val said = db.captures().insert(Capture(createdAt = now, source = "text", transcript = "comprar isso pra Alma", state = Capture.DONE, outcomes = """[{"entryId":$task,"action":"created","photos":true}]"""))
+        val file = File(app, "photo-7.jpg").apply { writeBytes(ByteArray(512)) }
+        val photo = db.captures().insert(Capture(createdAt = now, source = "photo", imagePath = file.path, state = Capture.DONE, partOf = said))
+        backup().save(root, "k")
+        val md = File(home, "Tarefas/Abertas/Comprar o tênis da Alma.md").readText()
+        assertTrue(md, md.contains("![](../../Fotos/2026/2026-11-11%2014.32.05%20%28$photo%29.jpg)"))
+    }
+
+    @Test
     fun aBrokenOrNewerSnapshotIsNotImported() = runBlocking {
         aDay()
         val b = backup()

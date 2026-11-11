@@ -290,6 +290,54 @@ class ScreensTest {
     }
 
     @Test
+    fun photosWaitOnTheMainScreenAndATaskKeepsThem() {
+        seed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val colors = listOf(0xFF85CDCA, 0xFFE8A87C, 0xFFC38D9E).map { it.toInt() }
+        val files = colors.mapIndexed { i, color ->
+            File(context.cacheDir, "wait-$i.jpg").also { f ->
+                val b = Bitmap.createBitmap(60, 80, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+                f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            }
+        }
+        graph.mind.stage(files.map { it to now })
+        val nav = Nav()
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Home)
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                when (val s = screen.value) {
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    else -> HomeScreen(nav, null) {}
+                }
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("staged-2").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Enviar as fotos").assertExists()
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("28-home-photos-waiting")
+        // One let go.
+        compose.onAllNodesWithContentDescription("Tirar a foto")[2].performClick()
+        compose.waitUntil(3_000) { graph.mind.staged.value.size == 2 }
+
+        // A task holding photos shows them under its text.
+        val task = runBlocking {
+            val id = graph.db.entries().insert(com.villamediana.fio.data.Entry(kind = "task", title = "Comprar o tênis azul pra Alma", status = "todo", createdAt = now, updatedAt = now))
+            val said = graph.db.captures().insert(
+                com.villamediana.fio.data.Capture(createdAt = now, source = "text", transcript = "comprar isso pra Alma", state = com.villamediana.fio.data.Capture.DONE, outcomes = """[{"entryId":$id,"action":"created","photos":true}]"""),
+            )
+            graph.mind.staged.value.forEach { s ->
+                val f = File(context.filesDir, s.file.name).also { s.file.copyTo(it, overwrite = true) }
+                graph.db.captures().insert(com.villamediana.fio.data.Capture(createdAt = now, source = "photo", imagePath = f.path, state = com.villamediana.fio.data.Capture.DONE, partOf = said))
+            }
+            id
+        }
+        screen.value = Screen.Entry(task)
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-photo-1").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("29-task-photos")
+    }
+
+    @Test
     fun theGalleryHasEveryPhotoAndTheSearchFindsThemByWhatTheyShow() {
         seed()
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()

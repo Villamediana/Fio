@@ -140,7 +140,8 @@ fun CameraScreen(nav: Nav) {
                                 ContextCompat.getMainExecutor(context),
                                 object : ImageCapture.OnImageSavedCallback {
                                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                        FioApplication.graph.mind.photo(file)
+                                        // It waits on the main screen: sent as it is, or with what she says next.
+                                        FioApplication.graph.mind.stage(listOf(file to System.currentTimeMillis()))
                                         nav.back()
                                     }
 

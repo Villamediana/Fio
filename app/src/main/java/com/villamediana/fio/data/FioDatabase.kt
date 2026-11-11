@@ -81,6 +81,14 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE state = 'done' AND id != :id ORDER BY id DESC LIMIT 1")
     suspend fun lastDone(id: Long): Capture?
 
+    /** The photos sent together with capture [id], in the order she took them. */
+    @Query("SELECT * FROM captures WHERE partOf = :id AND imagePath IS NOT NULL ORDER BY createdAt, id")
+    suspend fun attachedTo(id: Long): List<Capture>
+
+    /** The photos sent together with something said, and those captures (what they went with). */
+    @Query("SELECT * FROM captures WHERE (partOf IS NOT NULL AND imagePath IS NOT NULL) OR id IN (SELECT partOf FROM captures WHERE partOf IS NOT NULL)")
+    fun observeAttachments(): Flow<List<Capture>>
+
     /** The recordings whose sound was kept (a melody sung…), the oldest first. */
     @Query("SELECT * FROM captures WHERE sound = 1 AND audioPath IS NOT NULL ORDER BY createdAt, id")
     fun observeSounds(): Flow<List<Capture>>

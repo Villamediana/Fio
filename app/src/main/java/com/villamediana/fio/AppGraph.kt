@@ -107,7 +107,8 @@ class AppGraph(context: Context) {
                 val taken = PhotoDate.of(file, zone) ?: galleryDate(uri)
                 file to (taken?.takeIf { it > 0 }?.coerceAtMost(now) ?: now)
             }
-            mind.photos(picked)
+            // They wait on the main screen: sent as they are, or with what she says next.
+            mind.stage(picked)
         }
     }
 
