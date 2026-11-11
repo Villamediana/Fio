@@ -56,9 +56,6 @@ class AppGraph(context: Context) {
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
 
-    /** The model that organizes: on the phone or through the API. */
-    val thinking: Thinking by lazy { Thinking(settings, api, engine, localModel) }
-
     private val captures: File by lazy { File(appContext.filesDir, "captures").apply { mkdirs() } }
 
     val mind: Mind by lazy {
@@ -67,7 +64,7 @@ class AppGraph(context: Context) {
             db = db,
             recorder = recorder,
             hearing = Hearing(settings, api, engine, localModel, appContext.cacheDir),
-            thinking = thinking,
+            thinking = Thinking(settings, api, engine, localModel),
             keeper = Keeper(db),
             reminders = reminders,
             photos = MlKitPhotoReader(appContext),

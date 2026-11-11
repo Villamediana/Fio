@@ -15,10 +15,7 @@ fun interface TokenSink {
  * LFM3-Omni on the phone (llama.cpp, app/src/main/cpp): one model hears, thinks and looks at the
  * photos. Loaded on first use and kept for a few minutes, then let go (~1.6 GB of RAM).
  */
-/**
- * [cacheDir]: where the instructions' snapshot is kept, so they run once — not at each answer, nor
- * each time the app opens or gets an update.
- */
+/** [cacheDir]: where the instructions' snapshot is kept, so they run once per model and version. */
 class LocalEngine(private val cacheDir: java.io.File? = null) {
     private val lock = Mutex()
     @Volatile private var handle = 0L
@@ -38,20 +35,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
      * [fixed] (the instructions), their snapshot gets ready too (from disk, or run once and kept).
      */
     suspend fun warm(files: LocalModel.Files, fixed: String = "") = use(files) { h ->
-        if (fixed.isNotEmpty()) nativePrime(h, fixed.toByteArray(), snapshotPath(files, fixed))
-    }
-
-    /** True when the snapshot of [fixed] (the instructions) is on the phone: an answer starts from it at once. */
-    fun kept(files: LocalModel.Files, fixed: String): Boolean = snapshotFile(files, fixed)?.isFile == true
-
-    /**
-     * The snapshot of [fixed] made now, ahead of the first thing said (the slow part of the first
-     * answer, done before it). A model loaded only for this is let go right after. True when it is there.
-     */
-    suspend fun prepare(files: LocalModel.Files, fixed: String): Boolean {
-        if (fixed.isEmpty()) return false
-        if (!kept(files, fixed)) use(files, onlyForThis = true) { h -> nativePrime(h, fixed.toByteArray(), snapshotPath(files, fixed)) }
-        return kept(files, fixed)
+        if (fixed.isNotEmpty()) nativePrime(h, fixed.toByteArray())
     }
 
     /**
@@ -63,7 +47,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         use(files) { h ->
             val bytes = prompt.toByteArray()
             val keep = if (fixed.isNotEmpty() && prompt.startsWith(fixed)) fixed.toByteArray().size else 0
-            val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, if (keep > 0) snapshotPath(files, fixed) else "", streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
+            val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
             String(out, Charsets.UTF_8)
         }
 
@@ -87,15 +71,13 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         }
     }
 
-    /** [onlyForThis]: a model that had to be loaded for [block] is let go right after it. */
-    private suspend fun <T> use(files: LocalModel.Files, onlyForThis: Boolean = false, block: (Long) -> T): T = lock.withLock {
+    private suspend fun <T> use(files: LocalModel.Files, block: (Long) -> T): T = lock.withLock {
         withContext(Dispatchers.Default) {
             check(available) { "motor local não incluído nesta versão" }
-            val loadedNow = handle == 0L || loadedFrom != files.model.path
-            if (loadedNow) {
+            if (handle == 0L || loadedFrom != files.model.path) {
                 freeLocked()
                 val threads = threads()
-                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192)
+                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192, snapshotFile(files)?.path.orEmpty())
                 check(handle != 0L) { "não deu pra carregar o modelo local" }
                 loadedFrom = files.model.path
             }
@@ -104,30 +86,16 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
                 block(handle)
             } finally {
                 lastUse = System.currentTimeMillis()
-                if (onlyForThis && loadedNow) freeLocked()
             }
         }
     }
 
-    /**
-     * Where the snapshot of [fixed] is kept: a file of its own for these instructions, this model
-     * and this llama.cpp (what the kept state depends on) — an app update that changes none of them
-     * finds it there.
-     */
-    internal fun snapshotFile(files: LocalModel.Files, fixed: String): java.io.File? {
+    /** The instructions' snapshot for this model and this version of the app (others, left from before, go). */
+    private fun snapshotFile(files: LocalModel.Files): java.io.File? {
         val dir = cacheDir ?: return null
-        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(fixed.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
-        return java.io.File(dir, "prompt-" + files.model.name + "-" + files.model.length() + "-" + BuildConfig.LLAMA + "-" + digest + ".bin")
-    }
-
-    /** [snapshotFile] about to be read or written: the ones left from other instructions, models or versions go. */
-    private fun snapshotPath(files: LocalModel.Files, fixed: String): String {
-        val file = snapshotFile(files, fixed) ?: return ""
-        runCatching {
-            file.parentFile?.mkdirs()
-            file.parentFile?.listFiles().orEmpty().filter { it.name.startsWith("prompt-") && it.name != file.name }.forEach { it.delete() }
-        }
-        return file.path
+        val name = "prompt-" + files.model.name + "-" + files.model.length() + "-" + com.villamediana.fio.BuildConfig.VERSION_CODE + ".bin"
+        runCatching { dir.mkdirs(); dir.listFiles().orEmpty().filter { it.name.startsWith("prompt-") && it.name != name }.forEach { it.delete() } }
+        return java.io.File(dir, name)
     }
 
     private fun freeLocked() {
@@ -136,12 +104,12 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         loadedFrom = null
     }
 
-    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int): Long
-    private external fun nativePrime(handle: Long, prefix: ByteArray, cache: String): Boolean
+    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int, cache: String): Long
+    private external fun nativePrime(handle: Long, prefix: ByteArray): Boolean
     private external fun nativeFree(handle: Long)
     private external fun nativeCancel(handle: Long)
     private external fun nativeTranscribe(handle: Long, pcm: FloatArray, prompt: ByteArray, maxTokens: Int, sink: TokenSink?): ByteArray?
-    private external fun nativeGenerate(handle: Long, prompt: ByteArray, keep: Int, grammar: String?, image: ByteArray?, maxTokens: Int, cache: String, sink: TokenSink?): ByteArray?
+    private external fun nativeGenerate(handle: Long, prompt: ByteArray, keep: Int, grammar: String?, image: ByteArray?, maxTokens: Int, sink: TokenSink?): ByteArray?
 
     companion object {
         /** Where a photo goes in the prompt (llama.cpp's media marker). */
