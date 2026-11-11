@@ -32,10 +32,8 @@ O app procura versões novas nas [releases](../../releases) deste repositório e
 JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular).
 
 ```bash
-tools/fetch-llama.sh                         # opcional: llama.cpp pro motor no celular
 ./gradlew :app:testDebugUnitTest             # testes (FIO_SHOTS: prints das telas em app/build/fio-shots)
-./gradlew :app:assembleDebug -Pfio.native=true
-tools/release.sh -n $'- novidade'            # versão nova (ver docs/ARCHITECTURE.md)
+tools/release.sh -n $'- novidade'            # versão nova, com o motor no celular (ver docs/ARCHITECTURE.md)
 ```
 
 Licenças: llama.cpp (MIT); o modelo LFM3 é baixado do Hugging Face sob a LFM Open License v1.0.

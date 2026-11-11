@@ -29,11 +29,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -123,7 +121,7 @@ fun SettingsScreen(nav: Nav) {
 
     Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp)) {
@@ -270,7 +268,7 @@ private fun Choice(selected: Boolean, title: String, subtitle: String, onClick: 
                 .border(1.6.dp, if (selected) FioColors.Accent else FioColors.TextFaint, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            if (selected) Icon(FioIcons.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -329,7 +327,7 @@ private fun ModelPicker(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(m, style = MaterialTheme.typography.bodyLarge, color = FioColors.Text, modifier = Modifier.weight(1f))
-                    if (m == current) Icon(Icons.Rounded.Check, null, tint = FioColors.Accent, modifier = Modifier.size(18.dp))
+                    if (m == current) Icon(FioIcons.Check, null, tint = FioColors.Accent, modifier = Modifier.size(18.dp))
                 }
             }
         }

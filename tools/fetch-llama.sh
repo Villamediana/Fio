@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# Baixa o llama.cpp (ggml-org, MIT) na versão que o motor do celular usa, em third_party/llama.cpp.
-# Com ele presente, o build inclui o LFM3 no celular (-Pfio.native=true, o release.sh faz sozinho).
+# Baixa o llama.cpp (ggml-org, MIT) na versão que o motor do celular usa, na pasta dada.
+# Só serve pro build: o release.sh baixa numa pasta temporária e apaga no fim (nada fica no servidor).
+#
+#   tools/fetch-llama.sh /tmp/x/llama.cpp && ./gradlew :app:assembleRelease -Pfio.llama=/tmp/x/llama.cpp
 set -euo pipefail
-cd "$(dirname "$0")/.."
+dest=${1:?uso: tools/fetch-llama.sh <pasta>}
 TAG=v0.9.0
-if [[ -d third_party/llama.cpp/.git ]]; then
-  git -C third_party/llama.cpp fetch -q --depth 1 origin tag "$TAG"
-  git -C third_party/llama.cpp checkout -q "$TAG"
-else
-  git clone -q --depth 1 --branch "$TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
-fi
-git -C third_party/llama.cpp log --oneline -1
+git clone -q --depth 1 --branch "$TAG" https://github.com/ggml-org/llama.cpp "$dest"
+git -C "$dest" log --oneline -1

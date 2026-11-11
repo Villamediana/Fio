@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -130,13 +127,13 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** [text] with the matched words in ink and bold (search results, answers). */
-fun highlighted(text: String, terms: Collection<String>, color: Color): AnnotatedString = buildAnnotatedString {
+/** [text] with the matched words in ink and bold on [mark] (search results, answers). */
+fun highlighted(text: String, terms: Collection<String>, color: Color, mark: Color = color.copy(alpha = 0.10f)): AnnotatedString = buildAnnotatedString {
     val ranges = Snippet.ranges(text, terms)
     var at = 0
     ranges.forEach { r ->
         if (r.first > at) append(text.substring(at, r.first))
-        pushStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold, background = color.copy(alpha = 0.10f)))
+        pushStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold, background = mark))
         append(text.substring(r.first, (r.last + 1).coerceAtMost(text.length)))
         pop()
         at = r.last + 1
@@ -161,7 +158,7 @@ fun CheckCircle(done: Boolean, color: Color, onClick: () -> Unit, size: Dp = 24.
             drawCircle(color.copy(alpha = 0.55f + 0.45f * fill), radius = r - 1.dp.toPx(), style = Stroke(1.6.dp.toPx()))
             if (fill > 0f) drawCircle(color, radius = (r - 1.dp.toPx()) * fill)
         }
-        if (done) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
+        if (done) Icon(FioIcons.Check, null, tint = Color.White, modifier = Modifier.size(size * 0.62f).graphicsLayer { alpha = fill })
     }
 }
 
@@ -225,7 +222,7 @@ fun EntryCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    highlighted(entry.title, terms, FioColors.Text),
+                    highlighted(entry.title, terms, FioColors.Text, FioColors.Accent.copy(alpha = 0.16f)),
                     style = MaterialTheme.typography.titleMedium,
                     color = if (done) FioColors.TextMuted else FioColors.Text,
                     maxLines = 2,
@@ -235,7 +232,7 @@ fun EntryCard(
                 )
                 if (entry.sensitive) {
                     Spacer(Modifier.width(6.dp))
-                    Icon(Icons.Rounded.Lock, "Sensível", tint = FioColors.TextFaint, modifier = Modifier.size(13.dp))
+                    Icon(FioIcons.Lock, "Sensível", tint = FioColors.TextFaint, modifier = Modifier.size(15.dp))
                 }
             }
             val snippet = when {
@@ -247,7 +244,7 @@ fun EntryCard(
             if (snippet != null) {
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    highlighted(snippet, terms, FioColors.Text),
+                    highlighted(snippet, terms, FioColors.Text, FioColors.Accent.copy(alpha = 0.16f)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = FioColors.TextMuted,
                     maxLines = if (terms.isNotEmpty()) 3 else 2,

@@ -68,10 +68,16 @@ sys.exit(0 if a + [0] * (n - len(a)) > b + [0] * (n - len(b)) else 1)
 PY
 
 # 3. Release assinada (o Gradle falha sem a chave em ~/keystores).
-# O motor no celular (LFM3 via llama.cpp) entra quando third_party/llama.cpp existe (tools/fetch-llama.sh).
-native=false
-[[ -f third_party/llama.cpp/CMakeLists.txt && ${FIO_NATIVE:-1} != 0 ]] && native=true
-./gradlew :app:assembleRelease -Pfio.native=$native --console=plain -q
+# O motor no celular (LFM3 via llama.cpp) entra sempre (FIO_NATIVE=0 tira). O llama.cpp vem numa pasta
+# temporária só pro build e sai no fim, com o que o CMake compilou: nada dele fica no servidor.
+llama=""
+if [[ ${FIO_NATIVE:-1} != 0 ]]; then
+  work=$(mktemp -d)
+  trap 'rm -rf "$work" app/.cxx app/build/intermediates/cxx' EXIT
+  tools/fetch-llama.sh "$work/llama.cpp"
+  llama=$work/llama.cpp
+fi
+./gradlew :app:assembleRelease -Pfio.llama="$llama" --console=plain -q
 mkdir -p dist
 cp app/build/outputs/apk/release/app-release.apk "$apk"
 
@@ -80,6 +86,9 @@ cp app/build/outputs/apk/release/app-release.apk "$apk"
 badging=$("$BUILD_TOOLS/aapt2" dump badging "$apk" | awk 'NR == 1')
 [[ $badging == *"name='$PACKAGE'"* && $badging == *"versionCode='$code'"* && $badging == *"versionName='$name'"* ]] \
   || die "APK não bate com $PACKAGE $name ($code): $badging"
+if [[ -n $llama ]]; then
+  unzip -l "$apk" | grep "lib/arm64-v8a/libfio_engine.so" >/dev/null || die "APK sem o motor no celular (libfio_engine.so)"
+fi
 cert=$("$BUILD_TOOLS/apksigner" verify --print-certs "$apk" | awk '/Signer.*certificate SHA-256 digest:/ && !seen { print $NF; seen = 1 }')
 [[ $cert == "$CERT_SHA256" ]] || die "APK assinada com outra chave ($cert): os celulares recusariam a atualização"
 sha=$(sha256sum "$apk" | cut -d' ' -f1)

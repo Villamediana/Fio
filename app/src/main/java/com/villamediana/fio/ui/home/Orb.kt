@@ -13,7 +13,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.runtime.Composable
@@ -119,23 +118,23 @@ fun Orb(
             val lvl = smooth
             val t = time
 
-            // At rest: one quiet, flat halo. It gives way to the ripples and to the thread.
+            // At rest: one fine thread around it. It gives way to the ripples and to the running thread.
             val rest = (1f - listen).coerceIn(0f, 1f) * (1f - work)
-            if (rest > 0.01f) drawCircle(ring.copy(alpha = 0.10f * rest), radius = r * 1.30f, center = c)
+            if (rest > 0.01f) drawCircle(ring.copy(alpha = 0.32f * rest), radius = r * 1.26f, center = c, style = Stroke(width = 1.2.dp.toPx()))
 
             // Ripples going out with the voice.
             if (listen > 0.01f) {
                 for (i in 0 until 3) {
                     val phase = ((t * 0.42f + i / 3f) % 1f)
-                    val rr = r * (1.08f + 0.62f * phase) * (1f + 0.12f * lvl)
-                    val a = (1f - phase) * (0.10f + 0.30f * lvl) * listen
-                    drawCircle(ring.copy(alpha = a), radius = rr, center = c, style = Stroke(width = (1.4f + 2.2f * lvl).dp.toPx()))
+                    val rr = r * (1.10f + 0.55f * phase) * (1f + 0.08f * lvl)
+                    val a = (1f - phase) * (0.12f + 0.26f * lvl) * listen
+                    drawCircle(ring.copy(alpha = a), radius = rr, center = c, style = Stroke(width = (1.0f + 1.2f * lvl).dp.toPx()))
                 }
             }
 
             // The drop: a circle that breathes and wobbles with the voice while listening.
-            val swell = 1f + listen * (0.05f + 0.20f * lvl)
-            val amp = listen * r * (0.016f + 0.060f * lvl)
+            val swell = 1f + listen * (0.04f + 0.12f * lvl)
+            val amp = listen * r * (0.008f + 0.030f * lvl)
             val path = Path()
             val n = 120
             for (k in 0..n) {
@@ -164,7 +163,7 @@ fun Orb(
                     useCenter = false,
                     topLeft = Offset(c.x - rr, c.y - rr),
                     size = Size(rr * 2, rr * 2),
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
                 )
             }
 
@@ -230,7 +229,7 @@ fun Orb(
                     FioIcons.Mic,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(40.dp).graphicsLayer {
+                    modifier = Modifier.size(38.dp).graphicsLayer {
                         alpha = 1f - 0.45f * work
                         val s = 1f + 0.08f * listen
                         scaleX = s; scaleY = s

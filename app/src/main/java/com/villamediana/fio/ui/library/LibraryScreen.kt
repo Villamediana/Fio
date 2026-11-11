@@ -31,11 +31,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
+import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +47,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -103,10 +107,10 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
     Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             if (searching) {
                 Row(
-                    Modifier.weight(1f).clip(CircleShape).background(FioColors.Surface2).padding(start = 16.dp, end = 4.dp),
+                    Modifier.weight(1f).padding(end = 10.dp).clip(CircleShape).background(FioColors.Surface2).padding(start = 18.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(Modifier.weight(1f).padding(vertical = 12.dp)) {
@@ -122,20 +126,21 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                         )
                     }
                     Box(Modifier.size(36.dp).clip(CircleShape).clickable { if (query.isEmpty()) searching = false else query = "" }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Close, "Limpar", tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
+                        Icon(FioIcons.Close, "Limpar", tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
                     }
                 }
             } else {
                 Spacer(Modifier.weight(1f))
-                QuietIcon(Icons.Rounded.Search, "Buscar", { searching = true }, alpha = 0.6f)
+                QuietIcon(FioIcons.Search, "Buscar", { searching = true }, alpha = 0.6f)
             }
         }
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             // The tabs are just words: the one you are in is ink, the others wait in gray.
+            val tabsScroll = rememberScrollState()
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.Bottom,
+                Modifier.fillMaxWidth().fadingEdges(tabsScroll).horizontalScroll(tabsScroll).padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 listOf(Filter.TODAY, Filter.TASKS, Filter.NOTES, Filter.DIARY, Filter.ALL).forEach { f ->
                     Tab(title(f), selected = filter == f, onClick = { filter = f; nav.go(Screen.Library(f)) })
@@ -153,7 +158,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 40.dp),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = if (hits != null) 14.dp else 0.dp, bottom = 40.dp),
         ) {
             if (hits == null && sections.all { it.second.isEmpty() }) {
                 item { Empty(filter) }
@@ -195,12 +200,25 @@ private fun Tab(text: String, selected: Boolean, onClick: () -> Unit) {
     val color by animateColorAsState(if (selected) FioColors.Text else FioColors.TextFaint, label = "tab")
     Text(
         text,
-        style = if (selected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
         color = color,
         maxLines = 1,
-        modifier = Modifier.clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp).animateContentSize(),
+        modifier = Modifier.clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp),
     )
 }
+
+/** A row that runs past the screen melts into the paper at the edge it continues on. */
+private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+        drawContent()
+        val w = 36.dp.toPx()
+        if (scroll.canScrollForward) {
+            drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - w, endX = size.width), blendMode = BlendMode.DstIn)
+        }
+        if (scroll.canScrollBackward) {
+            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = w), blendMode = BlendMode.DstIn)
+        }
+    }
 
 /** How each tab groups what is kept. */
 fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): List<Pair<String?, List<Entry>>> {

@@ -60,8 +60,13 @@ palavras-gatilho. O modelo decide; o código só valida (tipos conhecidos, ids q
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
 - `generate`: o mesmo modelo como texto, com a gramática JSON.
 
-O build só inclui o nativo com `-Pfio.native=true` e `third_party/llama.cpp` presente
-(`tools/fetch-llama.sh`); sem ele, `LocalEngine.available` é falso e Ajustes diz que não vem nesta versão.
+O prompt de ASR é o mesmo do `llama-server` pro LFM3 (`common_chat_get_asr_prompt`): sistema
+`Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.
+
+O build só inclui o nativo com `-Pfio.llama=<pasta do llama.cpp>`. O `release.sh` baixa o llama.cpp
+numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a pasta, `app/.cxx` e o
+que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
+baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
 Arquivos: `LFM3-Audio-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Audio-2B-Q8_0.gguf` (304 MB).
 
 ## Lançar versão

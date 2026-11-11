@@ -29,14 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -118,10 +114,10 @@ fun EntryScreen(nav: Nav, id: Long) {
         Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             Spacer(Modifier.weight(1f))
             Box {
-                QuietIcon(Icons.Rounded.MoreVert, "Mais", { menu = true }, alpha = 0.7f)
+                QuietIcon(FioIcons.More, "Mais", { menu = true }, alpha = 0.7f)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = FioColors.Surface) {
                     Kind.entries.filter { it != kind }.forEach { k ->
                         DropdownMenuItem(text = { Text("Virar ${kindLabel(k).lowercase()}") }, onClick = { menu = false; scope.launch { lib.setKind(e.id, k) } })
@@ -267,7 +263,7 @@ private fun StepsBlock(e: Entry, onToggle: (Int) -> Unit, onAdd: (String) -> Uni
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, top = 2.dp)) {
-        Icon(Icons.Rounded.Add, null, tint = FioColors.TextFaint, modifier = Modifier.size(20.dp))
+        Icon(FioIcons.Plus, null, tint = FioColors.TextFaint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(14.dp))
         Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
             if (adding.isEmpty()) Text("Nova etapa", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
@@ -337,7 +333,7 @@ private fun DateChip(label: String, set: Boolean, onClick: () -> Unit, onClear: 
         Text(label, style = MaterialTheme.typography.labelLarge, color = if (set) FioColors.Text else FioColors.TextMuted, modifier = Modifier.padding(vertical = 9.dp))
         if (set) {
             Box(Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(14.dp))
+                Icon(FioIcons.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(14.dp))
             }
         }
     }
