@@ -12,6 +12,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.geometry.Offset
 import com.villamediana.fio.FioApplication
 import com.villamediana.fio.audio.Wav
 import com.villamediana.fio.data.Capture
@@ -199,6 +202,43 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
         repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(100) }
         shot("12-graph-topic")
+    }
+
+    @Test
+    fun swipesMoveAlongTheLine() {
+        seed()
+        val nav = Nav()
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                when (val s = nav.top) {
+                    Screen.Home -> HomeScreen(nav, talkAbout = null, onTalkHandled = {})
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    else -> Box(Modifier.fillMaxSize())
+                }
+            }
+        }
+        fun slide(toLeft: Boolean) { compose.onRoot().performTouchInput {
+            val y = height * 0.72f
+            val (a, b) = if (toLeft) width * 0.85f to width * 0.15f else width * 0.15f to width * 0.85f
+            swipe(Offset(a, y), Offset(b, y), durationMillis = 250)
+        } }
+        // Main screen: to the right is the camera, to the left the library's first tab.
+        slide(toLeft = false)
+        compose.waitUntil(3_000) { nav.top == Screen.Camera }
+        nav.back()
+        compose.waitForIdle()
+        slide(toLeft = true)
+        compose.waitUntil(3_000) { (nav.top as? Screen.Library)?.filter == Filter.TODAY }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Pagar o IPVA").fetchSemanticsNodes().isNotEmpty() }
+        // In the library a swipe to the left is the next tab, to the right the one before.
+        slide(toLeft = true)
+        compose.waitUntil(3_000) { (nav.top as? Screen.Library)?.filter == Filter.TASKS }
+        slide(toLeft = false)
+        compose.waitUntil(3_000) { (nav.top as? Screen.Library)?.filter == Filter.TODAY }
+        // On the first tab, back to the right is home.
+        slide(toLeft = false)
+        compose.waitUntil(3_000) { nav.top == Screen.Home }
+        assertEquals(1, nav.stack.size)
     }
 
     @Test

@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.villamediana.fio.FioApplication
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.components.pressScale
+import com.villamediana.fio.ui.components.swipeNav
 import kotlinx.coroutines.launch
 
 /** Point, tap, done: the photo goes to Fio like something said, and the app is back on the button. */
@@ -86,7 +87,8 @@ fun CameraScreen(nav: Nav) {
     }
     LaunchedEffect(flash) { capture.flashMode = if (flash) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // The camera is on the main screen's left: a swipe to the left goes back to it.
+    Box(Modifier.fillMaxSize().background(Color.Black).swipeNav(onLeft = { if (!busy) nav.back() }, onRight = null)) {
         if (granted) AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
         // The flash of the shutter.
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = shutter.value }.background(Color.White))

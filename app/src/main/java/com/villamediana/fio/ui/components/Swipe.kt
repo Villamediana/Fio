@@ -1,0 +1,69 @@
+package com.villamediana.fio.ui.components
+
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+
+/** How much of the finger's way the screen goes along with it: a hint of the move, not the move. */
+const val SWIPE_FOLLOW = 0.3f
+
+/** A sideways swipe is a move when it went far enough, or was quick and not tiny. */
+fun swipeGoes(dx: Float, velocity: Float, density: Density): Int = with(density) {
+    val far = 72.dp.toPx()
+    val some = 24.dp.toPx()
+    val quick = 800.dp.toPx()
+    when {
+        dx < -far || (dx < -some && velocity < -quick) -> -1
+        dx > far || (dx > some && velocity > quick) -> 1
+        else -> 0
+    }
+}
+
+/**
+ * The whole screen as a place on a line: a swipe to the left ([onLeft], the finger goes left) or
+ * to the right ([onRight]) takes you to the neighbor. Whatever a child takes for itself (the
+ * button, a list scrolling up and down) is not a swipe. [follow] gets how far the content may
+ * lean with the finger while dragging, and goes back to 0 if the swipe was not enough.
+ */
+fun Modifier.swipeNav(onLeft: (() -> Unit)?, onRight: (() -> Unit)?, follow: MutableFloatState? = null): Modifier = composed {
+    val scope = rememberCoroutineScope()
+    val left by rememberUpdatedState(onLeft)
+    val right by rememberUpdatedState(onRight)
+    pointerInput(Unit) {
+        val tracker = VelocityTracker()
+        var dx = 0f
+        fun settle() {
+            val from = follow?.floatValue ?: return
+            if (from != 0f) scope.launch { animate(from, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> follow.floatValue = v } }
+        }
+        detectHorizontalDragGestures(
+            onDragStart = { tracker.resetTracking(); dx = 0f },
+            onDragEnd = {
+                val go = when (swipeGoes(dx, tracker.calculateVelocity().x, this)) {
+                    -1 -> left
+                    1 -> right
+                    else -> null
+                }
+                if (go != null) go() else settle()
+            },
+            onDragCancel = { settle() },
+        ) { change, amount ->
+            tracker.addPosition(change.uptimeMillis, change.position)
+            dx += amount
+            change.consume()
+            val open = (dx < 0 && left != null) || (dx > 0 && right != null)
+            follow?.floatValue = if (open) dx * SWIPE_FOLLOW else 0f
+        }
+    }
+}

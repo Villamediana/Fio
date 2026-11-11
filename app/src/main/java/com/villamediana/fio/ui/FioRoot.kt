@@ -4,11 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -63,12 +60,16 @@ fun FioRoot(ask: Ask?, onAskHandled: () -> Unit) {
             targetState = nav.top,
             transitionSpec = {
                 val forward = nav.stack.contains(initialState) && initialState != targetState
+                // One line, left to right: camera · main screen · library. Going along it slides that way.
                 when {
-                    targetState is Screen.Camera -> (fadeIn(Motion.enter(260)) + scaleIn(Motion.enter(320), 0.96f)) togetherWith fadeOut(Motion.exit(200))
+                    targetState is Screen.Camera && initialState == Screen.Home ->
+                        (slideInHorizontally(Motion.slide) { -it / 3 } + fadeIn(Motion.enter(240))) togetherWith (slideOutHorizontally(Motion.slide) { it / 6 } + fadeOut(Motion.exit(180)))
+                    initialState is Screen.Camera && targetState == Screen.Home ->
+                        (slideInHorizontally(Motion.slide) { it / 6 } + fadeIn(Motion.enter(240))) togetherWith (slideOutHorizontally(Motion.slide) { -it / 3 } + fadeOut(Motion.exit(180)))
                     targetState is Screen.Library && initialState == Screen.Home ->
-                        (slideInVertically(Motion.slide) { it / 5 } + fadeIn(Motion.enter(260))) togetherWith fadeOut(Motion.exit(180))
+                        (slideInHorizontally(Motion.slide) { it / 3 } + fadeIn(Motion.enter(240))) togetherWith (slideOutHorizontally(Motion.slide) { -it / 6 } + fadeOut(Motion.exit(180)))
                     initialState is Screen.Library && targetState == Screen.Home ->
-                        fadeIn(Motion.enter(260)) togetherWith (slideOutVertically(Motion.slide) { it / 5 } + fadeOut(Motion.exit(200)))
+                        (slideInHorizontally(Motion.slide) { -it / 6 } + fadeIn(Motion.enter(240))) togetherWith (slideOutHorizontally(Motion.slide) { it / 3 } + fadeOut(Motion.exit(180)))
                     initialState is Screen.Library && targetState is Screen.Library -> fadeIn(Motion.enter(200)) togetherWith fadeOut(Motion.exit(120))
                     forward -> (slideInHorizontally(Motion.slide) { it / 4 } + fadeIn(Motion.enter(240))) togetherWith fadeOut(Motion.exit(160))
                     else -> fadeIn(Motion.enter(240)) togetherWith (slideOutHorizontally(Motion.slide) { it / 4 } + fadeOut(Motion.exit(180)))

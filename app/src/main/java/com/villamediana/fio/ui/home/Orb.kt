@@ -190,6 +190,7 @@ fun Orb(
                             pressed = true
                             do {
                                 val ev = awaitPointerEvent()
+                                ev.changes.forEach { it.consume() }
                             } while (ev.changes.any { it.pressed })
                             pressed = false
                             haptic(view, HapticFeedbackConstants.CONTEXT_CLICK)
@@ -206,6 +207,8 @@ fun Orb(
                             val ev = awaitPointerEvent()
                             val change = ev.changes.firstOrNull { it.id == down.id } ?: ev.changes.first()
                             dy += change.positionChange().y
+                            // The finger on the button is the button's: no swipe of the screen under it.
+                            change.consume()
                             val toward = (-dy / cancelDistance).coerceIn(0f, 1f)
                             if ((toward > 0.99f) != (dragging > 0.99f)) zone(toward > 0.99f)
                             dragging = toward

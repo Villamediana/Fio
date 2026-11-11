@@ -3,7 +3,7 @@ package com.villamediana.fio.ui.library
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,13 +43,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +70,9 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -75,6 +83,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.villamediana.fio.FioApplication
@@ -90,8 +99,10 @@ import com.villamediana.fio.ui.components.EntryCard
 import com.villamediana.fio.ui.components.FioIcons
 import com.villamediana.fio.ui.components.GroupGap
 import com.villamediana.fio.ui.components.PT
+import com.villamediana.fio.ui.components.SWIPE_FOLLOW
 import com.villamediana.fio.ui.components.SectionLabel
 import com.villamediana.fio.ui.components.groupShape
+import com.villamediana.fio.ui.components.swipeGoes
 import com.villamediana.fio.ui.graph.Connections
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioColors
@@ -108,7 +119,6 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     val graph = FioApplication.graph
     val scope = rememberCoroutineScope()
     val entries by graph.library.all().collectAsStateWithLifecycle(initialValue = null)
-    var filter by rememberSaveable(screen) { mutableStateOf(screen.filter) }
     var searching by rememberSaveable(screen.search, screen.query) { mutableStateOf(screen.search) }
     var query by rememberSaveable(screen.search, screen.query) { mutableStateOf(screen.query) }
     var showDone by rememberSaveable { mutableStateOf(false) }
@@ -126,6 +136,55 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     val toggle: (Long) -> Unit = { id -> scope.launch { graph.library.toggleDone(id) } }
     val open: (Long) -> Unit = { nav.go(Screen.Entry(it)) }
 
+    // The tabs are pages side by side: a swipe goes to the next one, a touch on a word too.
+    // The tab asked by the screen is the page; the page a swipe stops on is the tab kept (so
+    // coming back from an entry lands where you were).
+    val pager = rememberPagerState(initialPage = screen.filter.ordinal) { Filter.entries.size }
+    val current by rememberUpdatedState(screen)
+    LaunchedEffect(screen.filter) { if (pager.currentPage != screen.filter.ordinal) pager.scrollToPage(screen.filter.ordinal) }
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { p ->
+            val f = Filter.entries[p]
+            if (f != current.filter) nav.go(current.copy(filter = f, topic = null))
+        }
+    }
+
+    // On the first tab, a swipe back (to the right) is the way home: the page leans with the
+    // finger and, far or quick enough, the main screen comes back.
+    val density = LocalDensity.current
+    var pull by remember { mutableFloatStateOf(0f) }
+    val back by rememberUpdatedState { nav.back() }
+    val edge = remember(pager) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (pull > 0f && available.x < 0f) {
+                    val used = maxOf(available.x, -pull)
+                    pull += used
+                    return Offset(used, 0f)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.x > 0f && pager.currentPage == 0) {
+                    pull += available.x
+                    return Offset(available.x, 0f)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (pull <= 0f) return Velocity.Zero
+                if (swipeGoes(pull, available.x, density) == 1) {
+                    back()
+                    return available
+                }
+                animate(pull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> pull = v }
+                return available
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
@@ -141,48 +200,73 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Tabs(filter, onSelect = { f -> filter = f; nav.go(Screen.Library(f)) })
+            Tabs(
+                selected = pager.currentPage,
+                position = { pager.currentPage + pager.currentPageOffsetFraction },
+                onSelect = { i -> scope.launch { pager.animateScrollToPage(i) } },
+            )
         }
 
-        if (filter == Filter.LINKS && hits == null) {
-            Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
+        val list = entries
+        if (hits != null) {
+            val found = listOf((if (hits.isEmpty()) "Nada com essas palavras" else null) to hits.map { it.entry })
+            Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle)
             return@Column
         }
-        val list = entries
-        if (list == null) return@Column
-        val sections: List<Pair<String?, List<Entry>>> = if (hits != null) {
-            listOf((if (hits.isEmpty()) "Nada com essas palavras" else null) to hits.map { it.entry })
-        } else {
-            sectionsFor(filter, list, showDone)
-        }
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (hits != null) 14.dp else 0.dp, bottom = 40.dp),
-        ) {
-            if (hits == null && sections.all { it.second.isEmpty() }) {
-                item { Empty(filter) }
-            }
-            sections.forEach { (label, items) ->
-                if (label != null && (items.isNotEmpty() || hits != null)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
-                // One block per group: the cards touch, only the ends are round.
-                itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
-                    val shape = groupShape(i, items.size, outer = 22.dp)
-                    Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
-                        if (filter == Filter.DIARY && hits == null) DiaryCard(e, onClick = { open(e.id) }, shape = shape)
-                        else EntryCard(e, onClick = { open(e.id) }, terms = if (hits != null) terms else emptyList(), onToggle = { toggle(e.id) }, showKind = hits != null || filter == Filter.ALL || filter == Filter.TODAY, showStatus = hits != null || filter != Filter.TASKS, shape = shape)
+        Box(Modifier.fillMaxSize().nestedScroll(edge)) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                val f = Filter.entries[page]
+                Box(Modifier.fillMaxSize().graphicsLayer { if (page == 0) translationX = pull * SWIPE_FOLLOW }) {
+                    when {
+                        f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
+                        list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle)
                     }
                 }
             }
-            if (hits == null && filter == Filter.TASKS) {
-                val done = list.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
-                if (done > 0) item(key = "done-toggle") {
-                    Text(
-                        if (showDone) "Esconder feitas" else "Ver feitas ($done)",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = FioColors.TextMuted,
-                        modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable { showDone = !showDone }.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
+        }
+    }
+}
+
+/** One tab's list (or the search's, when [terms] is given): groups under a quiet label, each group one block. */
+@Composable
+private fun Entries(
+    filter: Filter,
+    sections: List<Pair<String?, List<Entry>>>,
+    all: List<Entry>,
+    terms: List<String>?,
+    showDone: Boolean,
+    onShowDone: () -> Unit,
+    open: (Long) -> Unit,
+    toggle: (Long) -> Unit,
+) {
+    val searched = terms != null
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
+    ) {
+        if (!searched && sections.all { it.second.isEmpty() }) {
+            item { Empty(filter) }
+        }
+        sections.forEach { (label, items) ->
+            if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
+            // One block per group: the cards touch, only the ends are round.
+            itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
+                val shape = groupShape(i, items.size, outer = 22.dp)
+                Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
+                    if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape)
+                    else EntryCard(e, onClick = { open(e.id) }, terms = terms.orEmpty(), onToggle = { toggle(e.id) }, showKind = searched || filter == Filter.ALL || filter == Filter.TODAY, showStatus = searched || filter != Filter.TASKS, shape = shape)
                 }
+            }
+        }
+        if (!searched && filter == Filter.TASKS) {
+            val done = all.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
+            if (done > 0) item(key = "done-toggle") {
+                Text(
+                    if (showDone) "Esconder feitas" else "Ver feitas ($done)",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = FioColors.TextMuted,
+                    modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable(onClick = onShowDone).padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
         }
     }
@@ -202,18 +286,14 @@ private fun title(f: Filter) = when (f) {
  * the others wait in gray. The stitch slides to the new tab; a tab off the edge comes into view.
  */
 @Composable
-private fun Tabs(filter: Filter, onSelect: (Filter) -> Unit) {
+private fun Tabs(selected: Int, position: () -> Float, onSelect: (Int) -> Unit) {
     val scroll = rememberScrollState()
-    val bounds = remember { mutableStateMapOf<Filter, Pair<Float, Float>>() } // x, width (inside the row's padding)
-    val stitch = remember { Animatable(0f) }
-    var placed by remember { mutableStateOf(false) }
+    val bounds = remember { mutableStateMapOf<Int, Pair<Float, Float>>() } // x, width (inside the row's padding)
     val density = LocalDensity.current
     val start = with(density) { 10.dp.toPx() }
-    val target = bounds[filter]
-    LaunchedEffect(filter, target) {
+    val target = bounds[selected]
+    LaunchedEffect(selected, target) {
         val (x, w) = target ?: return@LaunchedEffect
-        val center = x + w / 2f
-        if (!placed) { stitch.snapTo(center); placed = true } else launch { stitch.animateTo(center, spring(dampingRatio = 0.8f, stiffness = 380f)) }
         val left = start + x
         val right = left + w
         val view = scroll.viewportSize
@@ -226,6 +306,7 @@ private fun Tabs(filter: Filter, onSelect: (Filter) -> Unit) {
         }
     }
     val accent = FioColors.Accent
+    val last = Filter.entries.lastIndex
     Row(
         Modifier
             .fillMaxWidth()
@@ -233,19 +314,25 @@ private fun Tabs(filter: Filter, onSelect: (Filter) -> Unit) {
             .horizontalScroll(scroll)
             .padding(start = 10.dp, end = 10.dp, top = 2.dp)
             .drawBehind {
-                if (!placed) return@drawBehind
+                // The stitch goes with the pages: between two tabs while the finger is between two pages.
+                val at = position().coerceIn(0f, last.toFloat())
+                val i = at.toInt().coerceAtMost(last)
+                val a = bounds[i] ?: return@drawBehind
+                val b = bounds[(i + 1).coerceAtMost(last)] ?: a
+                val t = at - i
+                val center = (a.first + a.second / 2f) * (1 - t) + (b.first + b.second / 2f) * t
                 val w = 18.dp.toPx()
                 val h = 3.dp.toPx()
-                drawRoundRect(accent, topLeft = Offset(stitch.value - w / 2f, size.height - h - 3.dp.toPx()), size = Size(w, h), cornerRadius = CornerRadius(h / 2f))
+                drawRoundRect(accent, topLeft = Offset(center - w / 2f, size.height - h - 3.dp.toPx()), size = Size(w, h), cornerRadius = CornerRadius(h / 2f))
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Filter.entries.forEach { f ->
+        Filter.entries.forEachIndexed { i, f ->
             Tab(
                 title(f),
-                selected = filter == f,
-                onClick = { onSelect(f) },
-                modifier = Modifier.onGloballyPositioned { c -> bounds[f] = c.positionInParent().x to c.size.width.toFloat() },
+                selected = selected == i,
+                onClick = { onSelect(i) },
+                modifier = Modifier.onGloballyPositioned { c -> bounds[i] = c.positionInParent().x to c.size.width.toFloat() },
             )
         }
     }

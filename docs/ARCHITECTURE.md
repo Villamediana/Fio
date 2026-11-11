@@ -36,6 +36,12 @@ Conexões) com um ponto do fio sob a escolhida; Conexões é uma aba como as out
 espaço embaixo). Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
 Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`) em vez de texto explicando.
 
+Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
+Tarefas, …, Conexões). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
+(`swipeNav`); na biblioteca as abas são um `HorizontalPager`, e na Hoje deslizar pra direita volta
+(o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
+próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.
+
 ## Pacotes
 
 | Pacote | O quê |
