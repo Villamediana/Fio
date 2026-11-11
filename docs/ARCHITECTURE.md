@@ -23,6 +23,9 @@ Nada se perde: sem rede ou sem Ajustes, a captura fica `recorded`/`failed` com o
 fila quando o app abre, quando os Ajustes mudam ou no "N coisas esperando · tentar agora".
 O áudio é apagado depois que a captura vai até o fim.
 
+Enquanto organiza, a tela tem um "parar": solta o modelo (cancel nativo) ou o pedido (OkHttp com tag), cancela o
+trabalho e a fila segue na hora; a captura fica `stopped` (com o texto), só volta por "Tentar de novo" ou pelo
+"esperando · tentar agora". Qualquer falha (até `Error` do motor) termina na tela, nunca num "Organizando…" eterno.
 Se a API recusa o pedido (400/415/422), `Thinking` tenta de novo sem a imagem e depois sem
 `response_format`. Lembrete que venceu com o celular desligado toca quando ele liga; tarefa feita
 perde o lembrete.

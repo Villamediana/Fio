@@ -21,6 +21,9 @@ enum class Need { HEAR, THINK }
 /** Speech → text. */
 interface Ears {
     suspend fun transcribe(wav: File, onPartial: (String) -> Unit): String
+
+    /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
+    fun stop() {}
 }
 
 /** Text (and maybe a photo) → the model's raw answer. */
@@ -28,6 +31,9 @@ interface Thinker {
     /** True when the model that thinks can look at the photo itself (otherwise it gets the text read from it). */
     suspend fun seesImages(): Boolean
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
+
+    /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
+    fun stop() {}
 }
 
 /** Speech → text, on the phone (LFM3) or through the API chosen in Ajustes. */
@@ -87,6 +93,11 @@ class Hearing(
         }
     }
 
+    override fun stop() {
+        engine.cancel()
+        api.cancelAll()
+    }
+
     private fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 }
 
@@ -111,6 +122,11 @@ class Thinking(
     }
 
     override suspend fun seesImages(): Boolean = settings.current().think == Source.API
+
+    override fun stop() {
+        engine.cancel()
+        api.cancelAll()
+    }
 
     override suspend fun answer(system: String, user: String, image: ByteArray?): String = withContext(Dispatchers.IO) {
         val s = settings.current()

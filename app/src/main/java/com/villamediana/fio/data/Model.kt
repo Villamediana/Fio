@@ -89,6 +89,9 @@ data class Capture(
         const val THINKING = "thinking"
         const val DONE = "done"
         const val FAILED = "failed"
+
+        /** Stopped by hand while it was going through: it waits for a "Tentar de novo", never retried on its own. */
+        const val STOPPED = "stopped"
     }
 }
 
