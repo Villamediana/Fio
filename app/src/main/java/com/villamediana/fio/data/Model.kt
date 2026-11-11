@@ -82,6 +82,13 @@ data class Capture(
     val shown: String = "[]",
     /** The entry a check-in was about (the reply goes to it first). */
     val focusEntryId: Long? = null,
+    /** While transcribing: the text of the pieces already heard, so a restart goes on from there. */
+    val heard: String? = null,
+    @ColumnInfo(defaultValue = "0") val heardPieces: Int = 0,
+    /** How it was cut into pieces ("local:28", "api:300"): another way of hearing starts over. */
+    val heardBy: String? = null,
+    /** Runs that started and never ended (the app closed or fell in the middle): after a few, it waits for a hand. */
+    @ColumnInfo(defaultValue = "0") val tries: Int = 0,
 ) {
     companion object {
         const val RECORDED = "recorded"

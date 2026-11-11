@@ -1,6 +1,7 @@
 package com.villamediana.fio.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
@@ -139,8 +140,9 @@ interface ProgressDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class FioDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao

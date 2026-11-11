@@ -9,6 +9,7 @@ import com.villamediana.fio.data.FioDatabase
 import com.villamediana.fio.data.Outcome
 import com.villamediana.fio.data.Status
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -97,7 +98,7 @@ class KeeperAndMindTest {
 
     private class FakeEars(val text: String) : Ears {
         var heard = 0
-        override suspend fun transcribe(wav: File, onPartial: (String) -> Unit): String { heard++; onPartial(text.take(5)); return text }
+        override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String { heard++; onPartial(text.take(5)); return text }
     }
 
     private class FakeThinker(val answers: ArrayDeque<String>) : Thinker {
@@ -128,8 +129,8 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic) = Mind(
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)) = Mind(
+        scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
         photos = NoPhotos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now },
     )
@@ -207,7 +208,7 @@ class KeeperAndMindTest {
         kotlinx.coroutines.delay(300)
         assertEquals(Capture.STOPPED, db.captures().get(id)!!.state)
         // …a hand does, and it goes through.
-        m.retryPending(stoppedToo = true)
+        m.retryPending(byHand = true)
         val a = withTimeout(10_000) { m.state.first { it is MindState.Answer } } as MindState.Answer
         assertEquals("Anotei.", a.reply)
         assertEquals(Capture.DONE, db.captures().get(id)!!.state)
@@ -226,6 +227,69 @@ class KeeperAndMindTest {
         assertEquals(id, p.captureId)
         assertTrue(p.message, p.message.contains("nativeGenerate"))
         assertEquals("comprar café", db.captures().get(id)!!.transcript)
+    }
+
+    /** Hears one piece, keeps it, and then the app "falls" (it never comes back). */
+    private class FallingEars : Ears {
+        override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String {
+            onPiece(Heard("hoy fue un buen día", 1, "local:28"))
+            kotlinx.coroutines.awaitCancellation()
+        }
+    }
+
+    /** Goes on from what was already heard. */
+    private class GoingOnEars : Ears {
+        var from: Heard? = null
+        override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String {
+            this.from = from
+            return from.text + " y fui al aeropuerto"
+        }
+    }
+
+    @Test
+    fun afterAFallTheHearingGoesOnFromThePieceItReached() = runBlocking {
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, durationMs = 60_000, state = Capture.RECORDED))
+        val first = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val m1 = mind(FallingEars(), FakeThinker(ArrayDeque()), scope = first)
+        m1.retry(id)
+        withTimeout(5_000) { while (db.captures().get(id)!!.heardPieces < 1) kotlinx.coroutines.delay(20) }
+        first.cancel() // the app falls
+
+        val ears = GoingOnEars()
+        val m2 = mind(ears, FakeThinker(ArrayDeque(listOf("""{"reply":"Guardei seu dia.","create":[{"kind":"diary","title":"Dia bom e aeroporto"}]}"""))))
+        m2.retryPending() // the app opens again
+        val a = answered(m2)
+        assertEquals(Heard("hoy fue un buen día", 1, "local:28"), ears.from)
+        assertEquals("hoy fue un buen día y fui al aeropuerto", a.said)
+        assertEquals(0, db.captures().get(id)!!.tries)
+    }
+
+    @Test
+    fun whatMadeTheAppFallSeveralTimesWaitsForAHand() = runBlocking {
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, durationMs = 2000, state = Capture.TRANSCRIBING, tries = Mind.MAX_TRIES))
+        val ears = FakeEars("comprar pão")
+        val m = mind(ears, FakeThinker(ArrayDeque(listOf("""{"reply":"Anotei.","create":[{"kind":"task","title":"Comprar pão"}]}"""))))
+        m.retryPending()
+        kotlinx.coroutines.delay(400)
+        assertEquals(0, ears.heard) // not on its own: it would only fall again
+        m.retryPending(byHand = true)
+        val a = withTimeout(10_000) { m.state.first { it is MindState.Answer } } as MindState.Answer
+        assertEquals("Anotei.", a.reply)
+        assertEquals(Capture.DONE, db.captures().get(id)!!.state)
+    }
+
+    @Test
+    fun theModelOnThePhoneGetsItsThinkingTurnedOffAndNoThinkingShows() {
+        assertTrue(Brain.chatml("s", "u").endsWith("<|im_start|>assistant\n<think></think>"))
+        val asr = com.villamediana.fio.local.LocalEngine.asrPrompt("Spanish")
+        assertTrue(asr.contains("Perform ASR in Spanish.") && asr.contains("<__media__>"))
+        assertTrue(asr.endsWith("<|im_start|>assistant\n<think></think>"))
+        val clean = com.villamediana.fio.local.LocalEngine::clean
+        assertEquals("Bueno, hoy es un buen día.", clean("<think></think>Bueno, hoy es un buen día."))
+        assertEquals("Harle algunas cositas", clean("<think>\n</think>Harle algunas cositas"))
+        assertEquals("Bueno", clean("Bueno <think></thi")) // still coming: never shown half
+        val end = com.villamediana.fio.ui.home.tail("um dois três ".repeat(40) + "o fim", max = 24)
+        assertTrue(end, end.startsWith("…") && end.endsWith("o fim") && end.length <= 25 && !end.startsWith("… "))
     }
 
     @Test
@@ -339,7 +403,7 @@ class KeeperAndMindTest {
     @Test
     fun nothingIsLostWhenItCantGoThrough() = runBlocking {
         val notReady = object : Ears {
-            override suspend fun transcribe(wav: File, onPartial: (String) -> Unit): String = throw NotReady(Need.HEAR, "configure a API em Ajustes")
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = throw NotReady(Need.HEAR, "configure a API em Ajustes")
         }
         val m = mind(notReady, FakeThinker(ArrayDeque()))
         val wav = voiceFile()

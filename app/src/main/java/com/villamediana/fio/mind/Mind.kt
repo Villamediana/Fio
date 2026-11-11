@@ -162,6 +162,11 @@ class Mind(
         }
         mic.hold()
         _state.value = MindState.Listening(clock(), locked, focusId)
+        // The model on the phone loads while she talks: when she stops, the work starts at once.
+        scope.launch {
+            runCatching { hearing.warm() }
+            runCatching { thinking.warm() }
+        }
         return true
     }
 
@@ -223,19 +228,29 @@ class Mind(
 
     fun retry(captureId: Long) {
         scope.launch {
-            val c = db.captures().get(captureId) ?: return@launch
-            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript.orEmpty(), c.source == "photo"))
+            var c = db.captures().get(captureId) ?: return@launch
+            if (c.tries > 0 && !busy(c.id)) c = c.copy(tries = 0).also { db.captures().update(it) }
+            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript ?: c.heard.orEmpty(), c.source == "photo"))
             enqueue(captureId)
         }
     }
 
+    private fun busy(id: Long) = current == id || synchronized(queued) { id in queued }
+
     /**
      * Everything that didn't go through yet (app opening, Ajustes saved). What was stopped by hand
-     * waits for a hand too: only [stoppedToo] (the "esperando · tentar agora" chip) takes it.
+     * waits for a hand too, and so does what made the app fall several times in a row (going again
+     * on its own would only make it fall again): only [byHand] (the "esperando · tentar agora"
+     * chip) takes those.
      */
-    fun retryPending(stoppedToo: Boolean = false) {
+    fun retryPending(byHand: Boolean = false) {
         scope.launch {
-            db.captures().unfinished().filter { stoppedToo || it.state != Capture.STOPPED }.forEach { enqueue(it.id) }
+            db.captures().unfinished().forEach { c ->
+                val waitsForHand = c.state == Capture.STOPPED || c.tries >= MAX_TRIES
+                if (waitsForHand && !byHand) return@forEach
+                if (byHand && c.tries > 0 && !busy(c.id)) db.captures().update(c.copy(tries = 0))
+                enqueue(c.id)
+            }
         }
     }
 
@@ -253,9 +268,10 @@ class Mind(
 
     private suspend fun stopped(id: Long) {
         val c = db.captures().get(id)
-        if (c != null && c.state != Capture.DONE) db.captures().update(c.copy(state = Capture.STOPPED, error = STOPPED_MESSAGE))
+        if (c != null && c.state != Capture.DONE) db.captures().update(c.copy(state = Capture.STOPPED, error = STOPPED_MESSAGE, tries = 0))
         if (c?.state == Capture.DONE) return
-        show(MindState.Problem(id, null, STOPPED_MESSAGE, c?.transcript))
+        // What was heard before the stop stays (and a "Tentar de novo" goes on from there).
+        show(MindState.Problem(id, null, STOPPED_MESSAGE, c?.transcript ?: c?.heard))
     }
 
     /** Drops a capture that couldn't go through (and its audio or photo). */
@@ -302,6 +318,9 @@ class Mind(
         var c = db.captures().get(id) ?: return
         if (c.state == Capture.DONE) return
         val photo = c.source == "photo"
+        // A run that starts counts until it ends by itself (an answer, a problem on the screen, a
+        // stop); one that never ends is an app that closed or fell in the middle.
+        c = c.copy(tries = c.tries + 1).also { db.captures().update(it) }
         try {
             var said = c.transcript
             if (said == null) {
@@ -310,8 +329,13 @@ class Mind(
                     say(MindState.Working(id, Stage.READING, "", photo = true))
                     said = photos.text(File(c.imagePath!!))
                 } else {
-                    say(MindState.Working(id, Stage.HEARING, ""))
-                    said = hearing.transcribe(File(c.audioPath!!)) { partial -> say(MindState.Working(id, Stage.HEARING, partial)) }
+                    say(MindState.Working(id, Stage.HEARING, c.heard.orEmpty()))
+                    // Each piece heard is kept: after a fall it goes on from there, not from the start.
+                    said = hearing.transcribe(
+                        File(c.audioPath!!),
+                        from = Heard(c.heard.orEmpty(), c.heardPieces, c.heardBy),
+                        onPiece = { h -> c = c.copy(heard = h.text, heardPieces = h.pieces, heardBy = h.by).also { db.captures().update(it) } },
+                    ) { partial -> say(MindState.Working(id, Stage.HEARING, partial)) }
                 }
                 c = c.copy(transcript = said).also { db.captures().update(it) }
             }
@@ -337,6 +361,7 @@ class Mind(
             db.captures().update(
                 c.copy(
                     state = Capture.DONE,
+                    tries = 0,
                     error = null,
                     reply = plan.reply,
                     outcomes = ids.encodeToString(ListSerializer(Outcome.serializer()), result.outcomes),
@@ -346,8 +371,8 @@ class Mind(
             c.audioPath?.let { File(it).delete() }
             say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo))
         } catch (e: NotReady) {
-            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message))
-            say(MindState.Problem(id, e.what, e.message ?: "", c.transcript))
+            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))
+            say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -358,8 +383,8 @@ class Mind(
                 is IOException -> "Sem conexão agora. Guardei; tento de novo depois."
                 else -> e.message ?: e.javaClass.simpleName
             }
-            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg))
-            say(MindState.Problem(id, null, msg, c.transcript))
+            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
+            say(MindState.Problem(id, null, msg, c.transcript ?: c.heard))
         }
     }
 
@@ -412,6 +437,9 @@ class Mind(
     companion object {
         /** Shorter than this is a slip of the finger, not a thought. */
         const val MIN_MS = 700L
+
+        /** Runs that never ended (the app fell in the middle) before it waits for a hand. */
+        const val MAX_TRIES = 3
 
         /** How many times the model may ask to look something up for one thing said. */
         const val MAX_LOOKUPS = 2

@@ -204,7 +204,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
                         .clip(CircleShape)
-                        .clickable { mind.retryPending(stoppedToo = true) }
+                        .clickable { mind.retryPending(byHand = true) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
@@ -334,13 +334,22 @@ private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     )
     if (s.text.isNotBlank()) {
         Spacer(Modifier.height(12.dp))
-        Said(s.text, maxLines = 8)
+        // While it comes, the newest words: the beginning is already known, the end shows it is going.
+        Said(tail(s.text), maxLines = 8)
     }
     // Taking too long: a stop. What was said stays, to try again or discard.
     if (s.captureId != 0L) {
         Spacer(Modifier.height(8.dp))
         QuietWord("parar", onStop)
     }
+}
+
+/** The end of a long text, from a whole word, after "…". */
+fun tail(text: String, max: Int = 340): String {
+    val t = text.trim()
+    if (t.length <= max) return t
+    val cut = t.takeLast(max)
+    return "…" + cut.substring((cut.indexOf(' ') + 1).coerceAtMost(cut.length))
 }
 
 @Composable

@@ -89,7 +89,7 @@ Ela também pode:
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem. Pergunta não cria item.
 
 Como preencher:
-- Use as palavras dela. Título curto (até ~8 palavras). Corpo com os detalhes ditos, sem inventar nada.
+- Use as palavras dela. Título curto (até ~8 palavras) que diz do que se trata — nunca o tipo do item. Corpo com os detalhes ditos, sem inventar nada.
 - Datas relativas (amanhã, sexta, daqui a duas semanas, às 3 da tarde) viram data absoluta a partir de AGORA, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM. Sem data dita, null.
 - remind_at: quando ela pede pra ser lembrada, ou quando algo tem hora marcada (lembre um pouco antes).
 - check_in_at: em tarefas que levam dias ou têm etapas, escolha um bom momento pra perguntar como está. Pode ser null.
@@ -185,9 +185,9 @@ Responda somente com um objeto JSON neste formato:
         }
     }
 
-    /** The plain chat format LFM3 was trained on (for the on-device model). */
+    /** The plain chat format LFM3 was trained on (for the on-device model), the thinking turned off as its template does. */
     fun chatml(system: String, user: String): String =
-        "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n$user<|im_end|>\n<|im_start|>assistant\n"
+        "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n$user<|im_end|>\n<|im_start|>assistant\n<think></think>"
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true; explicitNulls = false }
 
