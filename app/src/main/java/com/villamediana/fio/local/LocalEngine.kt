@@ -15,7 +15,8 @@ fun interface TokenSink {
  * LFM3-Omni on the phone (llama.cpp, app/src/main/cpp): one model hears, thinks and looks at the
  * photos. Loaded on first use and kept for a few minutes, then let go (~1.6 GB of RAM).
  */
-class LocalEngine {
+/** [cacheDir]: where the instructions' snapshot is kept, so they run once per model and version. */
+class LocalEngine(private val cacheDir: java.io.File? = null) {
     private val lock = Mutex()
     @Volatile private var handle = 0L
     private var loadedFrom: String? = null
@@ -29,8 +30,13 @@ class LocalEngine {
             clean(String(out, Charsets.UTF_8))
         }
 
-    /** Loads the model now (while she is still talking), so the work after starts at once. */
-    suspend fun warm(files: LocalModel.Files) = use(files) { }
+    /**
+     * Loads the model now (while she is still talking), so the work after starts at once; with
+     * [fixed] (the instructions), their snapshot gets ready too (from disk, or run once and kept).
+     */
+    suspend fun warm(files: LocalModel.Files, fixed: String = "") = use(files) { h ->
+        if (fixed.isNotEmpty()) nativePrime(h, fixed.toByteArray())
+    }
 
     /**
      * [image]: a JPEG the model looks at, placed at [MEDIA] in the prompt (left out when it can't be read).
@@ -71,7 +77,7 @@ class LocalEngine {
             if (handle == 0L || loadedFrom != files.model.path) {
                 freeLocked()
                 val threads = threads()
-                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192)
+                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192, snapshotFile(files)?.path.orEmpty())
                 check(handle != 0L) { "não deu pra carregar o modelo local" }
                 loadedFrom = files.model.path
             }
@@ -84,13 +90,22 @@ class LocalEngine {
         }
     }
 
+    /** The instructions' snapshot for this model and this version of the app (others, left from before, go). */
+    private fun snapshotFile(files: LocalModel.Files): java.io.File? {
+        val dir = cacheDir ?: return null
+        val name = "prompt-" + files.model.name + "-" + files.model.length() + "-" + com.villamediana.fio.BuildConfig.VERSION_CODE + ".bin"
+        runCatching { dir.mkdirs(); dir.listFiles().orEmpty().filter { it.name.startsWith("prompt-") && it.name != name }.forEach { it.delete() } }
+        return java.io.File(dir, name)
+    }
+
     private fun freeLocked() {
         if (handle != 0L) nativeFree(handle)
         handle = 0L
         loadedFrom = null
     }
 
-    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int): Long
+    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int, cache: String): Long
+    private external fun nativePrime(handle: Long, prefix: ByteArray): Boolean
     private external fun nativeFree(handle: Long)
     private external fun nativeCancel(handle: Long)
     private external fun nativeTranscribe(handle: Long, pcm: FloatArray, prompt: ByteArray, maxTokens: Int, sink: TokenSink?): ByteArray?

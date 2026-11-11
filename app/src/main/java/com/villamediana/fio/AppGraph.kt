@@ -49,7 +49,7 @@ class AppGraph(context: Context) {
     val db: FioDatabase by lazy { FioDatabase.open(appContext) }
     val settings: Settings by lazy { Settings(appContext, scope) }
     val api: Api by lazy { Api(http) }
-    val engine: LocalEngine by lazy { LocalEngine() }
+    val engine: LocalEngine by lazy { LocalEngine(java.io.File(appContext.cacheDir, "model")) }
     /** On the phone: LFM3-Omni hears, thinks and sees. */
     val localModel: LocalModel by lazy { LocalModel(appContext, scope) }
     val recorder: Recorder by lazy { Recorder() }

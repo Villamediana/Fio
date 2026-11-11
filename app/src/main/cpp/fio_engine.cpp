@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -42,6 +44,9 @@ struct Engine {
     std::string prefix_text;
     std::vector<uint8_t> prefix_state;
     llama_pos prefix_pos = 0;
+    // Where that snapshot is kept on disk (for this model and app version): the instructions run
+    // once, ever — not again each time the model was let go or the app opened.
+    std::string cache_path;
 };
 
 void log_to_android(enum ggml_log_level level, const char * text, void *) {
@@ -243,14 +248,62 @@ bool decode_all(Engine * e, const std::vector<llama_token> & toks) {
     return true;
 }
 
+/** The snapshot of [prefix] from disk into [e] (only when it is of that very text); false if none. */
+bool read_cache(Engine * e, const std::string & prefix) {
+    if (e->cache_path.empty()) return false;
+    FILE * f = std::fopen(e->cache_path.c_str(), "rb");
+    if (!f) return false;
+    bool ok = false;
+    char magic[4];
+    uint64_t text_size = 0, state_size = 0;
+    int32_t pos = 0;
+    if (std::fread(magic, 1, 4, f) == 4 && std::memcmp(magic, "FIO1", 4) == 0 &&
+        std::fread(&text_size, sizeof(text_size), 1, f) == 1 && text_size == prefix.size()) {
+        std::string text((size_t) text_size, '\0');
+        if (std::fread(text.data(), 1, text.size(), f) == text.size() && text == prefix &&
+            std::fread(&pos, sizeof(pos), 1, f) == 1 && std::fread(&state_size, sizeof(state_size), 1, f) == 1 &&
+            pos > 0 && state_size > 0 && state_size < (1ull << 31)) {
+            std::vector<uint8_t> state((size_t) state_size);
+            if (std::fread(state.data(), 1, state.size(), f) == state.size()) {
+                e->prefix_state.swap(state);
+                e->prefix_text = prefix;
+                e->prefix_pos = pos;
+                ok = true;
+            }
+        }
+    }
+    std::fclose(f);
+    return ok;
+}
+
+/** The snapshot in [e] to disk (written aside, then put in place: never half a file). */
+void write_cache(Engine * e) {
+    if (e->cache_path.empty() || e->prefix_state.empty()) return;
+    const std::string tmp = e->cache_path + ".tmp";
+    FILE * f = std::fopen(tmp.c_str(), "wb");
+    if (!f) return;
+    const uint64_t text_size = e->prefix_text.size(), state_size = e->prefix_state.size();
+    const int32_t pos = (int32_t) e->prefix_pos;
+    bool ok = std::fwrite("FIO1", 1, 4, f) == 4 &&
+        std::fwrite(&text_size, sizeof(text_size), 1, f) == 1 &&
+        std::fwrite(e->prefix_text.data(), 1, e->prefix_text.size(), f) == e->prefix_text.size() &&
+        std::fwrite(&pos, sizeof(pos), 1, f) == 1 &&
+        std::fwrite(&state_size, sizeof(state_size), 1, f) == 1 &&
+        std::fwrite(e->prefix_state.data(), 1, e->prefix_state.size(), f) == e->prefix_state.size();
+    ok = std::fclose(f) == 0 && ok;
+    if (ok) std::rename(tmp.c_str(), e->cache_path.c_str()); else std::remove(tmp.c_str());
+}
+
 /**
- * Seq 0 holding exactly [prefix]: put back from the snapshot when it is of the same text, else run
- * now and kept. The position after it; -1 on failure (memory left empty).
+ * Seq 0 holding exactly [prefix]: put back from the snapshot when it is of the same text (from
+ * memory, or from disk), else run now and kept (on disk too). The position after it; -1 on failure
+ * (memory left empty).
  */
 llama_pos start_from(Engine * e, const std::string & prefix) {
     llama_memory_t mem = llama_get_memory(e->ctx);
     llama_memory_clear(mem, true);
     if (prefix.empty()) return 0;
+    if (e->prefix_text != prefix) read_cache(e, prefix);
     if (!e->prefix_state.empty() && e->prefix_text == prefix) {
         const size_t read = llama_state_seq_set_data(e->ctx, e->prefix_state.data(), e->prefix_state.size(), 0);
         if (read > 0 && llama_memory_seq_pos_max(mem, 0) == e->prefix_pos - 1) return e->prefix_pos;
@@ -271,6 +324,7 @@ llama_pos start_from(Engine * e, const std::string & prefix) {
         e->prefix_state.swap(state);
         e->prefix_text = prefix;
         e->prefix_pos = pos;
+        write_cache(e);
     }
     return pos;
 }
@@ -308,7 +362,7 @@ llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::str
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx) {
+Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx, jstring jcache) {
     llama_log_set(log_to_android, nullptr);
     mtmd_helper_log_set(log_to_android, nullptr);
     llama_backend_init();
@@ -317,6 +371,7 @@ Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, js
     const std::string mmproj_path = jstr(env, jmmproj);
 
     auto * e = new Engine();
+    e->cache_path = jstr(env, jcache);
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;
     e->model = llama_model_load_from_file(model_path.c_str(), mp);
@@ -420,6 +475,24 @@ Java_com_villamediana_fio_local_LocalEngine_nativeTranscribe(JNIEnv * env, jobje
     mtmd_bitmap_free(audio);
     if (rc != 0) return nullptr;
     return to_bytes(env, out);
+}
+
+/**
+ * Gets the instructions' snapshot ready ([prefix]: from disk, or run now and kept) while she is
+ * still talking, so the answer after starts from there. True when it is ready.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_villamediana_fio_local_LocalEngine_nativePrime(JNIEnv * env, jobject, jlong h, jbyteArray jprefix) {
+    auto * e = reinterpret_cast<Engine *>(h);
+    if (!e) return JNI_FALSE;
+    const std::string prefix = jbytes(env, jprefix);
+    if (prefix.empty()) return JNI_FALSE;
+    if (e->prefix_text == prefix && !e->prefix_state.empty()) return JNI_TRUE;
+    if (read_cache(e, prefix)) return JNI_TRUE;
+    e->cancel.store(false);
+    const llama_pos pos = start_from(e, prefix);
+    llama_memory_clear(llama_get_memory(e->ctx), true);
+    return pos > 0 ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jbyteArray JNICALL

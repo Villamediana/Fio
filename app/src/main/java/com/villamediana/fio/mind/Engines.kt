@@ -172,7 +172,8 @@ class Thinking(
 
     override suspend fun warm() {
         val s = settings.current()
-        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files)
+        // The instructions too: on the phone they are most of the work of organizing.
+        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files, Brain.chatmlHead(Brain.SYSTEM))
     }
 
     override fun stop() {
