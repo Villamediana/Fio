@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +53,7 @@ import com.villamediana.fio.data.TopicPair
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.EntryCard
+import com.villamediana.fio.ui.components.FioIcons
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.theme.Outfit
@@ -138,7 +137,7 @@ fun GraphScreen(nav: Nav, startTopic: Long?) {
         }
 
         Row(Modifier.statusBarsPadding().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             Text("Conexões", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
         }
 

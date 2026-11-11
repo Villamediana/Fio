@@ -5,11 +5,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.villamediana.fio.R
 
-/** The few icons outside material-icons-core, as vector drawables (the whole extended set is ~30 MB of dex). */
+/** Fio's own icons: one thin, round-ended line for all of them (res/drawable/ic_*.xml). */
 object FioIcons {
     val Mic: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_mic)
     val PhotoCamera: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_photo_camera)
     val Tune: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_tune)
+    val Back: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_back)
+    val Search: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_search)
+    val Close: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_close)
+    val More: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_more)
+    val Lock: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_lock)
+    val Plus: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_plus)
+    val Check: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_check)
     val FlashOn: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_on)
     val FlashOff: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_off)
 }

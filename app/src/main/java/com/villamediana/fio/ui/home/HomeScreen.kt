@@ -35,9 +35,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
@@ -135,7 +132,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     Box(Modifier.fillMaxSize().background(FioColors.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Box(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.4f)
+                QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.55f)
             }
 
             Spacer(Modifier.weight(1f - 0.82f * lift))
@@ -207,7 +204,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 }
 
 @Composable
-fun QuietIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, alpha: Float = 0.5f) {
+fun QuietIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, alpha: Float = 0.62f) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         Modifier
@@ -217,7 +214,7 @@ fun QuietIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Stri
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = label, tint = FioColors.Text, modifier = Modifier.size(22.dp).graphicsLayer { this.alpha = alpha })
+        Icon(icon, contentDescription = label, tint = FioColors.Text, modifier = Modifier.size(24.dp).graphicsLayer { this.alpha = alpha })
     }
 }
 
@@ -229,7 +226,7 @@ private fun FocusChip(entry: Entry, onClear: () -> Unit) {
     ) {
         Text("Sobre: " + entry.title, style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Box(Modifier.size(34.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
+            Icon(FioIcons.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -343,16 +340,18 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
     Box(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (s.reply.isNotBlank()) {
-                Text(s.reply, style = MaterialTheme.typography.titleLarge, color = FioColors.Text, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 34.dp))
+                Text(s.reply, style = MaterialTheme.typography.titleLarge, color = FioColors.Text, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
             }
-            if (s.said.isNotBlank()) {
-                Text(
-                    if (showSaid) "“" + s.said.trim() + "”" else if (s.photo) "da foto" else "o que você disse",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = FioColors.TextFaint,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp).clip(RoundedCornerShape(8.dp)).clickable { showSaid = !showSaid }.padding(horizontal = 8.dp, vertical = 4.dp),
-                )
+            if (showSaid && s.said.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Said(s.said, maxLines = 12)
+            }
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (s.said.isNotBlank()) {
+                    QuietWord(if (showSaid) "esconder" else if (s.photo) "da foto" else "o que você disse") { showSaid = !showSaid }
+                    Text("·", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
+                }
+                QuietWord("fechar", onDismiss)
             }
             Spacer(Modifier.height(14.dp))
             val byId = entries.associateBy { it.id }
@@ -367,10 +366,17 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
                 AppearingCard(i++) { EntryCard(e, onClick = { onOpen(e.id) }, terms = terms, onToggle = { onToggle(e.id) }) }
             }
         }
-        Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-4).dp).size(36.dp).clip(CircleShape).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Close, "Fechar", tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
-        }
     }
+}
+
+@Composable
+private fun QuietWord(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = FioColors.TextFaint,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
+    )
 }
 
 /** Cards come in one after the other, a beat apart. */
@@ -446,7 +452,7 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onToday: () ->
             }
         }
         Spacer(Modifier.weight(1f))
-        QuietIcon(Icons.Rounded.Search, "Buscar", onSearch)
+        QuietIcon(FioIcons.Search, "Buscar", onSearch)
     }
 }
 

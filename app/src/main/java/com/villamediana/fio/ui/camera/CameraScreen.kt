@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import com.villamediana.fio.ui.components.FioIcons
 import androidx.compose.material3.MaterialTheme
@@ -94,7 +92,7 @@ fun CameraScreen(nav: Nav) {
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = shutter.value }.background(Color.White))
 
         Box(Modifier.fillMaxSize().statusBarsPadding().padding(8.dp)) {
-            RoundIcon(Icons.Rounded.Close, "Fechar", Modifier.align(Alignment.TopStart)) { nav.back() }
+            RoundIcon(FioIcons.Close, "Fechar", Modifier.align(Alignment.TopStart)) { nav.back() }
             RoundIcon(if (flash) FioIcons.FlashOn else FioIcons.FlashOff, "Flash", Modifier.align(Alignment.TopEnd)) { flash = !flash }
         }
 

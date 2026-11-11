@@ -17,10 +17,10 @@ val signingProps = Properties().apply {
     candidates.firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
 }
 
-// The on-device model (LFM3 through llama.cpp, app/src/main/cpp). Built only with -Pfio.native=true
-// and llama.cpp checked out in third_party/llama.cpp (tools/fetch-llama.sh).
-val llamaDir = rootProject.file("third_party/llama.cpp")
-val withNative = (findProperty("fio.native") as String?)?.toBoolean() == true && File(llamaDir, "CMakeLists.txt").exists()
+// The on-device model (LFM3 through llama.cpp, app/src/main/cpp). Built only with -Pfio.llama=<dir>,
+// a llama.cpp checkout that lives just for the build (tools/release.sh fetches it and deletes it).
+val llamaDir = (findProperty("fio.llama") as String?)?.takeIf { it.isNotBlank() }?.let { File(it) }
+val withNative = llamaDir != null && File(llamaDir, "CMakeLists.txt").exists()
 
 kotlin {
     jvmToolchain(21)
@@ -38,8 +38,8 @@ android {
         applicationId = "com.villamediana.fio"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         // Phones only (ML Kit's OCR alone ships ~11 MB per ABI).
@@ -47,7 +47,7 @@ android {
         if (withNative) {
             externalNativeBuild {
                 cmake {
-                    arguments += listOf("-DLLAMA_DIR=${llamaDir.absolutePath}", "-DANDROID_STL=c++_shared")
+                    arguments += listOf("-DLLAMA_DIR=${llamaDir!!.absolutePath}", "-DANDROID_STL=c++_shared")
                     cppFlags += listOf("-std=c++17")
                 }
             }
