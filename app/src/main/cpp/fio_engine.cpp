@@ -198,7 +198,7 @@ Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, js
         if (!e->mtmd) LOGE("audio projector failed: %s", mmproj_path.c_str());
     }
 
-    for (const char * p : { "<|audio_start|>", "<|mixed_start|>" }) {
+    for (const char * p : { "<|audio_start|>", "<|mixed_start|>", "<|audio_out|>" }) {
         const llama_token t = single_token(e->vocab, p);
         if (t != LLAMA_TOKEN_NULL) e->text_only.push_back({ t, -INFINITY });
     }
