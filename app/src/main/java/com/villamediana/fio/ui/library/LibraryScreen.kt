@@ -136,7 +136,8 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     val terms = remember(recall, debounced) { recall?.terms(debounced).orEmpty() }
     // The photos: the gallery, the day's diary, and the search (by what each one shows).
     val photos by graph.library.allPhotos().collectAsStateWithLifecycle(initialValue = emptyList())
-    val photoHits = remember(photos, debounced) { if (debounced.isBlank()) emptyList() else PhotoRecall(photos).search(debounced, limit = 30) }
+    val photoIndex = remember(photos) { PhotoRecall(photos) }
+    val photoHits = remember(photoIndex, debounced) { if (debounced.isBlank()) emptyList() else photoIndex.search(debounced, limit = 30) }
     val dayPhotos = remember(entries, photos) { DayPhotosIndex.of(entries.orEmpty(), photos, ZoneId.systemDefault()) }
 
     LaunchedEffect(searching) { if (searching) runCatching { focus.requestFocus() } }

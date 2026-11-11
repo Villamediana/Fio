@@ -32,10 +32,16 @@ class LocalEngine {
     /** Loads the model now (while she is still talking), so the work after starts at once. */
     suspend fun warm(files: LocalModel.Files) = use(files) { }
 
-    /** [image]: a JPEG the model looks at, placed at [MEDIA] in the prompt (left out when it can't be read). */
-    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, image: ByteArray? = null, maxTokens: Int = 1200, onText: (String) -> Unit = {}): String =
+    /**
+     * [image]: a JPEG the model looks at, placed at [MEDIA] in the prompt (left out when it can't be read).
+     * [fixed]: the start of [prompt] that is the same every time (the instructions): run once and
+     * then put back, so each answer only runs what changed.
+     */
+    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, image: ByteArray? = null, maxTokens: Int = 1200, fixed: String = "", onText: (String) -> Unit = {}): String =
         use(files) { h ->
-            val out = nativeGenerate(h, prompt.toByteArray(), grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
+            val bytes = prompt.toByteArray()
+            val keep = if (fixed.isNotEmpty() && prompt.startsWith(fixed)) fixed.toByteArray().size else 0
+            val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
             String(out, Charsets.UTF_8)
         }
 
@@ -88,7 +94,7 @@ class LocalEngine {
     private external fun nativeFree(handle: Long)
     private external fun nativeCancel(handle: Long)
     private external fun nativeTranscribe(handle: Long, pcm: FloatArray, prompt: ByteArray, maxTokens: Int, sink: TokenSink?): ByteArray?
-    private external fun nativeGenerate(handle: Long, prompt: ByteArray, grammar: String?, image: ByteArray?, maxTokens: Int, sink: TokenSink?): ByteArray?
+    private external fun nativeGenerate(handle: Long, prompt: ByteArray, keep: Int, grammar: String?, image: ByteArray?, maxTokens: Int, sink: TokenSink?): ByteArray?
 
     companion object {
         /** Where a photo goes in the prompt (llama.cpp's media marker). */

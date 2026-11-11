@@ -77,6 +77,15 @@ fun photoAspect(path: String): Float = synchronized(ratios) { ratios[path] } ?: 
     r
 }
 
+/** The shapes of [photos] (id → width over height, kept within [min]..[max]), read off the main thread; null until read. */
+@Composable
+fun rememberAspects(photos: List<Photo>, min: Float, max: Float): Map<Long, Float>? {
+    val aspects by produceState<Map<Long, Float>?>(null, photos) {
+        value = withContext(Dispatchers.IO) { photos.associate { it.id to photoAspect(it.path).coerceIn(min, max) } }
+    }
+    return aspects
+}
+
 /** The photo at [path], at most [maxPx] on its long side, upright; null while it loads (or if it can't). */
 @Composable
 fun rememberPhoto(path: String, maxPx: Int): Bitmap? {

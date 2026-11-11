@@ -30,7 +30,7 @@ import com.villamediana.fio.mind.Photo
 import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.ui.components.PhotoViewer
 import com.villamediana.fio.ui.components.bleed
-import com.villamediana.fio.ui.components.photoAspect
+import com.villamediana.fio.ui.components.rememberAspects
 import java.io.File
 import java.time.ZoneId
 
@@ -55,13 +55,14 @@ internal fun DayPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
 @Composable
 internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
+    val aspects = rememberAspects(photos, min = 0.62f, max = 1.6f) ?: return
     LazyRow(
         modifier.bleed(side).fillMaxWidth().testTag("$tag-row"),
         contentPadding = PaddingValues(horizontal = side),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
-            val ratio = remember(p.path) { photoAspect(p.path).coerceIn(0.62f, 1.6f) }
+            val ratio = aspects[p.id] ?: 1f
             PhotoTile(
                 p.path,
                 Modifier

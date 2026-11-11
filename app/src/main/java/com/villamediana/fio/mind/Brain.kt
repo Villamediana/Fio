@@ -134,25 +134,20 @@ Responda somente com um objeto JSON neste formato:
         diary: Entry? = null,
         photos: List<Photo> = emptyList(),
     ): String = buildString {
-        val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
-        val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
-        append("AGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
-        if (focus != null) {
-            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
-            // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
-            append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
-        }
+        // What changes least comes first and what changes every time last (the moment, the item
+        // being answered about, the words): a server that caches the start of the prompt, and the
+        // phone that keeps its instructions run, reuse as much of it as can be.
         val today = diary?.takeIf { it.id != focus?.id }
+        val shown = setOfNotNull(focus?.id, today?.id)
+        val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
+        if (tasks.isNotEmpty()) {
+            append("TAREFAS ABERTAS:\n")
+            tasks.forEach { append(line(it, zone, now)).append('\n') }
+        }
         if (today != null) {
             // Whole (up to a point): the day's story goes on in it without repeating it.
             append("\nDIÁRIO DE HOJE:\n")
             append(line(today, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
-        }
-        val shown = setOfNotNull(focus?.id, today?.id)
-        val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
-        if (tasks.isNotEmpty()) {
-            append("\nTAREFAS ABERTAS:\n")
-            tasks.forEach { append(line(it, zone, now)).append('\n') }
         }
         val last = recent.filter { it.id !in shown }.take(MAX_RECENT)
         if (last.isNotEmpty()) {
@@ -179,6 +174,14 @@ Responda somente com um objeto JSON neste formato:
             append(if (looked == null) "\nFOTOS QUE PODEM TER A VER:\n" else "\nFOTOS ACHADAS:\n")
             photos.take(MAX_PHOTOS).forEach { append(photoLine(it, zone)).append('\n') }
         }
+        if (focus != null) {
+            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
+            // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
+            append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
+        }
+        val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
+        append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
         append(
             when {
                 photo -> "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n"
@@ -228,7 +231,10 @@ Responda somente com um objeto JSON neste formato:
 
     /** The plain chat format LFM3 was trained on (for the on-device model), the thinking turned off as its template does. */
     fun chatml(system: String, user: String): String =
-        "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n$user<|im_end|>\n<|im_start|>assistant\n<think></think>"
+        chatmlHead(system) + "$user<|im_end|>\n<|im_start|>assistant\n<think></think>"
+
+    /** The start of [chatml] that only depends on the instructions: the same on every answer (the phone keeps it run). */
+    fun chatmlHead(system: String): String = "<|startoftext|><|im_start|>system\n$system<|im_end|>\n<|im_start|>user\n"
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true; explicitNulls = false }
 

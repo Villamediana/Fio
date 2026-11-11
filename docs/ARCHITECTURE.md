@@ -109,6 +109,25 @@ aí as duas coisas: o item recebe só o que muda pra ele, o diário o relato int
 fora das outras listas) e o relato entra nele por `update.append` — parágrafo novo no fim, sem mexer
 no que já está nem no título; sem diário hoje, cria.
 
+## Economia (1.13.0)
+
+- **Celular**: `Brain.chatmlHead(SYSTEM)` (as instruções, ~1.250 tokens) é o começo fixo de toda
+  resposta. `nativeGenerate(keep=bytes)` roda esse começo uma vez e guarda o estado do modelo
+  (`llama_state_seq_get_data`, retrato inteiro — o LFM tem camadas de convolução que não se cortam
+  numa posição); nas próximas respostas `start_from` põe o retrato de volta e só roda o resto.
+  Retrato que não volta certo (`seq_pos_max` diferente) é descartado e o começo roda de novo.
+  Vale também com foto (`mtmd_helper_eval_chunks` a partir da posição do retrato).
+- **Contexto na ordem do cache**: tarefas abertas → diário de hoje → últimas → lembranças/busca →
+  fotos → item em foco → AGORA → a fala. O que muda a cada minuto fica no fim: o cache de prompt
+  do servidor (automático acima de 1.024 tokens) pega instruções + tarefas + diário.
+- **API**: `ApiAsks` — tudo primeiro (JSON, `reasoning_effort: low`, foto com `detail: low`); o
+  servidor recusou algo → pede sem aquilo e guarda (por servidor+modelo, nesta execução) só o que
+  fez dar certo, pra não pagar a recusa de novo. A foto nunca fica marcada como recusada.
+- **Foto pro modelo**: 768 px (o texto dela vem lido pelo ML Kit). Outras fotos no contexto só pra
+  fala/texto (não quando a captura é uma foto), até 4 no primeiro olhar, 8 quando o modelo pede busca.
+- **Tela**: índice de busca de fotos montado uma vez por lista; proporção das fotos lida fora da
+  thread principal (`rememberAspects`); miniaturas decodificadas no tamanho certo e guardadas num LRU.
+
 ## Motor no celular
 
 `fio_engine.cpp` usa só as APIs C de `llama.h`, `mtmd.h` e `mtmd-helper.h` (llama.cpp v0.9.0):

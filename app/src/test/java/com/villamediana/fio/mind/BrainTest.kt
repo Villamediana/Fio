@@ -91,6 +91,31 @@ class BrainTest {
     }
 
     @Test
+    fun whatChangesLeastComesFirstTheMomentAndTheWordsLast() {
+        val now = LocalDateTime.of(2026, 11, 11, 10, 0).atZone(zone).toInstant().toEpochMilli()
+        val task = Entry(id = 12, kind = "task", title = "Contrato da torre", status = "doing", createdAt = now, updatedAt = now)
+        val diary = Entry(id = 20, kind = "diary", title = "Quarta", body = "Acordei cedo.", createdAt = now, updatedAt = now)
+        val last = Entry(id = 51, kind = "note", title = "Placa do carro", createdAt = now, updatedAt = now)
+        val ctx = Brain.context("cheguei na estação", now, zone, listOf(task), emptyList(), recent = listOf(last), diary = diary)
+        // A server caching the prompt's start (and the phone) reuse the open tasks and the day's diary.
+        assertTrue(ctx, ctx.startsWith("TAREFAS ABERTAS:\n#12 "))
+        val order = listOf("TAREFAS ABERTAS", "DIÁRIO DE HOJE", "ÚLTIMAS COISAS GUARDADAS", "AGORA:", "O QUE ELA DISSE").map { ctx.indexOf(it) }
+        assertTrue(ctx, order.all { it >= 0 } && order == order.sorted())
+        assertTrue(ctx.trimEnd().endsWith("\"cheguei na estação\""))
+        // Two answers a minute apart differ only at the end.
+        val later = Brain.context("cheguei na estação", now + 60_000, zone, listOf(task), emptyList(), recent = listOf(last), diary = diary)
+        assertTrue(later.startsWith(ctx.substringBefore("\nAGORA:")))
+    }
+
+    @Test
+    fun thePhoneKeepsTheInstructionsRun() {
+        val prompt = Brain.chatml(Brain.SYSTEM, "§parte-dela§")
+        assertTrue(prompt.startsWith(Brain.chatmlHead(Brain.SYSTEM)))
+        assertTrue(Brain.chatmlHead(Brain.SYSTEM).endsWith("<|im_start|>user\n"))
+        assertTrue(!Brain.chatmlHead(Brain.SYSTEM).contains("§parte-dela§"))
+    }
+
+    @Test
     fun contextShowsTheLastThingsKeptAndWhatALookupFound() {
         val now = LocalDateTime.of(2026, 11, 11, 10, 0).atZone(zone).toInstant().toEpochMilli()
         val last = Entry(id = 51, kind = "note", title = "Placa do carro", createdAt = now, updatedAt = now)

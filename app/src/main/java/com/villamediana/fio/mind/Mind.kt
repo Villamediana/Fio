@@ -434,9 +434,10 @@ class Mind(
 
         val recent = all.take(RECENT) // all() comes newest first
         val diary = Brain.todaysDiary(all, now, z)
-        // The photos kept, found by what they show (the one being looked at now is not one of them).
+        // The photos kept, found by what they show — only for what is said or written (a photo
+        // being described needs no others), a few at first; more when the model asks to look.
         val pictures = PhotoRecall(db.captures().allPhotos().filter { it.id != c.id }.mapNotNull(Photo::of))
-        val photoHits = pictures.search(said, MAX_PHOTO_HITS)
+        val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
 
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
@@ -486,7 +487,8 @@ class Mind(
         /** How many times the model may ask to look something up for one thing said. */
         const val MAX_LOOKUPS = 2
 
-        /** Photos found by what they show that go to the model at most, each look. */
+        /** Photos found by what they show that go to the model at most: on the first look, and when it asks to look. */
+        const val FIRST_PHOTO_HITS = 4
         const val MAX_PHOTO_HITS = 8
 
         /** The last things kept, shown to the model so "aquilo que acabei de falar" has a face. */

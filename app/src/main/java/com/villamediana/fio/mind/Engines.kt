@@ -1,6 +1,7 @@
 package com.villamediana.fio.mind
 
 import com.villamediana.fio.ai.Api
+import com.villamediana.fio.ai.ApiAsks
 import com.villamediana.fio.ai.ApiException
 import com.villamediana.fio.audio.Pieces
 import com.villamediana.fio.audio.Wav
@@ -135,10 +136,7 @@ class Hearing(
     }
 }
 
-private data class Way(val image: ByteArray?, val json: Boolean, val effort: String?) {
-    override fun equals(other: Any?) = other is Way && (image === other.image) && json == other.json && effort == other.effort
-    override fun hashCode() = System.identityHashCode(image) * 31 + json.hashCode() * 7 + effort.hashCode()
-}
+
 
 /** Text (and maybe a photo) → the model's raw answer, on the phone or through the API. */
 class Thinking(
@@ -166,7 +164,11 @@ class Thinking(
         Source.LOCAL -> LocalEngine.available && model.spec.projector != null
     }
 
-    override suspend fun imageSide(): Int = if (settings.current().think == Source.LOCAL) 768 else 1600
+    /** The photo is looked at lightly (its text comes read by the phone): no need to send more than this. */
+    override suspend fun imageSide(): Int = 768
+
+    /** What each API server took and refused, so a refusal is paid once. */
+    private val asks = ApiAsks()
 
     override suspend fun warm() {
         val s = settings.current()
@@ -187,26 +189,33 @@ class Thinking(
                 Brain.chatml(system, if (image != null) LocalEngine.MEDIA + "\n" + user else user),
                 Brain.JSON_GRAMMAR,
                 image,
+                // The instructions are the same every time: the phone runs them once and keeps them.
+                fixed = Brain.chatmlHead(system),
             )
             Source.API -> {
                 val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
                 // Asked with little reasoning (organizing doesn't need more, and it answers much
-                // sooner). A server that refuses something of the request as written gets it again
-                // without it: without the reasoning level, then with only the text (a model that
-                // doesn't see), then without the JSON mode (the instructions already ask for JSON).
-                val ways = listOf(
-                    Way(image, json = true, effort = "low"),
-                    Way(image, json = true, effort = null),
-                    Way(null, json = true, effort = null),
-                    Way(null, json = false, effort = null),
-                ).distinct()
+                // sooner) and a light look at the photo. A server that refuses something of the
+                // request gets it again without it — and that is remembered, so the next answers
+                // don't pay for the same refusal ([ApiAsks]).
+                val key = s.apiBase + "|" + s.thinkModel
                 var last: ApiException? = null
-                for (w in ways) {
+                var refusedAsk: ApiAsks.Ask? = null
+                for (a in asks.plan(key, withImage = image != null)) {
                     try {
-                        return@withContext api.chat(ep, s.thinkModel, system, user, w.image, jsonOut = w.json, effort = w.effort)
+                        val out = api.chat(
+                            ep, s.thinkModel, system, user,
+                            image = if (a.image) image else null,
+                            jsonOut = a.json,
+                            effort = if (a.effort) "low" else null,
+                            lowDetail = a.lowDetail,
+                        )
+                        refusedAsk?.let { asks.learn(key, it, a) }
+                        return@withContext out
                     } catch (e: ApiException) {
                         if (!e.refused) throw e
                         last = e
+                        refusedAsk = a
                     }
                 }
                 throw last!!

@@ -41,6 +41,15 @@ class ApiTest {
     }
 
     @Test
+    fun aPhotoIsLookedAtLightlyWhenAsked() {
+        server.enqueue(MockResponse.Builder().body("""{"choices":[{"message":{"content":"{}"}}]}""").build())
+        api.chat(ep, "gpt-x", "s", "u", image = byteArrayOf(1, 2, 3), lowDetail = true)
+        val body = server.takeRequest().body!!.utf8()
+        assertTrue(body, body.contains("\"detail\":\"low\""))
+        assertTrue(body.contains("data:image/jpeg;base64,"))
+    }
+
+    @Test
     fun aRefusedRequestIsToldApartAndJsonModeCanBeLeftOut() {
         server.enqueue(MockResponse.Builder().code(400).body("""{"error":{"message":"response_format is not supported"}}""").build())
         server.enqueue(MockResponse.Builder().body("""{"choices":[{"message":{"content":"{}"}}]}""").build())

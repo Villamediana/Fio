@@ -26,7 +26,7 @@ import com.villamediana.fio.data.Kind
 import com.villamediana.fio.mind.Photo
 import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.ui.components.PhotoViewer
-import com.villamediana.fio.ui.components.photoAspect
+import com.villamediana.fio.ui.components.rememberAspects
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -42,6 +42,9 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
         return
     }
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
+    // Each photo's own shape, kept reasonable (a panorama or a long screenshot doesn't take the
+    // column), read off the main thread; the grid lays out once it knows them (no jumping tiles).
+    val aspects = rememberAspects(photos, min = 0.56f, max = 1.8f) ?: return
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
@@ -50,8 +53,7 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
         verticalItemSpacing = 8.dp,
     ) {
         itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
-            // Its own shape, kept reasonable (a panorama or a long screenshot doesn't take the column).
-            val ratio = remember(p.path) { photoAspect(p.path).coerceIn(0.56f, 1.8f) }
+            val ratio = aspects[p.id] ?: 1f
             Box(Modifier.animateItem()) {
                 PhotoTile(
                     p.path,

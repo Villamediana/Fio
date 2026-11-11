@@ -66,7 +66,8 @@ class Api(private val http: OkHttpClient) {
 
     /** A chat answer. [jsonOut]: asks for a JSON object. [image]: a JPEG seen together with the text. */
     /** [effort]: the reasoning level for a model that reasons ("low"), left out when null. */
-    fun chat(ep: Endpoint, model: String, system: String, user: String, image: ByteArray? = null, jsonOut: Boolean = true, effort: String? = null): String {
+    /** [lowDetail]: the photo looked at lightly (a fraction of the tokens; its text comes read already). */
+    fun chat(ep: Endpoint, model: String, system: String, user: String, image: ByteArray? = null, jsonOut: Boolean = true, effort: String? = null, lowDetail: Boolean = false): String {
         val payload = buildJsonObject {
             put("model", model)
             putJsonArray("messages") {
@@ -80,7 +81,10 @@ class Api(private val http: OkHttpClient) {
                             addJsonObject { put("type", "text"); put("text", user) }
                             addJsonObject {
                                 put("type", "image_url")
-                                putJsonObject("image_url") { put("url", "data:image/jpeg;base64," + Base64.encodeToString(image, Base64.NO_WRAP)) }
+                                putJsonObject("image_url") {
+                                    put("url", "data:image/jpeg;base64," + Base64.encodeToString(image, Base64.NO_WRAP))
+                                    if (lowDetail) put("detail", "low")
+                                }
                             }
                         }
                     }
