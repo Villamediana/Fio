@@ -100,11 +100,17 @@ class Api(private val http: OkHttpClient) {
 
     private fun url(ep: Endpoint, path: String) = ep.base.trimEnd('/') + "/" + path
 
+    /** Stops the requests going on now (the "parar" on the main screen); the update download is not touched. */
+    fun cancelAll() {
+        http.dispatcher.runningCalls().filter { it.request().tag(String::class.java) == TAG }.forEach { it.cancel() }
+    }
+
     private fun call(ep: Endpoint, builder: Request.Builder): String {
         val request = builder
             .header("Authorization", "Bearer ${ep.key}")
             .header("api-key", ep.key)
             .header("Accept", "application/json")
+            .tag(String::class.java, TAG)
             .build()
         http.newCall(request).execute().use { r ->
             val text = r.body.string()
@@ -125,5 +131,6 @@ class Api(private val http: OkHttpClient) {
 
     private companion object {
         val JSON = "application/json".toMediaType()
+        const val TAG = "fio-ai"
     }
 }

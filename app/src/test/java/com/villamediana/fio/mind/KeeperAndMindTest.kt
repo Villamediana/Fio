@@ -171,6 +171,63 @@ class KeeperAndMindTest {
         m.cancelListening()
     }
 
+    /** A model that hangs and doesn't listen to anything (like a native call that won't come back). */
+    private class StuckThinker(val reply: String) : Thinker {
+        @Volatile var stuck = true
+        @Volatile var stops = 0
+        override suspend fun seesImages() = false
+        override suspend fun answer(system: String, user: String, image: ByteArray?): String =
+            kotlinx.coroutines.withContext(Dispatchers.IO) { while (stuck) Thread.sleep(10); reply }
+        override fun stop() { stops++ }
+    }
+
+    @Test
+    fun pararFreesTheScreenEvenWhenTheModelHangs() = runBlocking {
+        val thinker = StuckThinker("""{"reply":"Anotei.","create":[{"kind":"note","title":"Ideia"}]}""")
+        val m = mind(FakeEars("uma ideia boa"), thinker)
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, durationMs = 2000, state = Capture.RECORDED))
+        m.retry(id)
+        withTimeout(5_000) { m.state.first { it is MindState.Working && it.stage == Stage.THINKING } }
+
+        m.stopWork()
+        val p = withTimeout(2_000) { m.state.first { it is MindState.Problem } } as MindState.Problem
+        assertEquals(id, p.captureId)
+        assertEquals("uma ideia boa", p.said) // what was said stays, with its text
+        assertEquals(1, thinker.stops)
+        assertEquals(Capture.STOPPED, db.captures().get(id)!!.state)
+
+        // The stuck job finally comes back: it says and keeps nothing.
+        thinker.stuck = false
+        kotlinx.coroutines.delay(300)
+        assertTrue(m.state.value is MindState.Problem)
+        assertEquals(0, db.entries().all().size)
+
+        // Coming back to the app doesn't start it again on its own…
+        m.retryPending()
+        kotlinx.coroutines.delay(300)
+        assertEquals(Capture.STOPPED, db.captures().get(id)!!.state)
+        // …a hand does, and it goes through.
+        m.retryPending(stoppedToo = true)
+        val a = withTimeout(10_000) { m.state.first { it is MindState.Answer } } as MindState.Answer
+        assertEquals("Anotei.", a.reply)
+        assertEquals(Capture.DONE, db.captures().get(id)!!.state)
+    }
+
+    @Test
+    fun anErrorOfTheEngineEndsOnTheScreenNotInAnEndlessOrganizando() = runBlocking {
+        val broken = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String = throw UnsatisfiedLinkError("nativeGenerate")
+        }
+        val m = mind(FakeEars("comprar café"), broken)
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = voiceFile().path, durationMs = 2000, state = Capture.RECORDED))
+        m.retry(id)
+        val p = withTimeout(5_000) { m.state.first { it is MindState.Problem } } as MindState.Problem
+        assertEquals(id, p.captureId)
+        assertTrue(p.message, p.message.contains("nativeGenerate"))
+        assertEquals("comprar café", db.captures().get(id)!!.transcript)
+    }
+
     @Test
     fun saysThinksKeepsAndAnswers() = runBlocking {
         val ears = FakeEars("amanhã preciso ligar pro dentista às 9")

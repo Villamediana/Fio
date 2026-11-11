@@ -190,6 +190,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         onRetry = { mind.retry(it) },
                         onDiscard = { mind.discard(it) },
                         onSettings = { nav.go(Screen.Settings) },
+                        onStop = mind::stopWork,
                     )
                     Spacer(Modifier.height(24.dp))
                 }
@@ -203,7 +204,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
                         .clip(CircleShape)
-                        .clickable { mind.retryPending() }
+                        .clickable { mind.retryPending(stoppedToo = true) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
@@ -257,6 +258,7 @@ private fun StatusArea(
     onRetry: (Long) -> Unit,
     onDiscard: (Long) -> Unit,
     onSettings: () -> Unit,
+    onStop: () -> Unit,
 ) {
     AnimatedContent(
         targetState = state,
@@ -285,7 +287,7 @@ private fun StatusArea(
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 is MindState.Listening -> ListeningText(s, inCancelZone)
-                is MindState.Working -> WorkingText(s)
+                is MindState.Working -> WorkingText(s, onStop)
                 is MindState.Answer -> AnswerView(s, entries, onOpen, onToggle, onDismiss)
                 is MindState.Problem -> ProblemView(s, onRetry, onDiscard, onSettings, onDismiss)
             }
@@ -319,7 +321,7 @@ private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean) {
 }
 
 @Composable
-private fun WorkingText(s: MindState.Working) {
+private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     Text(
         when (s.stage) {
             Stage.HEARING -> "Transcrevendo…"
@@ -333,6 +335,11 @@ private fun WorkingText(s: MindState.Working) {
     if (s.text.isNotBlank()) {
         Spacer(Modifier.height(12.dp))
         Said(s.text, maxLines = 8)
+    }
+    // Taking too long: a stop. What was said stays, to try again or discard.
+    if (s.captureId != 0L) {
+        Spacer(Modifier.height(8.dp))
+        QuietWord("parar", onStop)
     }
 }
 

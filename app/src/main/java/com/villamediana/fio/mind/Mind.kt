@@ -5,7 +5,14 @@ import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.FioDatabase
 import com.villamediana.fio.data.Outcome
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,14 +113,33 @@ class Mind(
 
     private fun end() { if (work.decrementAndGet() == 0) mic.working(false) }
 
+    /** The capture going through now, as a job the "parar" can cancel… */
+    @Volatile private var job: Job? = null
+
+    /** …and the stop itself: the line moves on at once, without waiting for the job to notice. */
+    @Volatile private var stop: CompletableDeferred<Unit>? = null
+
     init {
         scope.launch {
             for (id in queue) {
                 current = id
                 synchronized(queued) { queued.remove(id) }
                 try {
-                    runCatching { process(id) }
+                    val j = scope.launch { runCatching { process(id) } }
+                    val halt = CompletableDeferred<Unit>()
+                    job = j
+                    stop = halt
+                    select<Unit> {
+                        j.onJoin {}
+                        halt.onAwait {}
+                    }
+                    if (halt.isCompleted || j.isCancelled) stopped(id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
                 } finally {
+                    job = null
+                    stop = null
                     current = null
                     end()
                 }
@@ -201,11 +227,33 @@ class Mind(
         }
     }
 
-    /** Everything that didn't go through yet (app opening, Ajustes saved, the "esperando" chip). */
-    fun retryPending() {
+    /**
+     * Everything that didn't go through yet (app opening, Ajustes saved). What was stopped by hand
+     * waits for a hand too: only [stoppedToo] (the "esperando · tentar agora" chip) takes it.
+     */
+    fun retryPending(stoppedToo: Boolean = false) {
         scope.launch {
-            db.captures().unfinished().forEach { enqueue(it.id) }
+            db.captures().unfinished().filter { stoppedToo || it.state != Capture.STOPPED }.forEach { enqueue(it.id) }
         }
+    }
+
+    /**
+     * The "parar" under the progress: lets go of the model or the request at once and cancels the
+     * work. What was said stays (with its text, if it got that far), to try again or discard.
+     */
+    fun stopWork() {
+        val j = job ?: return
+        hearing.stop()
+        thinking.stop()
+        j.cancel()
+        stop?.complete(Unit)
+    }
+
+    private suspend fun stopped(id: Long) {
+        val c = db.captures().get(id)
+        if (c != null && c.state != Capture.DONE) db.captures().update(c.copy(state = Capture.STOPPED, error = STOPPED_MESSAGE))
+        if (c?.state == Capture.DONE) return
+        show(MindState.Problem(id, null, STOPPED_MESSAGE, c?.transcript))
     }
 
     /** Drops a capture that couldn't go through (and its audio or photo). */
@@ -246,6 +294,9 @@ class Mind(
     // ------------------------------------------------------------------ the path
 
     private suspend fun process(id: Long) {
+        // A job stopped by hand may still be finishing something: from then on it says nothing.
+        val me = currentCoroutineContext().job
+        fun say(st: MindState) { if (me.isActive) show(st) }
         var c = db.captures().get(id) ?: return
         if (c.state == Capture.DONE) return
         val photo = c.source == "photo"
@@ -254,29 +305,29 @@ class Mind(
             if (said == null) {
                 c = c.copy(state = Capture.TRANSCRIBING, error = null).also { db.captures().update(it) }
                 if (photo) {
-                    show(MindState.Working(id, Stage.READING, "", photo = true))
+                    say(MindState.Working(id, Stage.READING, "", photo = true))
                     said = photos.text(File(c.imagePath!!))
                 } else {
-                    show(MindState.Working(id, Stage.HEARING, ""))
-                    said = hearing.transcribe(File(c.audioPath!!)) { partial -> show(MindState.Working(id, Stage.HEARING, partial)) }
+                    say(MindState.Working(id, Stage.HEARING, ""))
+                    said = hearing.transcribe(File(c.audioPath!!)) { partial -> say(MindState.Working(id, Stage.HEARING, partial)) }
                 }
                 c = c.copy(transcript = said).also { db.captures().update(it) }
             }
             if (!photo && said.isBlank()) {
                 c.audioPath?.let { File(it).delete() }
                 db.captures().delete(id)
-                show(MindState.Problem(null, null, "Não ouvi nada. Tente de novo, um pouco mais perto."))
+                say(MindState.Problem(null, null, "Não ouvi nada. Tente de novo, um pouco mais perto."))
                 return
             }
             if (photo && said.isBlank() && !thinking.seesImages()) {
                 // Nothing to read and a model that can't look: there is nothing to keep.
                 c.imagePath?.let { File(it).delete() }
                 db.captures().delete(id)
-                show(MindState.Problem(null, null, "Não consegui ler nada na foto. Tente de mais perto, com mais luz."))
+                say(MindState.Problem(null, null, "Não consegui ler nada na foto. Tente de mais perto, com mais luz."))
                 return
             }
             c = c.copy(state = Capture.THINKING).also { db.captures().update(it) }
-            show(MindState.Working(id, Stage.THINKING, said, photo))
+            say(MindState.Working(id, Stage.THINKING, said, photo))
             val plan = think(c, said, photo)
             val result = keeper.apply(plan, id)
             runCatching { reminders.sync(result.touched) }
@@ -291,18 +342,22 @@ class Mind(
                 ),
             )
             c.audioPath?.let { File(it).delete() }
-            show(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo))
+            say(MindState.Answer(id, said, plan.reply, result.outcomes, shown, photo))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message))
-            show(MindState.Problem(id, e.what, e.message ?: "", c.transcript))
-        } catch (e: Exception) {
+            say(MindState.Problem(id, e.what, e.message ?: "", c.transcript))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Anything at all (an error of the model on the phone too) ends here, on the screen:
+            // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
                 is com.villamediana.fio.ai.ApiException -> "A API respondeu ${e.code}: ${e.message}"
                 is IOException -> "Sem conexão agora. Guardei; tento de novo depois."
                 else -> e.message ?: e.javaClass.simpleName
             }
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg))
-            show(MindState.Problem(id, null, msg, c.transcript))
+            say(MindState.Problem(id, null, msg, c.transcript))
         }
     }
 
@@ -331,7 +386,7 @@ class Mind(
         var lookups = 0
         while (plan.isLookupOnly && lookups < MAX_LOOKUPS) {
             lookups++
-            show(MindState.Working(c.id, Stage.LOOKING, said, photo))
+            if (currentCoroutineContext().isActive) show(MindState.Working(c.id, Stage.LOOKING, said, photo))
             val byWords = if (plan.search.isEmpty()) emptyList() else recall.search(plan.search.joinToString(" "), 15, now).map { it.entry }
             val days = Brain.range(plan.period, z)
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
@@ -363,5 +418,7 @@ class Mind(
         const val RECENT = 5
 
         private const val NOTHING_FOUND = "Não achei nada sobre isso."
+
+        private const val STOPPED_MESSAGE = "Parei. O que você disse ficou guardado."
     }
 }
