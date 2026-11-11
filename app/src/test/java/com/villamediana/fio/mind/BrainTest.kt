@@ -108,7 +108,8 @@ class BrainTest {
     @Test
     fun chatmlIsLfmFormat() {
         val p = Brain.chatml("S", "U")
-        assertEquals("<|startoftext|><|im_start|>system\nS<|im_end|>\n<|im_start|>user\nU<|im_end|>\n<|im_start|>assistant\n", p)
+        // The assistant turn opens with the thinking turned off, as LFM3's template writes it.
+        assertEquals("<|startoftext|><|im_start|>system\nS<|im_end|>\n<|im_start|>user\nU<|im_end|>\n<|im_start|>assistant\n<think></think>", p)
     }
 
     @Test

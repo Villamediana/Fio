@@ -23,6 +23,13 @@ Nada se perde: sem rede ou sem Ajustes, a captura fica `recorded`/`failed` com o
 fila quando o app abre, quando os Ajustes mudam ou no "N coisas esperando · tentar agora".
 O áudio é apagado depois que a captura vai até o fim.
 
+O modelo do celular recebe a vez dele já com `<think></think>` (é o que o template do LFM3 escreve com o pensar
+desligado; sem isso ele escrevia sozinho no começo de cada trecho) e qualquer bloco de pensar que sobre é tirado
+(`LocalEngine.clean`). Ouvir guarda cada trecho pronto na captura (`heard`, `heardPieces`, `heardBy`): se o app cai,
+continua do trecho seguinte; `tries` conta execuções que nunca terminaram e, a partir de 3, a captura só volta à mão
+(nada de cair em loop ao abrir). O modelo carrega enquanto ela ainda fala (`warm`), o motor usa só os núcleos rápidos
+(≥ 70 % da frequência máxima do mais rápido) e a API é pedida com `reasoning_effort: low` (sem ele, se o servidor recusar).
+Enquanto ouve, a tela mostra o fim do que já foi transcrito.
 Enquanto organiza, a tela tem um "parar": solta o modelo (cancel nativo) ou o pedido (OkHttp com tag), cancela o
 trabalho e a fila segue na hora; a captura fica `stopped` (com o texto), só volta por "Tentar de novo" ou pelo
 "esperando · tentar agora". Qualquer falha (até `Error` do motor) termina na tela, nunca num "Organizando…" eterno.

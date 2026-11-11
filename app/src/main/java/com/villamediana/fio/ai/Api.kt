@@ -65,7 +65,8 @@ class Api(private val http: OkHttpClient) {
     }
 
     /** A chat answer. [jsonOut]: asks for a JSON object. [image]: a JPEG seen together with the text. */
-    fun chat(ep: Endpoint, model: String, system: String, user: String, image: ByteArray? = null, jsonOut: Boolean = true): String {
+    /** [effort]: the reasoning level for a model that reasons ("low"), left out when null. */
+    fun chat(ep: Endpoint, model: String, system: String, user: String, image: ByteArray? = null, jsonOut: Boolean = true, effort: String? = null): String {
         val payload = buildJsonObject {
             put("model", model)
             putJsonArray("messages") {
@@ -86,6 +87,7 @@ class Api(private val http: OkHttpClient) {
                 }
             }
             if (jsonOut) putJsonObject("response_format") { put("type", "json_object") }
+            if (effort != null) put("reasoning_effort", effort)
         }
         val body = call(ep, Request.Builder().url(url(ep, "chat/completions")).post(payload.toString().toRequestBody(JSON)))
         val root = json.parseToJsonElement(body).jsonObject

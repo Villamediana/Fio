@@ -18,9 +18,19 @@ class NotReady(val what: Need, message: String) : Exception(message)
 
 enum class Need { HEAR, THINK }
 
+/** What was heard so far of a recording: the text of its first [pieces] pieces, cut the [by] way. */
+data class Heard(val text: String = "", val pieces: Int = 0, val by: String? = null)
+
 /** Speech → text. */
 interface Ears {
-    suspend fun transcribe(wav: File, onPartial: (String) -> Unit): String
+    /**
+     * [from]: pieces already heard (a restart goes on from there, when they were cut the same way);
+     * [onPiece]: each piece done, to be kept; [onPartial]: the text so far, as it comes.
+     */
+    suspend fun transcribe(wav: File, from: Heard = Heard(), onPiece: suspend (Heard) -> Unit = {}, onPartial: (String) -> Unit): String
+
+    /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
+    suspend fun warm() {}
 
     /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
     fun stop() {}
@@ -35,6 +45,9 @@ interface Thinker {
     suspend fun imageSide(): Int = 1600
 
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
+
+    /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
+    suspend fun warm() {}
 
     /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
     fun stop() {}
@@ -61,40 +74,51 @@ class Hearing(
         }
     }
 
-    override suspend fun transcribe(wav: File, onPartial: (String) -> Unit): String = withContext(Dispatchers.IO) {
+    override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = withContext(Dispatchers.IO) {
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.HEAR, it) }
         val samples = Wav.readFloats(wav)
         if (Pieces.isSilent(samples)) return@withContext ""
+        val by = if (s.hear == Source.LOCAL) "local:$LOCAL_PIECE" else "api:$API_PIECE"
+        val start = if (from.by == by) from else Heard(by = by)
+        var done = start.text
+        if (done.isNotEmpty()) onPartial(done)
         when (s.hear) {
             Source.LOCAL -> {
-                val parts = Pieces.cut(samples, maxSeconds = 28)
-                val done = StringBuilder()
-                for (p in parts) {
-                    val before = done.toString()
+                val parts = Pieces.cut(samples, maxSeconds = LOCAL_PIECE)
+                for ((i, p) in parts.withIndex()) {
+                    if (i < start.pieces) continue
+                    val before = done
                     val text = engine.transcribe(model.files, p, s.lang.asr) { partial -> onPartial(join(before, partial)) }
-                    done.clear().append(join(before, text))
-                    onPartial(done.toString())
+                    done = join(before, text)
+                    onPartial(done)
+                    onPiece(Heard(done, i + 1, by))
                 }
-                done.toString()
+                done
             }
             Source.API -> {
                 val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
                 val lang = s.lang.key.takeIf { it != "auto" }
-                val parts = if (wav.length() <= 20L * 1024 * 1024) listOf(null) else Pieces.cut(samples, maxSeconds = 300)
-                val done = StringBuilder()
-                for (p in parts) {
+                val parts = if (wav.length() <= 20L * 1024 * 1024) listOf(null) else Pieces.cut(samples, maxSeconds = API_PIECE)
+                for ((i, p) in parts.withIndex()) {
+                    if (i < start.pieces) continue
                     val file = if (p == null) wav else File(tmp, "piece-${System.nanoTime()}.wav").also { Wav.write(it, p) }
                     try {
-                        done.clear().append(join(done.toString(), api.transcribe(ep, s.hearModel, file, lang)))
-                        onPartial(done.toString())
+                        done = join(done, api.transcribe(ep, s.hearModel, file, lang))
+                        onPartial(done)
+                        onPiece(Heard(done, i + 1, by))
                     } finally {
                         if (p != null) file.delete()
                     }
                 }
-                done.toString()
+                done
             }
         }
+    }
+
+    override suspend fun warm() {
+        val s = settings.current()
+        if (s.hear == Source.LOCAL && readiness(s) == null) engine.warm(model.files)
     }
 
     override fun stop() {
@@ -103,6 +127,17 @@ class Hearing(
     }
 
     private fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
+
+    private companion object {
+        /** Seconds per piece: what the model on the phone hears at once, and what goes per request to the API. */
+        const val LOCAL_PIECE = 28
+        const val API_PIECE = 300
+    }
+}
+
+private data class Way(val image: ByteArray?, val json: Boolean, val effort: String?) {
+    override fun equals(other: Any?) = other is Way && (image === other.image) && json == other.json && effort == other.effort
+    override fun hashCode() = System.identityHashCode(image) * 31 + json.hashCode() * 7 + effort.hashCode()
 }
 
 /** Text (and maybe a photo) → the model's raw answer, on the phone or through the API. */
@@ -133,6 +168,11 @@ class Thinking(
 
     override suspend fun imageSide(): Int = if (settings.current().think == Source.LOCAL) 768 else 1600
 
+    override suspend fun warm() {
+        val s = settings.current()
+        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files)
+    }
+
     override fun stop() {
         engine.cancel()
         api.cancelAll()
@@ -150,21 +190,26 @@ class Thinking(
             )
             Source.API -> {
                 val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
-                // A model that doesn't see, or a server without the JSON mode, refuses the request
-                // as written: it goes again with only the text, then without asking for the mode
-                // (the instructions already ask for JSON).
-                try {
-                    api.chat(ep, s.thinkModel, system, user, image)
-                } catch (e: ApiException) {
-                    if (!e.refused) throw e
+                // Asked with little reasoning (organizing doesn't need more, and it answers much
+                // sooner). A server that refuses something of the request as written gets it again
+                // without it: without the reasoning level, then with only the text (a model that
+                // doesn't see), then without the JSON mode (the instructions already ask for JSON).
+                val ways = listOf(
+                    Way(image, json = true, effort = "low"),
+                    Way(image, json = true, effort = null),
+                    Way(null, json = true, effort = null),
+                    Way(null, json = false, effort = null),
+                ).distinct()
+                var last: ApiException? = null
+                for (w in ways) {
                     try {
-                        if (image == null) throw e
-                        api.chat(ep, s.thinkModel, system, user, null)
-                    } catch (e2: ApiException) {
-                        if (!e2.refused) throw e2
-                        api.chat(ep, s.thinkModel, system, user, null, jsonOut = false)
+                        return@withContext api.chat(ep, s.thinkModel, system, user, w.image, jsonOut = w.json, effort = w.effort)
+                    } catch (e: ApiException) {
+                        if (!e.refused) throw e
+                        last = e
                     }
                 }
+                throw last!!
             }
         }
     }
