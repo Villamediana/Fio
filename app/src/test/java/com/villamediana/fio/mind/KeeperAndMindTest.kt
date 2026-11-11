@@ -541,4 +541,43 @@ class KeeperAndMindTest {
         assertEquals(Capture.RECORDED, db.captures().get(id)!!.state)
         assertEquals(1, withTimeout(5_000) { m.pending.first { it == 1 } })
     }
+
+    @Test
+    fun photosFromTheGalleryGoOneByOneEachOnTheDayItWasTaken() = runBlocking {
+        val seen = """{"reply":"Guardei.","photo_description":"praia"}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(seen, seen)))
+        val m = mind(FakeEars(""), thinker, photos = ReadsText("Ubatuba"))
+        val lastWeek = LocalDateTime.of(2026, 11, 4, 16, 20).atZone(zone).toInstant().toEpochMilli()
+        val first = tmp.newFile("g1.jpg")
+        val second = tmp.newFile("g2.jpg")
+        m.photos(listOf(first to lastWeek, second to now))
+        // Done when nothing is going through or waiting (what an import waits for).
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle || db.captures().unfinished().isNotEmpty()) kotlinx.coroutines.delay(20) }
+        val kept = db.captures().allPhotos().sortedBy { it.id }
+        assertEquals(listOf(first.path, second.path), kept.map { it.imagePath }) // in the order picked
+        assertEquals(listOf(lastWeek, now), kept.map { it.createdAt })
+        // Each one is its day's: last week's day gets its diary, and the model knows when it was taken.
+        val thatDay = DayDiary.bounds(lastWeek, zone)
+        assertEquals("Quarta-feira, 4 de novembro", db.entries().diariesBetween(thatDay.first, thatDay.last).single().title)
+        assertTrue(thinker.prompts[0], thinker.prompts[0].contains("O QUE ESTÁ NA FOTO (TIRADA EM quarta-feira, 2026-11-04 16:20):"))
+        assertTrue(thinker.prompts[1], thinker.prompts[1].contains("O QUE ESTÁ NA FOTO QUE ELA TIROU:"))
+    }
+
+    @Test
+    fun theCameraDateOfAPhotoIsReadWithItsOffset() {
+        val utc = ZoneId.of("UTC")
+        assertEquals(
+            LocalDateTime.of(2026, 11, 7, 13, 15, 30).atZone(utc).toInstant().toEpochMilli(),
+            PhotoDate.parse("2026:11:07 10:15:30", "-03:00", utc),
+        )
+        // No offset written: the phone's own zone.
+        assertEquals(
+            LocalDateTime.of(2026, 11, 7, 10, 15, 30).atZone(zone).toInstant().toEpochMilli(),
+            PhotoDate.parse("2026:11:07 10:15:30", null, zone),
+        )
+        assertNull(PhotoDate.parse("0000:00:00 00:00:00", null, zone))
+        assertNull(PhotoDate.parse("", null, zone))
+        assertNull(PhotoDate.parse(null, null, zone))
+        assertNull(PhotoDate.of(File(tmp.root, "nada.jpg"), zone))
+    }
 }

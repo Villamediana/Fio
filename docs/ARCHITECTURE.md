@@ -109,6 +109,14 @@ aí as duas coisas: o item recebe só o que muda pra ele, o diário o relato int
 fora das outras listas) e o relato entra nele por `update.append` — parágrafo novo no fim, sem mexer
 no que já está nem no título; sem diário hoje, cria.
 
+Galeria (1.14.0): ao lado da câmera, na tela principal, o ícone da galeria abre o seletor de fotos do
+Android (`PickMultipleVisualMedia`, só imagens, quantas ela quiser — o app não põe limite). Cada foto é
+copiada pra filesDir/captures (a da galeria fica onde está) e vai pelo mesmo caminho da foto tirada no
+app (`Mind.photos`, uma depois da outra, na ordem escolhida). A data é a de quando foi tirada: o EXIF
+(`PhotoDate`, DateTimeOriginal com o fuso dele quando há), senão a data da galeria (MediaStore), senão
+agora — então a foto cai no diário daquele dia e na busca por período. Quando é de outro dia, o
+contexto diz `O QUE ESTÁ NA FOTO (TIRADA EM …)` pro modelo não tratar como coisa de hoje.
+
 ## Economia (1.13.0)
 
 - **Celular**: `Brain.chatmlHead(SYSTEM)` (as instruções, ~1.250 tokens) é o começo fixo de toda

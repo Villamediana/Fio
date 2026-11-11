@@ -235,18 +235,32 @@ class Mind(
     }
 
     /** A photo taken in the app's camera: read, understood and kept like something said. */
-    fun photo(file: File) {
+    fun photo(file: File) = photos(listOf(file to clock()))
+
+    /**
+     * Photos ([file] to when it was taken): the camera's one, or many from the gallery — each goes
+     * the way of a photo taken here, one after the other, in the order given.
+     */
+    fun photos(files: List<Pair<File, Long>>) {
+        if (files.isEmpty()) return
         begin()
         scope.launch {
             try {
-                val id = db.captures().insert(Capture(createdAt = clock(), source = "photo", imagePath = file.path, state = Capture.RECORDED))
-                show(MindState.Working(id, Stage.READING, "", photo = true))
-                enqueue(id)
+                files.forEachIndexed { i, (file, at) ->
+                    val id = db.captures().insert(Capture(createdAt = at, source = "photo", imagePath = file.path, state = Capture.RECORDED))
+                    if (i == 0) show(MindState.Working(id, Stage.READING, "", photo = true))
+                    enqueue(id)
+                }
             } finally {
                 end()
             }
         }
     }
+
+    /** Nothing going through or waiting in line, the microphone closed: nothing on its way. */
+    val idle: Boolean
+        get() = current == null && synchronized(queued) { queued.isEmpty() } && _state.value !is MindState.Listening && work.get() == 0
+
 
     fun retry(captureId: Long) {
         scope.launch {
@@ -439,7 +453,8 @@ class Mind(
         val pictures = PhotoRecall(db.captures().allPhotos().filter { it.id != c.id }.mapNotNull(Photo::of))
         val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
 
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits)
+        val taken = if (photo) c.createdAt else null
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
@@ -455,7 +470,7 @@ class Mind(
             foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures.search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
                 (if (days == null) emptyList() else pictures.during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }

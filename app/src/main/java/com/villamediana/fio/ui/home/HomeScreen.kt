@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -111,6 +112,8 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
         if (granted && f != null) mind.startListening(locked = true, focusId = f.takeIf { it > 0 })
     }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // The phone's gallery: as many photos as she wants, each going the way of one taken here.
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris -> graph.fromGallery(uris) }
     fun hasMic() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     // "Falar" from a check-in: the microphone opens right away, about that task.
@@ -223,6 +226,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
             BottomBar(
                 entries = entries,
                 onCamera = { nav.go(Screen.Camera) },
+                onGallery = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 onToday = { nav.go(Screen.Library(Filter.TODAY)) },
                 onSearch = { nav.go(Screen.Library(Filter.ALL, search = true)) },
             )
@@ -515,16 +519,19 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
     }
 }
 
-/** Three things, no more: the camera, what is for today (the way into everything kept), the search. */
+/** The camera and the gallery, what is for today (the way into everything kept), the search. */
 @Composable
-private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
+private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
     val today = remember(entries) { todayCount(entries) }
     Row(
         Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        QuietIcon(FioIcons.PhotoCamera, "Câmera", onCamera)
-        Spacer(Modifier.weight(1f))
+        // Both sides as wide, so "Hoje" stays in the middle.
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            QuietIcon(FioIcons.PhotoCamera, "Câmera", onCamera)
+            QuietIcon(FioIcons.Gallery, "Galeria", onGallery)
+        }
         val interaction = remember { MutableInteractionSource() }
         Row(
             Modifier
@@ -541,8 +548,9 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onToday: () ->
                 Text(today.toString(), style = MaterialTheme.typography.labelLarge, color = FioColors.Accent)
             }
         }
-        Spacer(Modifier.weight(1f))
-        QuietIcon(FioIcons.Search, "Buscar", onSearch)
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            QuietIcon(FioIcons.Search, "Buscar", onSearch)
+        }
     }
 }
 

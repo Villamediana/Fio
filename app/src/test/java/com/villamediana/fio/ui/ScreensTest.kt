@@ -149,6 +149,9 @@ class ScreensTest {
         // 1. Idle.
         compose.setContent { FioTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
         compose.onNodeWithText("O que está na sua cabeça?").assertExists()
+        // Next to the camera, the gallery.
+        compose.onNodeWithContentDescription("Câmera").assertExists()
+        compose.onNodeWithContentDescription("Galeria").assertExists()
         shot("01-home-idle")
 
         // 2. Something said goes through the API and comes back organized.

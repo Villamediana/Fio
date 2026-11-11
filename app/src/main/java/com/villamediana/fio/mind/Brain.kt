@@ -133,6 +133,8 @@ Responda somente com um objeto JSON neste formato:
         typed: Boolean = false,
         diary: Entry? = null,
         photos: List<Photo> = emptyList(),
+        /** A photo: when it was taken (one from the gallery may be from another day). */
+        takenAt: Long? = null,
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -182,8 +184,10 @@ Responda somente com um objeto JSON neste formato:
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
         append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
+        val takenOn = takenAt?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zone) }?.takeIf { it.toLocalDate() != at.toLocalDate() }
         append(
             when {
+                photo && takenOn != null -> "\nO QUE ESTÁ NA FOTO (TIRADA EM " + takenOn.dayOfWeek.getDisplayName(TextStyle.FULL, PT) + ", " + takenOn.format(STAMP) + "):\n"
                 photo -> "\nO QUE ESTÁ NA FOTO QUE ELA TIROU:\n"
                 typed -> "\nO QUE ELA ESCREVEU:\n"
                 else -> "\nO QUE ELA DISSE:\n"
