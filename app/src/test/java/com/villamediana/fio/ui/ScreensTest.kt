@@ -236,7 +236,16 @@ class ScreensTest {
             }
         }
         val nav = Nav()
-        compose.setContent { FioTheme(ThemeMode.LIGHT) { EntryScreen(nav, ids["diary"]!!) } }
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Entry(ids["diary"]!!))
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                when (val s = screen.value) {
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    else -> Unit
+                }
+            }
+        }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("day-photo-0").fetchSemanticsNodes().isNotEmpty() }
         // Today's three slide sideways (yesterday's belongs to yesterday's diary).
         val row = compose.onNodeWithTag("day-photo-row").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.CollectionInfo]
@@ -250,6 +259,11 @@ class ScreensTest {
         shot("21-photo-viewer")
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
+        // On the diary's card, the day's photos in a strip of different widths.
+        screen.value = Screen.Library(Filter.DIARY)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia bom no escritório").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(1_000)
+        shot("25-diary-card-photos")
     }
 
     @Test
