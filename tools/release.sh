@@ -58,7 +58,8 @@ git merge-base --is-ancestor HEAD origin/main || die "HEAD não está na origin/
 
 # 2. Versão nova de verdade (o app compara número a número com a que está instalada).
 "$GH" release view "$tag" -R "$REPO" >/dev/null 2>&1 && die "$tag já existe no GitHub"
-latest=$("$GH" api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || echo v0)
+latest=$("$GH" api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+[[ $latest =~ ^v[0-9]+(\.[0-9]+)*$ ]] || latest=v0 # nenhuma release ainda (404)
 python3 - "$name" "${latest#v}" <<'PY' || die "$name não é maior que a última publicada ($latest)"
 import sys
 a, b = ([int(x) for x in v.split(".")] for v in sys.argv[1:3])
