@@ -88,8 +88,7 @@ fun SettingsScreen(nav: Nav) {
     val st = graph.settings
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
-    val audio by graph.localAudio.state.collectAsStateWithLifecycle()
-    val omni by graph.localOmni.state.collectAsStateWithLifecycle()
+    val local by graph.localModel.state.collectAsStateWithLifecycle()
 
     var base by remember { mutableStateOf(s.apiBase) }
     var key by remember { mutableStateOf("") }
@@ -142,8 +141,8 @@ fun SettingsScreen(nav: Nav) {
                         title = "Ouvir",
                         source = s.hear,
                         model = s.hearModel,
-                        local = audio,
-                        localName = LocalModel.Spec.AUDIO.name,
+                        local = local,
+                        localName = graph.localModel.spec.name,
                         onSource = { src ->
                             scope.launch { st.setHear(src) }
                             if (src == Source.API && s.hearModel.isBlank()) picking = Pick.HEAR
@@ -156,8 +155,8 @@ fun SettingsScreen(nav: Nav) {
                         title = "Pensar",
                         source = s.think,
                         model = s.thinkModel,
-                        local = omni,
-                        localName = LocalModel.Spec.OMNI.name,
+                        local = local,
+                        localName = graph.localModel.spec.name,
                         onSource = { src ->
                             scope.launch { st.setThink(src) }
                             if (src == Source.API && s.thinkModel.isBlank()) picking = Pick.THINK
@@ -168,11 +167,7 @@ fun SettingsScreen(nav: Nav) {
             )
 
             SectionLabel("No celular")
-            Group(
-                Modifier,
-                { LocalModelLine(graph.localAudio, audio, job = "ouve") },
-                { LocalModelLine(graph.localOmni, omni, job = "pensa") },
-            )
+            Group(Modifier, { LocalModelLine(graph.localModel, local) })
 
             SectionLabel("API")
             Group(
@@ -320,9 +315,9 @@ private fun WorkLine(
     }
 }
 
-/** A model that lives on the phone, by what it does there ([job]): its state, and the one thing to do about it. */
+/** The model that lives on the phone (it hears, thinks and sees): its state, and the one thing to do about it. */
 @Composable
-private fun LocalModelLine(model: LocalModel, state: LocalModel.State, job: String) {
+private fun LocalModelLine(model: LocalModel, state: LocalModel.State) {
     val total = model.totalBytes
     val percent = NumberFormat.getPercentInstance()
     Column(Modifier.fillMaxWidth().animateContentSize()) {
@@ -330,11 +325,11 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State, job: Stri
             title = model.spec.name,
             subtitle = when {
                 !LocalEngine.available -> "não vem nesta versão"
-                state is LocalModel.State.Ready -> "pronto · $job sem internet"
+                state is LocalModel.State.Ready -> "pronto · funciona sem internet"
                 state is LocalModel.State.Downloading -> percent.format(state.fraction.toDouble()) + " de " + formatBytes(total)
                 state is LocalModel.State.Checking -> "conferindo o arquivo…"
                 state is LocalModel.State.Failed -> state.message
-                else -> formatBytes(total) + " · $job sem internet"
+                else -> formatBytes(total) + " · funciona sem internet"
             },
             subtitleColor = if (state is LocalModel.State.Failed) FioColors.Danger else FioColors.TextMuted,
         ) {

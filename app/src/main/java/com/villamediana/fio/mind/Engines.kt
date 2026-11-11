@@ -30,6 +30,10 @@ interface Ears {
 interface Thinker {
     /** True when the model that thinks can look at the photo itself (otherwise it gets the text read from it). */
     suspend fun seesImages(): Boolean
+
+    /** The long side of the photo it gets, in px (a small model on the phone wants a smaller one). */
+    suspend fun imageSide(): Int = 1600
+
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
 
     /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
@@ -121,7 +125,13 @@ class Thinking(
         }
     }
 
-    override suspend fun seesImages(): Boolean = settings.current().think == Source.API
+    /** The API model, and the one on the phone when its projector (eyes and ears) is there. */
+    override suspend fun seesImages(): Boolean = when (settings.current().think) {
+        Source.API -> true
+        Source.LOCAL -> LocalEngine.available && model.spec.projector != null
+    }
+
+    override suspend fun imageSide(): Int = if (settings.current().think == Source.LOCAL) 768 else 1600
 
     override fun stop() {
         engine.cancel()
@@ -132,7 +142,12 @@ class Thinking(
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
-            Source.LOCAL -> engine.generate(model.files, Brain.chatml(system, user), Brain.JSON_GRAMMAR)
+            Source.LOCAL -> engine.generate(
+                model.files,
+                Brain.chatml(system, if (image != null) LocalEngine.MEDIA + "\n" + user else user),
+                Brain.JSON_GRAMMAR,
+                image,
+            )
             Source.API -> {
                 val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
                 // A model that doesn't see, or a server without the JSON mode, refuses the request

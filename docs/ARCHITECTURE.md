@@ -7,10 +7,10 @@ Orb (segurar / tocar / arrastar pra cima)
   → Recorder (AudioRecord 16 kHz mono → WAV; nível 0..1 a cada 20 ms)   MicService segura com a tela apagada
   → Capture (banco: recorded)
   → Mind.process (fila, um por vez)
-      Ears.transcribe     Hearing: LFM3-Audio no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
+      Ears.transcribe     Hearing: LFM3-Omni no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      Thinking: LFM3-Omni no celular (gramática JSON GBNF) ou API /chat/completions (json_object)
+      Thinker.answer      Thinking: LFM3-Omni no celular (gramática JSON GBNF, foto pelo projetor a 768 px) ou API /chat/completions (json_object)
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
@@ -75,17 +75,17 @@ palavras-gatilho. O modelo decide; o código só valida (tipos conhecidos, ids q
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
 - `generate`: o mesmo modelo como texto, com a gramática JSON.
 
-O prompt de ASR é o mesmo do `llama-server` pro LFM3 (`common_chat_get_asr_prompt`): sistema
+O prompt de ASR é o mesmo do `llama-server` pro LFM3 (e o do card do LFM3-Omni) (`common_chat_get_asr_prompt`): sistema
 `Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.
 
 O build só inclui o nativo com `-Pfio.llama=<pasta do llama.cpp>`. O `release.sh` baixa o llama.cpp
 numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a pasta, `app/.cxx` e o
 que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
 baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
-Arquivos: `LFM3-Audio-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Audio-2B-Q8_0.gguf` (304 MB).
-Pra pensar no celular: `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB), sem projetor — o modelo geral da família segue
-melhor as instruções do que o de áudio (que dava título "Task" e não separava diário). Um modelo carregado
-por vez (`LocalModel.Spec.AUDIO`/`OMNI`); o motor troca quando muda o trabalho.
+Arquivos: `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Omni-2B-Q8_0.gguf` (507 MB, visão e áudio). Um modelo
+só ouve (mesmo prompt de ASR), organiza e vê a foto (`nativeGenerate` com a imagem no marcador de mídia; se a
+foto não decodificar, segue só o texto). Até a 1.6 quem ouvia era o LFM3-Audio; os arquivos dele são apagados
+do celular ao abrir (`Spec.LEFTOVERS`).
 
 ## Lançar versão
 

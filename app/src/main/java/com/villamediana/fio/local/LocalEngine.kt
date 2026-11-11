@@ -12,9 +12,8 @@ fun interface TokenSink {
 }
 
 /**
- * The LFM3 models on the phone (llama.cpp, app/src/main/cpp): one loaded at a time — the one that
- * hears or the one that thinks, swapped when the job changes. Kept for a few minutes, then let go
- * (a model takes ~1.4 GB of RAM).
+ * LFM3-Omni on the phone (llama.cpp, app/src/main/cpp): one model hears, thinks and looks at the
+ * photos. Loaded on first use and kept for a few minutes, then let go (~1.6 GB of RAM).
  */
 class LocalEngine {
     private val lock = Mutex()
@@ -32,9 +31,10 @@ class LocalEngine {
             String(out, Charsets.UTF_8).trim()
         }
 
-    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, maxTokens: Int = 1200, onText: (String) -> Unit = {}): String =
+    /** [image]: a JPEG the model looks at, placed at [MEDIA] in the prompt (left out when it can't be read). */
+    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, image: ByteArray? = null, maxTokens: Int = 1200, onText: (String) -> Unit = {}): String =
         use(files) { h ->
-            val out = nativeGenerate(h, prompt.toByteArray(), grammar, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
+            val out = nativeGenerate(h, prompt.toByteArray(), grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
             String(out, Charsets.UTF_8)
         }
 
@@ -87,9 +87,12 @@ class LocalEngine {
     private external fun nativeFree(handle: Long)
     private external fun nativeCancel(handle: Long)
     private external fun nativeTranscribe(handle: Long, pcm: FloatArray, prompt: ByteArray, maxTokens: Int, sink: TokenSink?): ByteArray?
-    private external fun nativeGenerate(handle: Long, prompt: ByteArray, grammar: String?, maxTokens: Int, sink: TokenSink?): ByteArray?
+    private external fun nativeGenerate(handle: Long, prompt: ByteArray, grammar: String?, image: ByteArray?, maxTokens: Int, sink: TokenSink?): ByteArray?
 
     companion object {
+        /** Where a photo goes in the prompt (llama.cpp's media marker). */
+        const val MEDIA = "<__media__>"
+
         /** The native library is in this build (and loads on this phone). */
         val available: Boolean by lazy {
             BuildConfig.HAS_LOCAL_ENGINE && runCatching { System.loadLibrary("fio_engine") }.isSuccess

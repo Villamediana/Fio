@@ -32,8 +32,8 @@ class MlKitPhotoReader(private val context: Context) : PhotoReader {
         }
     }
 
-    override suspend fun jpeg(file: File): ByteArray = withContext(Dispatchers.Default) {
-        val bitmap = load(file, 1600) ?: return@withContext file.readBytes()
+    override suspend fun jpeg(file: File, side: Int): ByteArray = withContext(Dispatchers.Default) {
+        val bitmap = load(file, side) ?: return@withContext file.readBytes()
         ByteArrayOutputStream().use { out ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
             out.toByteArray()
