@@ -171,17 +171,25 @@ Responda somente com um objeto JSON neste formato:
         val last = recent.filter { it.id !in shown }.take(MAX_RECENT)
         if (last.isNotEmpty()) {
             append("\nÚLTIMAS COISAS GUARDADAS (a mais nova primeiro):\n")
-            last.forEach { append(line(it, zone, now, long = true)).append('\n') }
+            last.forEach { e ->
+                val whole = line(e, zone, now, long = true)
+                // An open task listed above with nothing more to say (no text): only pointed to.
+                append(if (tasks.any { it.id == e.id } && whole == line(e, zone, now)) "#" + e.id + " (acima)" else whole).append('\n')
+            }
         }
+        // What is already written above: further down it is only pointed to (#id), never repeated.
+        val listed = HashSet<Long>(shown).apply { tasks.forEach { add(it.id) }; last.forEach { add(it.id) } }
         if (looked == null) {
-            val rel = related.filter { r -> r.id !in shown && tasks.none { it.id == r.id } && last.none { it.id == r.id } }.take(MAX_RELATED)
+            val rel = related.filter { r -> r.id !in listed }.take(MAX_RELATED)
             if (rel.isNotEmpty()) {
                 append("\nLEMBRANÇAS QUE PODEM TER A VER:\n")
                 rel.forEach { append(line(it, zone, now, long = true)).append('\n') }
             }
+            rel.forEach { listed += it.id }
         } else {
             // What was asked for comes whole, even when it is already listed above.
             val found = related.take(MAX_FOUND)
+            found.forEach { listed += it.id }
             if (found.isNotEmpty()) {
                 append("\nRESULTADOS DA BUSCA (").append(looked).append("):\n")
                 found.forEach { append(line(it, zone, now, long = true)).append('\n') }
@@ -202,7 +210,9 @@ Responda somente com um objeto JSON neste formato:
             append("\nANTES DISSO (a última conversa, ").append(stamp(before.at, zone)).append("):\n")
             append("ela: ").append(if (before.photo) "(mandou uma foto)" else "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\"").append('\n')
             if (before.reply.isNotBlank()) append("você: \"").append(before.reply.trim().take(BEFORE_REPLY)).append("\"\n")
-            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) -> append(what).append(": ").append(line(e, zone, now)).append('\n') }
+            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) ->
+                append(what).append(": ").append(if (e.id in listed) "#" + e.id + " (acima)" else line(e, zone, now)).append('\n')
+            }
         }
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
@@ -337,7 +347,7 @@ ws     ::= [ \t\n]{0,20}
 """.trim()
 
     private const val MAX_TASKS = 30
-    private const val MAX_RELATED = 12
+    private const val MAX_RELATED = 8
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
     private const val MAX_PHOTOS = 12

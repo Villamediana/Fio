@@ -661,7 +661,9 @@ class KeeperAndMindTest {
         assertTrue(prompt, prompt.contains("ANTES DISSO (a última conversa, "))
         assertTrue(prompt, prompt.contains("ela: \"preciso criar um fluxo no Power Automate\""))
         assertTrue(prompt, prompt.contains("você: \"Anotei a tarefa do fluxo.\""))
-        assertTrue(prompt, prompt.contains("criado: #${task.id} tarefa[todo]"))
+        // Already in the open tasks above: there it is only pointed to, not written again.
+        assertTrue(prompt, prompt.contains("criado: #${task.id} (acima)"))
+        assertEquals(prompt, 1, Regex("#${task.id} tarefa\\[todo]").findAll(prompt).count())
         // The step went to the task's steps, not to its text.
         val after = db.entries().get(task.id)!!
         assertEquals(listOf("Falar com o Vinícius"), Steps.read(after.steps).map { it.text })

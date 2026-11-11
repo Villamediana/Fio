@@ -456,7 +456,8 @@ class Mind(
         // A task already done is over: the model doesn't get it by itself (nothing to change in it,
         // no words spent on it). Only a lookup it asks for, to answer about the past, brings it back.
         val live = all.filterNot { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
-        val recall = Recall(all, topics, ties, links)
+        // Everything (the tasks done too) only if the model asks to look something up.
+        val recall by lazy { Recall(all, topics, ties, links) }
         val open = db.entries().openTasks()
         val focus = c.focusEntryId?.let { db.entries().get(it) }
         val hits = Recall(live, topics, ties, links).search(said, 12, now).map { it.entry }
@@ -467,8 +468,9 @@ class Mind(
         val diary = Brain.todaysDiary(all, now, z)
         // The photos kept, found by what they show — only for what is said or written (a photo
         // being described needs no others), a few at first; more when the model asks to look.
-        val pictures = PhotoRecall(db.captures().allPhotos().filter { it.id != c.id }.mapNotNull(Photo::of))
-        val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
+        var photoIndex: PhotoRecall? = null
+        suspend fun pictures(): PhotoRecall = photoIndex ?: PhotoRecall(db.captures().allPhotos().filter { it.id != c.id }.mapNotNull(Photo::of)).also { photoIndex = it }
+        val photoHits = if (photo) emptyList() else pictures().search(said, FIRST_PHOTO_HITS)
 
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
@@ -485,8 +487,8 @@ class Mind(
             val days = Brain.range(plan.period, z)
             val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
             found = (found + byWords + byTime).distinctBy { it.id }
-            foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures.search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
-                (if (days == null) emptyList() else pictures.during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
+            foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures().search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
+                (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
             val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
