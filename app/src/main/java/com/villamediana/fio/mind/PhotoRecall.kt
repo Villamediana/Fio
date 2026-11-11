@@ -4,9 +4,9 @@ import com.villamediana.fio.data.Capture
 import kotlin.math.ln
 
 /** A photo kept: its file, when it was taken, what it shows (the model's words) and the text read in it. */
-data class Photo(val id: Long, val path: String, val takenAt: Long, val description: String?, val text: String?) {
+data class Photo(val id: Long, val path: String, val takenAt: Long, val description: String?, val text: String?, val turn: Int = 0) {
     companion object {
-        fun of(c: Capture): Photo? = c.imagePath?.let { Photo(c.id, it, c.createdAt, c.description?.takeIf(String::isNotBlank), c.transcript?.takeIf(String::isNotBlank)) }
+        fun of(c: Capture): Photo? = c.imagePath?.let { Photo(c.id, it, c.createdAt, c.description?.takeIf(String::isNotBlank), c.transcript?.takeIf(String::isNotBlank), c.turn) }
     }
 }
 

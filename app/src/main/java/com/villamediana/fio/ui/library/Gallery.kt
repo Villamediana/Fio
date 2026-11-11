@@ -69,7 +69,8 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
                         val p = photos[i]
                         PhotoTile(
                             p.path,
-                            (if (row.full) Modifier.weight(shapes[k]) else Modifier.width((row.height * shapes[k]).dp))
+                            turn = p.turn,
+                            modifier = (if (row.full) Modifier.weight(shapes[k]) else Modifier.width((row.height * shapes[k]).dp))
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(18.dp))
                                 .clickable { opened = i }

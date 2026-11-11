@@ -67,7 +67,8 @@ internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifi
             val ratio = Mosaic.shape(i, aspects[p.id] ?: 1f)
             PhotoTile(
                 p.path,
-                Modifier
+                turn = p.turn,
+                modifier = Modifier
                     .height(height)
                     .width(height * ratio)
                     .clip(RoundedCornerShape(20.dp))

@@ -11,6 +11,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.sin
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,7 +50,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -81,18 +91,20 @@ fun photoAspect(path: String): Float = synchronized(ratios) { ratios[path] } ?: 
 @Composable
 fun rememberAspects(photos: List<Photo>, min: Float, max: Float): Map<Long, Float>? {
     val aspects by produceState<Map<Long, Float>?>(null, photos) {
-        value = withContext(Dispatchers.IO) { photos.associate { it.id to photoAspect(it.path).coerceIn(min, max) } }
+        value = withContext(Dispatchers.IO) {
+            photos.associate { p -> p.id to photoAspect(p.path).let { r -> if (p.turn % 180 == 90) 1f / r else r }.coerceIn(min, max) }
+        }
     }
     return aspects
 }
 
-/** The photo at [path], at most [maxPx] on its long side, upright; null while it loads (or if it can't). */
+/** The photo at [path], at most [maxPx] on its long side, upright ([turn] more to the right); null while it loads (or if it can't). */
 @Composable
-fun rememberPhoto(path: String, maxPx: Int): Bitmap? {
-    val key = "$path@$maxPx"
+fun rememberPhoto(path: String, maxPx: Int, turn: Int = 0): Bitmap? {
+    val key = "$path@$maxPx@$turn"
     val bitmap by produceState(PhotoCache.get(key), key) {
         if (value == null) {
-            value = withContext(Dispatchers.IO) { runCatching { uprightBitmap(File(path), maxPx) }.getOrNull() }?.also { PhotoCache.put(key, it) }
+            value = withContext(Dispatchers.IO) { runCatching { uprightBitmap(File(path), maxPx, turn) }.getOrNull() }?.also { PhotoCache.put(key, it) }
         }
     }
     return bitmap
@@ -100,8 +112,8 @@ fun rememberPhoto(path: String, maxPx: Int): Bitmap? {
 
 /** A photo filling its box (cropped), coming in softly once it is decoded. */
 @Composable
-fun PhotoTile(path: String, modifier: Modifier = Modifier, maxPx: Int = 480) {
-    val bitmap = rememberPhoto(path, maxPx)
+fun PhotoTile(path: String, modifier: Modifier = Modifier, maxPx: Int = 480, turn: Int = 0) {
+    val bitmap = rememberPhoto(path, maxPx, turn)
     val shown by animateFloatAsState(if (bitmap != null) 1f else 0f, tween(260), label = "photo")
     Box(modifier.background(FioColors.Surface2)) {
         bitmap?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(shown)) }
@@ -123,7 +135,8 @@ private val WHEN = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM · HH:mm", PT)
 
 /**
  * Photos big, on black, one beside the other: swipe between them; under each, when it was taken
- * (what it shows, in the model's words, is only for the search — never on screen). × or back closes.
+ * and a light menu to turn it (what it shows, in the model's words, is only for the search —
+ * never on screen). × or back closes.
  */
 @Composable
 fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
@@ -134,23 +147,62 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
         Box(Modifier.fillMaxSize().background(Color.Black).semantics { contentDescription = "photo-viewer" }) {
             HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { photos[it].id }) { page ->
                 val p = photos[page]
+                // Drawn as it stands in the file and turned on screen, so a turn moves smoothly
+                // (and forward: 270 → 360, never back); the turn is kept with the photo.
                 val bitmap = rememberPhoto(p.path, FULL_PX)
-                Box(Modifier.fillMaxSize()) {
-                    bitmap?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
+                var angle by remember(p.id) { mutableFloatStateOf(p.turn.toFloat()) }
+                val shown by animateFloatAsState(angle, tween(320), label = "turn")
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    bitmap?.let { b ->
+                        val boxW = constraints.maxWidth.toFloat()
+                        val boxH = constraints.maxHeight.toFloat()
+                        val straight = min(boxW / b.width, boxH / b.height)
+                        val sideways = min(boxW / b.height, boxH / b.width)
+                        // Lying on its side it fits the screen another way: the size follows the turn.
+                        val t = abs(sin(Math.toRadians(shown.toDouble()))).toFloat()
+                        val scale = 1f + (sideways / straight - 1f) * t
+                        Image(
+                            b.asImageBitmap(),
+                            null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = shown; scaleX = scale; scaleY = scale },
+                        )
+                    }
+                    // Under the photo: when it was taken, and a light menu to turn it.
                     Column(
                         Modifier
-                            .align(Alignment.BottomStart)
+                            .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f))))
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
                             .navigationBarsPadding()
-                            .padding(start = 22.dp, end = 22.dp, top = 40.dp, bottom = 22.dp),
+                            .padding(top = 40.dp, bottom = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
                             Instant.ofEpochMilli(p.takenAt).atZone(ZoneId.systemDefault()).format(WHEN).replaceFirstChar { it.titlecase(PT) },
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(top = 4.dp),
+                            color = Color.White.copy(alpha = 0.7f),
                         )
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .clickable(onClickLabel = "Girar") {
+                                        angle += 90f
+                                        val lib = com.villamediana.fio.FioApplication.graph
+                                        lib.scope.launch { lib.library.turnPhoto(p.id) }
+                                    }
+                                    .semantics { contentDescription = "Girar" },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(FioIcons.Rotate, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(22.dp))
+                            }
+                        }
                     }
                 }
             }

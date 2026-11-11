@@ -25,6 +25,12 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
     /** Whether [entryId] is the day's diary (the newest of [day]) — the one that shows the day's photos. */
     suspend fun isDayDiary(entryId: Long, day: LongRange): Boolean = db.entries().diariesBetween(day.first, day.last).firstOrNull()?.id == entryId
 
+    /** A photo a quarter turn to the right (kept with it, the file untouched). */
+    suspend fun turnPhoto(captureId: Long) {
+        val c = db.captures().get(captureId) ?: return
+        db.captures().update(c.copy(turn = (c.turn + 90) % 360))
+    }
+
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 
     suspend fun setStatus(id: Long, status: Status) {

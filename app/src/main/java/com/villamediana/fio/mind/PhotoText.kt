@@ -43,8 +43,8 @@ class MlKitPhotoReader(private val context: Context) : PhotoReader {
     private fun load(file: File, max: Int): Bitmap? = uprightBitmap(file, max)
 }
 
-/** A photo decoded at most [max] px on the long side, upright (its EXIF turn applied); null if unreadable. */
-fun uprightBitmap(file: File, max: Int): Bitmap? {
+/** A photo decoded at most [max] px on the long side, upright (its EXIF turn applied, and [turn] degrees more to the right); null if unreadable. */
+fun uprightBitmap(file: File, max: Int, turn: Int = 0): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.path, bounds)
     if (bounds.outWidth <= 0) return null
@@ -58,9 +58,9 @@ fun uprightBitmap(file: File, max: Int): Bitmap? {
             ExifInterface.ORIENTATION_ROTATE_270 -> 270f
             else -> 0f
         }
-    }.getOrDefault(0f)
+    }.getOrDefault(0f) + turn
     val scale = (max.toFloat() / maxOf(raw.width, raw.height)).coerceAtMost(1f)
-    if (degrees == 0f && scale == 1f) return raw
+    if (degrees % 360f == 0f && scale == 1f) return raw
     val m = Matrix().apply { postRotate(degrees); postScale(scale, scale) }
     return Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
 }

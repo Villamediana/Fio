@@ -212,9 +212,9 @@ interface BackupDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5)],
 )
 abstract class FioDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao

@@ -95,6 +95,8 @@ data class Capture(
     val description: String? = null,
     /** JSON list of photos (capture ids) shown as the answer to a question. */
     @ColumnInfo(defaultValue = "[]") val shownPhotos: String = "[]",
+    /** A photo turned by hand in the viewer, in degrees to the right (0, 90, 180, 270); the file isn't touched. */
+    @ColumnInfo(defaultValue = "0") val turn: Int = 0,
 ) {
     companion object {
         const val RECORDED = "recorded"

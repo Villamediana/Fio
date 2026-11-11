@@ -524,7 +524,7 @@ private fun DayThumbs(photos: List<Photo>) {
         Row(Modifier.height(h.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
             photos.take(n).forEachIndexed { i, p ->
                 Box(Modifier.width((h * shapes[i]).dp).fillMaxHeight().clip(RoundedCornerShape(14.dp))) {
-                    PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 320)
+                    PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 320, turn = p.turn)
                     if (i == n - 1 && more > 0) {
                         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.42f)), contentAlignment = Alignment.Center) {
                             Text("+$more", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White)

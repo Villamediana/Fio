@@ -283,6 +283,12 @@ class ScreensTest {
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
         // What it shows is only for the search: never under the photo.
         assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isEmpty())
+        // The light menu under it turns the photo, and the turn stays with it.
+        compose.onAllNodesWithContentDescription("Girar")[0].performClick() // the page next to it is drawn too
+        compose.mainClock.advanceTimeBy(600)
+        val turned = runBlocking { withTimeout(5_000) { graph.db.captures().allPhotos().first { it.imagePath!!.endsWith("gallery-test-0.jpg") }.let { c -> while (graph.db.captures().get(c.id)!!.turn != 90) kotlinx.coroutines.delay(20); graph.db.captures().get(c.id)!! } } }
+        assertEquals(90, turned.turn)
+        shot("24-viewer-turned")
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
 
