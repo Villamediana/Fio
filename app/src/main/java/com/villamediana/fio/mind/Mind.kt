@@ -460,7 +460,8 @@ class Mind(
         val photoHits = if (photo) emptyList() else pictures.search(said, FIRST_PHOTO_HITS)
 
         val taken = if (photo) c.createdAt else null
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken)
+        val before = before(c, all)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
@@ -476,13 +477,23 @@ class Mind(
             foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures.search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
                 (if (days == null) emptyList() else pictures.during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.
         if (plan.isLookupOnly) plan = plan.copy(reply = plan.reply.ifBlank { NOTHING_FOUND })
         return plan.copy(search = emptyList(), period = null)
+    }
+
+    /** The previous turn of the conversation: what she said then, the answer, and the items it touched (as they are now). */
+    private suspend fun before(c: Capture, all: List<Entry>): Before? {
+        val last = db.captures().lastDone(c.id) ?: return null
+        val byId = all.associateBy { it.id }
+        val items = runCatching { ids.decodeFromString(ListSerializer(Outcome.serializer()), last.outcomes) }.getOrDefault(emptyList())
+            .filter { it.action != Outcome.DELETED }
+            .mapNotNull { o -> byId[o.entryId]?.let { it to WHAT[o.action].orEmpty().ifEmpty { "mudou" } } }
+        return Before(last.createdAt, last.transcript.orEmpty(), last.reply.orEmpty(), photo = last.source == "photo", items = items)
     }
 
     /** The diary of the day [at] falls in, made (named by the date, nothing written yet) when the day has none. */
@@ -516,6 +527,8 @@ class Mind(
         const val RECENT = 5
 
         private const val NOTHING_FOUND = "Não achei nada sobre isso."
+
+        private val WHAT = mapOf(Outcome.CREATED to "criado", Outcome.UPDATED to "mudou", Outcome.DONE to "feito")
 
         private const val STOPPED_MESSAGE = "Parei. O que você disse ficou guardado."
     }

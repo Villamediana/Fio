@@ -77,6 +77,10 @@ interface CaptureDao {
     @Query("SELECT * FROM captures ORDER BY createdAt DESC LIMIT 1")
     fun observeLatest(): Flow<Capture?>
 
+    /** The last capture that went all the way through before [id] (the conversation's previous turn). */
+    @Query("SELECT * FROM captures WHERE state = 'done' AND id != :id ORDER BY id DESC LIMIT 1")
+    suspend fun lastDone(id: Long): Capture?
+
     /** Every photo kept, the newest first (the gallery, the search). */
     @Query("SELECT * FROM captures WHERE source = 'photo' AND imagePath IS NOT NULL ORDER BY createdAt DESC, id DESC")
     fun observeAllPhotos(): Flow<List<Capture>>

@@ -75,6 +75,9 @@ data class Change(
     val delete: Boolean = false,
 )
 
+/** The last exchange: what she said (or that it was a photo), Fio's answer, the items it made or changed ("criado"…). */
+data class Before(val at: Long, val said: String, val reply: String, val photo: Boolean = false, val items: List<Pair<Entry, String>> = emptyList())
+
 /** The model's side of Fio: the instructions, the context it sees, and reading what it answers. */
 object Brain {
     val SYSTEM: String = """
@@ -87,7 +90,7 @@ Numa mesma fala pode haver várias coisas:
 
 Ela também pode:
 - dar notícia de algo que já existe (andou, terminou, travou, mudou o prazo, mais detalhes): atualize o item existente pelo id em "update", não crie outro igual a ele. O item é um texto só: o que há de novo vai em "append", só o que ainda não está nele e só o que muda pra ele, escrito como continuação do texto dele, sem repetir o que ele já diz. A mudança de situação vai só em "status". Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
-- corrigir, completar ou desfazer o que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS; mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro.
+- corrigir, completar ou desfazer o que acabou de falar, ou se referir ao que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS e em ANTES DISSO (a última conversa); mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro. ANTES DISSO serve só pra entender a que ela se refere: o que está ali já foi guardado — nunca crie de novo nem leve de novo pro diário.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem e em "show_photos" os números das fotos (foto#N) que respondem. Pergunta não cria item.
 
 Como preencher:
@@ -136,6 +139,8 @@ Responda somente com um objeto JSON neste formato:
         photos: List<Photo> = emptyList(),
         /** A photo: when it was taken (one from the gallery may be from another day). */
         takenAt: Long? = null,
+        /** The last thing she said before this, and what came of it: what "isso", "essa tarefa" refer to. */
+        before: Before? = null,
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -181,6 +186,12 @@ Responda somente com um objeto JSON neste formato:
             append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
             // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
             append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
+        }
+        if (before != null) {
+            append("\nANTES DISSO (a última conversa, ").append(stamp(before.at, zone)).append("):\n")
+            append("ela: ").append(if (before.photo) "(mandou uma foto)" else "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\"").append('\n')
+            if (before.reply.isNotBlank()) append("você: \"").append(before.reply.trim().take(BEFORE_REPLY)).append("\"\n")
+            before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) -> append(what).append(": ").append(line(e, zone, now)).append('\n') }
         }
         val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
         val weekday = at.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
@@ -319,6 +330,9 @@ ws     ::= [ \t\n]{0,20}
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40
     private const val MAX_PHOTOS = 12
+    private const val BEFORE_SAID = 400
+    private const val BEFORE_REPLY = 200
+    private const val MAX_BEFORE_ITEMS = 6
     private const val FOCUS_BODY = 800
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

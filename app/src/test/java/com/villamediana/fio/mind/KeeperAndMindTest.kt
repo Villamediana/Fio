@@ -612,4 +612,31 @@ class KeeperAndMindTest {
         assertEquals(listOf(com.villamediana.fio.data.Link(minOf(a, task), maxOf(a, task))), db.graph().allLinks())
         assertNotNull(db.entries().get(other)) // another day stays as it is
     }
+
+    @Test
+    fun theLastConversationGoesAlongSoThatTaskIsKnown() = runBlocking {
+        // First: a task is made.
+        val made = """{"reply":"Anotei a tarefa do fluxo.","create":[{"kind":"task","title":"Criar fluxo no Power Automate"}]}"""
+        val then = """{"reply":"Anotei a etapa.","update":[{"id":1,"add_steps":["Falar com o Vinícius"]}]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made, then)))
+        val m = mind(FakeEars(""), thinker)
+        m.write("preciso criar um fluxo no Power Automate")
+        answered(m)
+        m.dismiss()
+        val task = db.entries().all().single { it.kindEnum == com.villamediana.fio.data.Kind.TASK }
+        // Then, about "that task": the previous turn is in the context, with the task's id.
+        m.write("da tarefa do fluxo, preciso falar com o Vinícius")
+        withTimeout(10_000) { while (thinker.prompts.size < 2 || !m.idle) kotlinx.coroutines.delay(20) }
+        val prompt = thinker.prompts[1]
+        assertTrue(prompt, prompt.contains("ANTES DISSO (a última conversa, "))
+        assertTrue(prompt, prompt.contains("ela: \"preciso criar um fluxo no Power Automate\""))
+        assertTrue(prompt, prompt.contains("você: \"Anotei a tarefa do fluxo.\""))
+        assertTrue(prompt, prompt.contains("criado: #${task.id} tarefa[todo]"))
+        // The step went to the task's steps, not to its text.
+        val after = db.entries().get(task.id)!!
+        assertEquals(listOf("Falar com o Vinícius"), Steps.read(after.steps).map { it.text })
+        assertEquals("", after.body)
+        // The first thing said has nothing before it.
+        assertTrue(!thinker.prompts[0].contains("ANTES DISSO"))
+    }
 }
