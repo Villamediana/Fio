@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android ≤ 11: o backup leva só o que foi guardado (banco). Áudios, fotos e modelo ficam de fora. -->
+<full-backup-content>
+    <include domain="database" path="." />
+</full-backup-content>

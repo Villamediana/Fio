@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- A nova versão baixada, entregue ao instalador do Android -->
+    <cache-path name="update" path="update/" />
+</paths>

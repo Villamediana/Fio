@@ -1,0 +1,16 @@
+.gradle/
+build/
+app/build/
+app/.cxx/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+dist/
+.idea/
+*.iml
+.DS_Store
+.models/
+.host-build/
+.host-build.log
+third_party/llama.cpp/

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fio</string>
+    <string name="channel_remind">Lembretes</string>
+    <string name="channel_checkin">Como está?</string>
+    <string name="channel_mic">Ouvindo</string>
+    <string name="notif_checkin_title">Como está?</string>
+    <string name="notif_talk">Falar</string>
+    <string name="notif_done">Feito</string>
+    <string name="notif_snooze">Daqui a 1 h</string>
+    <string name="notif_sensitive">Toque pra ver</string>
+    <string name="mic_listening">Ouvindo…</string>
+    <string name="mic_stop">Parar e guardar</string>
+</resources>

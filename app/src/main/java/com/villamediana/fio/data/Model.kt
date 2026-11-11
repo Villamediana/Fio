@@ -1,0 +1,155 @@
+package com.villamediana.fio.data
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
+
+/** What a thing kept in Fio is. */
+enum class Kind(val key: String) {
+    TASK("task"), NOTE("note"), DIARY("diary");
+
+    companion object {
+        fun of(key: String?): Kind? = entries.firstOrNull { it.key == key?.trim()?.lowercase() }
+    }
+}
+
+/** Where a task stands. */
+enum class Status(val key: String) {
+    TODO("todo"), DOING("doing"), WAITING("waiting"), DONE("done");
+
+    companion object {
+        fun of(key: String?): Status? = entries.firstOrNull { it.key == key?.trim()?.lowercase() }
+    }
+}
+
+@Serializable
+data class Step(val text: String, val done: Boolean = false)
+
+/** A task, a note or a diary entry. */
+@Entity(tableName = "entries", indices = [Index("kind"), Index("createdAt"), Index("captureId")])
+data class Entry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val kind: String,
+    val title: String,
+    val body: String = "",
+    /** Tasks only. */
+    val status: String? = null,
+    /** JSON list of [Step]. */
+    val steps: String = "[]",
+    /** JSON list of strings. */
+    val tags: String = "[]",
+    val dueAt: Long? = null,
+    /** The due date came with a time of day ("sexta às 15h"), not just a day. */
+    val dueHasTime: Boolean = false,
+    val remindAt: Long? = null,
+    /** When Fio asks how the task is going (decided by the model). */
+    val checkInAt: Long? = null,
+    /** Passwords, documents: hidden until tapped. */
+    val sensitive: Boolean = false,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val doneAt: Long? = null,
+    /** The capture (what was said or photographed) it came from. */
+    val captureId: Long? = null,
+) {
+    val kindEnum: Kind get() = Kind.of(kind) ?: Kind.NOTE
+    val statusEnum: Status? get() = Status.of(status)
+    val isOpenTask: Boolean get() = kindEnum == Kind.TASK && statusEnum != Status.DONE
+}
+
+/** One thing said or photographed, and what came of it. */
+@Entity(tableName = "captures", indices = [Index("createdAt")])
+data class Capture(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val createdAt: Long,
+    /** "voice" or "photo". */
+    val source: String,
+    val audioPath: String? = null,
+    val imagePath: String? = null,
+    val durationMs: Long = 0,
+    val transcript: String? = null,
+    /** recorded → transcribing → thinking → done | failed. */
+    val state: String,
+    val error: String? = null,
+    /** Fio's one-line answer. */
+    val reply: String? = null,
+    /** JSON list of [Outcome]: what was created or changed. */
+    val outcomes: String = "[]",
+    /** JSON list of entry ids shown as the answer to a question. */
+    val shown: String = "[]",
+    /** The entry a check-in was about (the reply goes to it first). */
+    val focusEntryId: Long? = null,
+) {
+    companion object {
+        const val RECORDED = "recorded"
+        const val TRANSCRIBING = "transcribing"
+        const val THINKING = "thinking"
+        const val DONE = "done"
+        const val FAILED = "failed"
+    }
+}
+
+@Serializable
+data class Outcome(val entryId: Long, val action: String) {
+    companion object {
+        const val CREATED = "created"
+        const val UPDATED = "updated"
+        const val DONE = "done"
+        const val DELETED = "deleted"
+    }
+}
+
+/** A person, place, project, company or subject: the knots of the graph. */
+@Entity(tableName = "entities", indices = [Index(value = ["norm"], unique = true)])
+data class Topic(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val norm: String,
+    val type: String = "topic",
+)
+
+@Entity(
+    tableName = "entry_topics",
+    primaryKeys = ["entryId", "topicId"],
+    indices = [Index("topicId")],
+    foreignKeys = [
+        ForeignKey(entity = Entry::class, parentColumns = ["id"], childColumns = ["entryId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Topic::class, parentColumns = ["id"], childColumns = ["topicId"], onDelete = ForeignKey.CASCADE),
+    ],
+)
+data class EntryTopic(val entryId: Long, val topicId: Long)
+
+/** Two entries the model saw as the same matter (always a < b). */
+@Entity(
+    tableName = "links",
+    primaryKeys = ["a", "b"],
+    indices = [Index("b")],
+    foreignKeys = [
+        ForeignKey(entity = Entry::class, parentColumns = ["id"], childColumns = ["a"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Entry::class, parentColumns = ["id"], childColumns = ["b"], onDelete = ForeignKey.CASCADE),
+    ],
+)
+data class Link(val a: Long, val b: Long)
+
+/** How a task went: each status change or bit of news, in order. */
+@Entity(
+    tableName = "progress",
+    indices = [Index("entryId")],
+    foreignKeys = [ForeignKey(entity = Entry::class, parentColumns = ["id"], childColumns = ["entryId"], onDelete = ForeignKey.CASCADE)],
+)
+data class Progress(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val entryId: Long,
+    val at: Long,
+    val text: String,
+    @ColumnInfo(defaultValue = "NULL") val status: String? = null,
+)
+
+/** A topic with how many entries it ties together (the graph's nodes). */
+data class TopicCount(val id: Long, val name: String, val type: String, val count: Int)
+
+/** Two topics that appear in the same entries (the graph's edges). */
+data class TopicPair(val a: Long, val b: Long, val weight: Int)

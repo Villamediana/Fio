@@ -1,0 +1,434 @@
+package com.villamediana.fio.update
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
+import androidx.core.content.pm.PackageInfoCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import com.villamediana.fio.BuildConfig
+import com.villamediana.fio.MainActivity
+import com.villamediana.fio.Notifications
+import com.villamediana.fio.R
+import com.villamediana.fio.FioApplication
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+/** The app's [Updates], wired to Android (PackageInstaller, files, the release build's identity). */
+fun createUpdates(context: Context, http: OkHttpClient, scope: CoroutineScope): Updates {
+    val app = context.applicationContext
+    val agent = "Fio/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.RELEASE})"
+    return Updates(
+        scope = scope,
+        source = ReleaseSource(http, agent),
+        downloader = ApkDownloader(http, agent),
+        installer = SessionInstaller(app),
+        memory = UpdateMemoryFile(File(app.filesDir, "update.json")),
+        apkDir = File(app.cacheDir, "update"),
+        current = ApkInfo(app.packageName, BuildConfig.VERSION_CODE.toLong()),
+        currentVersion = BuildConfig.VERSION_NAME,
+        enabled = !BuildConfig.DEBUG,
+        onFound = { UpdateAutoWorker.schedule(app) },
+        onManual = { UpdateAutoWorker.cancel(app) },
+        exitReason = { since -> ExitReport.describe(app, since) },
+    )
+}
+
+/**
+ * Why the app closed, for the update sheet: Android's own record of the process ending (Android 11+:
+ * a crash, low memory, the system, a permission change…) and the last crash caught here.
+ */
+object ExitReport {
+    private const val CRASH_FILE = "last-crash.txt"
+
+    /** Keeps the next crash's first lines on disk (then lets Android handle it as always). */
+    fun catchCrashes(context: Context) {
+        val dir = context.applicationContext.filesDir
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                val lines = buildList {
+                    add(error.toString())
+                    error.stackTrace.take(8).forEach { add("  at $it") }
+                    error.cause?.let { c -> add("caused by $c"); c.stackTrace.take(4).forEach { add("  at $it") } }
+                }
+                File(dir, CRASH_FILE).writeText(lines.joinToString("\n").take(4_000))
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
+    fun describe(context: Context, since: Long): String? {
+        val parts = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= 30) {
+            runCatching {
+                val am = context.getSystemService(android.app.ActivityManager::class.java)
+                am?.getHistoricalProcessExitReasons(context.packageName, 0, 5)
+                    ?.firstOrNull { it.timestamp >= since }
+                    ?.let { info -> parts += reasonName(info.reason) + (info.description?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "") }
+            }
+        }
+        val crash = File(context.filesDir, CRASH_FILE).takeIf { it.isFile && it.lastModified() >= since }
+        crash?.let { f -> runCatching { f.readLines().take(3).joinToString(" ").trim() }.getOrNull()?.takeIf { it.isNotBlank() }?.let { parts += it } }
+        return parts.joinToString("\n").ifBlank { null }
+    }
+
+    private fun reasonName(reason: Int): String = when (reason) {
+        1 -> "o app saiu sozinho"
+        2 -> "encerrado pelo sistema"
+        3 -> "pouca memória"
+        4 -> "erro no app (crash)"
+        5 -> "erro nativo (crash)"
+        6 -> "travou (ANR)"
+        7 -> "falha ao iniciar"
+        8 -> "uma permissão mudou"
+        9 -> "uso excessivo de recursos"
+        10 -> "fechado (pedido do usuário ou do sistema)"
+        11 -> "forçado a parar"
+        12 -> "um processo do qual dependia caiu"
+        13 -> "outro motivo do sistema"
+        14 -> "congelado pelo sistema"
+        15 -> "o pacote mudou de estado"
+        16 -> "o app foi atualizado"
+        else -> "motivo desconhecido ($reason)"
+    }
+}
+
+/**
+ * Android's PackageInstaller: one session with the APK, committed with a status receiver. From
+ * Android 12 on, once Fio installed itself the first time, the next updates skip the
+ * "Atualizar este app?" screen — and from Android 14 on, Android itself can wait to install until
+ * the app is not in use ([installWhenIdle]).
+ */
+internal class SessionInstaller(private val context: Context) : ApkInstaller {
+    override fun canInstall(): Boolean = context.packageManager.canRequestPackageInstalls()
+
+    override fun canInstallQuietly(): Boolean {
+        if (Build.VERSION.SDK_INT < 31 || !canInstall()) return false
+        // Android only skips the question for the app that installed the version on the phone.
+        val installer = runCatching { context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName }.getOrNull()
+        return installer == context.packageName
+    }
+
+    @SuppressLint("NewApi")
+    override fun installWhenIdle(apk: File): Boolean {
+        if (Build.VERSION.SDK_INT < 34) return false
+        val installer = context.packageManager.packageInstaller
+        val id = write(apk, ask = false)
+        return try {
+            // Not on screen and not playing (or doing anything for the person): then Android installs it.
+            val constraints = PackageInstaller.InstallConstraints.Builder()
+                .setAppNotForegroundRequired()
+                .setAppNotInteractingRequired()
+                .build()
+            installer.commitSessionAfterInstallConstraintsAreMet(id, statusSender(id), constraints, IDLE_WAIT_MS)
+            true
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(id) }
+            false
+        }
+    }
+
+    override fun inspect(apk: File): ApkInfo? {
+        // The int-flags call: still there on every API level (the PackageInfoFlags one is only 33+).
+        @Suppress("DEPRECATION")
+        val info = context.packageManager.getPackageArchiveInfo(apk.path, 0) ?: return null
+        return ApkInfo(info.packageName, PackageInfoCompat.getLongVersionCode(info))
+    }
+
+    override fun install(apk: File, ask: Boolean) {
+        val installer = context.packageManager.packageInstaller
+        val id = write(apk, ask)
+        try {
+            installer.openSession(id).use { session -> session.commit(statusSender(id)) }
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(id) }
+            throw e
+        }
+    }
+
+    override fun cancelPending() {
+        val installer = context.packageManager.packageInstaller
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
+    }
+
+    /**
+     * A new session with the APK written in (any older one of ours abandoned first: one at a time).
+     * [ask]: Android shows its "Atualizar?"; otherwise it may go in without asking (Android 12+).
+     */
+    private fun write(apk: File, ask: Boolean): Int {
+        val installer = context.packageManager.packageInstaller
+        cancelPending()
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            setSize(apk.length())
+            setInstallReason(PackageManager.INSTALL_REASON_USER)
+            if (Build.VERSION.SDK_INT >= 31) {
+                setRequireUserAction(
+                    if (ask) PackageInstaller.SessionParams.USER_ACTION_REQUIRED else PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED,
+                )
+            }
+        }
+        val id = installer.createSession(params)
+        try {
+            installer.openSession(id).use { session ->
+                apk.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, apk.length()).use { out ->
+                        input.copyTo(out, 64 * 1024)
+                        session.fsync(out)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(id) }
+            throw e
+        }
+        return id
+    }
+
+    /**
+     * Opened as is (an app can open the installer without seeing it on the phone's list); when no
+     * installer answers, the update goes to Android with its "Atualizar?" ([Updates.screenUnavailable]).
+     */
+    override fun installScreen(apk: File): Intent? {
+        val uri = runCatching { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", apk) }.getOrNull() ?: return null
+        @Suppress("DEPRECATION")
+        return Intent(Intent.ACTION_INSTALL_PACKAGE)
+            .setDataAndType(uri, APK_TYPE)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Fio stays the one that updates Fio (so the next ones can still install by themselves).
+            .putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
+    }
+
+    private fun statusSender(id: Int): android.content.IntentSender {
+        val status = Intent(context, UpdateStatusReceiver::class.java).setAction(UpdateStatusReceiver.ACTION)
+        // Mutable: Android writes the status into it. Explicit, so nobody else can fill it.
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        return PendingIntent.getBroadcast(context, id, status, flags).intentSender
+    }
+
+    private companion object {
+        /** How long Android waits for the app to be out of use before giving up (it's tried again later). */
+        const val IDLE_WAIT_MS = 3L * 24 * 3_600_000L
+        const val APK_TYPE = "application/vnd.android.package-archive"
+    }
+}
+
+/** PackageInstaller's answer for the session committed by [SessionInstaller]. */
+class UpdateStatusReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION) return
+        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+        val result = when (status) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> InstallResult.NEEDS_CONFIRMATION
+            PackageInstaller.STATUS_SUCCESS -> InstallResult.SUCCESS
+            PackageInstaller.STATUS_FAILURE_ABORTED -> InstallResult.CANCELLED
+            PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> InstallResult.CONFLICT
+            PackageInstaller.STATUS_FAILURE_STORAGE -> InstallResult.STORAGE
+            else -> InstallResult.FAILED
+        }
+        val confirmation = if (result == InstallResult.NEEDS_CONFIRMATION) {
+            IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
+        } else {
+            null
+        }
+        FioApplication.graph.updates.onInstallStatus(result, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), confirmation)
+    }
+
+    companion object {
+        const val ACTION = "com.villamediana.fio.update.STATUS"
+    }
+}
+
+/**
+ * The new version, right after Android replaced the app: "Fio atualizado · toque pra abrir"
+ * (it goes away once the app is on screen). From the button, Android's installer itself offers
+ * "Abrir"; installed by itself while the app was not in use, the app never pops up over anything.
+ */
+class UpdatedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val updated = FioApplication.graph.updates.afterUpdate() ?: return
+        UpdateNotifier.updated(context, updated.version)
+    }
+}
+
+/**
+ * The automatic update's download, on Wi-Fi (an APK a few times a day is too much for mobile data),
+ * then handed to Android to install once the app is not in use. Only while the app is not on screen:
+ * with it open, the button is the way (and the two never race).
+ */
+class UpdateAutoWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+        val updates = FioApplication.graph.updates
+        if (!updates.enabled) return Result.success()
+        val onScreen = withContext(Dispatchers.Main) { ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
+        if (onScreen) return Result.retry()
+        updates.prepareAuto()
+        return Result.success()
+    }
+
+    companion object {
+        private const val NAME = "update-auto"
+
+        fun schedule(context: Context) {
+            val request = androidx.work.OneTimeWorkRequestBuilder<UpdateAutoWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.UNMETERED)
+                        .setRequiresBatteryNotLow(true)
+                        .build(),
+                )
+                .setBackoffCriteria(androidx.work.BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
+                .build()
+            runCatching { WorkManager.getInstance(context).enqueueUniqueWork(NAME, androidx.work.ExistingWorkPolicy.KEEP, request) }
+        }
+
+        fun cancel(context: Context) {
+            runCatching { WorkManager.getInstance(context).cancelUniqueWork(NAME) }
+        }
+    }
+}
+
+/**
+ * Android 12–13 (no waiting by itself): when the app goes to the background, a ready version is
+ * installed a couple of minutes later — if the app is still not on screen and nothing is playing.
+ */
+class UpdateIdleWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+        val updates = FioApplication.graph.updates
+        if (!updates.enabled || updates.autoReady.value == null) return Result.success()
+        val onScreen = withContext(Dispatchers.Main) { ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
+        if (onScreen) return Result.success() // back in use: the next time it leaves
+        val audio = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+        if (audio?.isMusicActive == true) return Result.retry() // music on: later
+        updates.onIdle()
+        return Result.success()
+    }
+
+    companion object {
+        private const val NAME = "update-idle"
+
+        /** The app left the screen: a look in a couple of minutes. */
+        fun schedule(context: Context) {
+            val request = androidx.work.OneTimeWorkRequestBuilder<UpdateIdleWorker>()
+                .setInitialDelay(2, TimeUnit.MINUTES)
+                .setBackoffCriteria(androidx.work.BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
+                .build()
+            runCatching { WorkManager.getInstance(context).enqueueUniqueWork(NAME, androidx.work.ExistingWorkPolicy.REPLACE, request) }
+        }
+
+        /** Watches the app leaving the screen (Android 12–13; from 14 Android waits by itself). */
+        fun watch(context: Context, updates: Updates) {
+            if (Build.VERSION.SDK_INT !in 31..33 || !updates.enabled) return
+            ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+                override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                    if (updates.autoReady.value != null) schedule(context)
+                }
+            })
+        }
+    }
+}
+
+/** A check a day in the background; a new version is announced once, when the app is not on screen. */
+class UpdateCheckWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+        val updates = FioApplication.graph.updates
+        if (!updates.enabled) return Result.success()
+        updates.check(manual = false)
+        val onScreen = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        val release = updates.toAnnounce() ?: return Result.success()
+        // It installs by itself when the app is not in use (then "atualizado" says so): no "nova versão".
+        if (!onScreen && !updates.installsBySelf) UpdateNotifier.available(applicationContext, release)
+        return Result.success()
+    }
+
+    companion object {
+        private const val NAME = "update-check"
+
+        fun schedule(context: Context) {
+            val request = PeriodicWorkRequestBuilder<UpdateCheckWorker>(1, TimeUnit.DAYS)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setInitialDelay(1, TimeUnit.HOURS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+        }
+    }
+}
+
+/** The two update notifications: a new version is out, and the app was updated. */
+object UpdateNotifier {
+    /** Extra on the notification's intent: open the update sheet. */
+    const val EXTRA_OPEN = "com.villamediana.fio.update.OPEN"
+
+    fun available(context: Context, release: AppRelease) {
+        post(
+            context,
+            Notifications.ID_UPDATE_AVAILABLE,
+            context.getString(R.string.update_notif_available_title),
+            context.getString(R.string.update_notif_available_text, release.version),
+            openSheet = true,
+        )
+    }
+
+    /** The app is on screen: "atualizado · toque pra abrir" has done its job. */
+    fun clearUpdated(context: Context) {
+        NotificationManagerCompat.from(context).cancel(Notifications.ID_UPDATED)
+    }
+
+    fun updated(context: Context, version: String) {
+        NotificationManagerCompat.from(context).cancel(Notifications.ID_UPDATE_AVAILABLE)
+        post(
+            context,
+            Notifications.ID_UPDATED,
+            context.getString(R.string.update_notif_done_title),
+            context.getString(R.string.update_notif_done_text, version),
+            openSheet = false,
+        )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun post(context: Context, id: Int, title: String, text: String, openSheet: Boolean) {
+        val manager = NotificationManagerCompat.from(context)
+        val allowed = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        if (!allowed || !manager.areNotificationsEnabled()) return
+        Notifications.createChannels(context)
+        val open = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .apply { if (openSheet) putExtra(EXTRA_OPEN, true) }
+        val tap = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.accent))
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        manager.notify(id, notification)
+    }
+}
