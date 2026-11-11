@@ -188,8 +188,9 @@ class Thinking(
             Source.LOCAL -> engine.generate(
                 model.files,
                 Brain.chatml(system, if (image != null) LocalEngine.MEDIA + "\n" + user else user),
-                Brain.JSON_GRAMMAR,
+                Brain.PLAN_GRAMMAR,
                 image,
+                maxTokens = Brain.answerRoom(user),
                 // The instructions are the same every time: the phone runs them once and keeps them.
                 fixed = Brain.chatmlHead(system),
             )

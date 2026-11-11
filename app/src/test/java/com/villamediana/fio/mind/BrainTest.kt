@@ -144,4 +144,44 @@ class BrainTest {
         assertTrue(Steps.same("orçamento", "pedir orçamento pro fornecedor"))
         assertFalse(Steps.same("ligar", "pagar"))
     }
+
+    @Test
+    fun thePhoneGrammarOnlyNamesRulesItHas() {
+        // llama.cpp reads rule names made of letters, digits and "-" only, and stops at one it doesn't know.
+        val rules = Brain.PLAN_GRAMMAR.lines().associate { line -> line.substringBefore("::=").trim() to line.substringAfter("::=") }
+        assertTrue(rules.keys.toString(), rules.keys.all { Regex("[a-z][a-z0-9-]*").matches(it) })
+        assertTrue("root" in rules)
+        val literal = Regex("\"(\\\\.|[^\"\\\\])*\"|\\[(\\\\.|[^\\]\\\\])*]|\\{[0-9,]+}")
+        rules.forEach { (name, body) ->
+            val used = Regex("[A-Za-z_][A-Za-z0-9_-]*").findAll(literal.replace(body, " ")).map { it.value }.toSet()
+            assertTrue("$name uses ${used - rules.keys}", rules.keys.containsAll(used))
+        }
+        // Every field of the answer is in it.
+        listOf("reply", "create", "update", "search", "period", "show", "show_photos", "photo_description", "keep_audio",
+            "kind", "title", "body", "tags", "entities", "due", "remind_at", "check_in_at", "steps", "status", "sensitive", "related", "photos",
+            "id", "steps_done", "add_steps", "append", "delete", "name", "type", "from", "to",
+        ).forEach { assertTrue(it, Brain.PLAN_GRAMMAR.contains("\"\\\"$it\\\"\"")) }
+    }
+
+    @Test
+    fun whatThePhoneGrammarLetsThroughReadsAsAPlan() {
+        // An empty field written as null, a field written twice, an entity with only its name.
+        val plan = Brain.parse(
+            """{ "reply": "ok", "create": [{"kind": "diary", "title": "Dia", "body": null, "status": null, "due": null, "entities": [{"name": "Alma"}], "related": [3]}],
+               "update": [{"id": 12, "title": null, "append": "a", "append": "b", "delete": false}], "period": null, "photo_description": null, "show": [4, 5]}""",
+        )!!
+        assertEquals("", plan.create.single().body)
+        assertEquals("topic", plan.create.single().entities.single().type)
+        assertEquals("b", plan.update.single().append)
+        assertNull(plan.period)
+        assertEquals(listOf(4L, 5L), plan.show)
+        assertEquals(Plan(), Brain.parse("{}"))
+    }
+
+    @Test
+    fun theAnswerOnThePhoneHasRoomForALongStory() {
+        assertEquals(1200, Brain.answerRoom("x".repeat(300)))
+        assertEquals(2800, Brain.answerRoom("x".repeat(6000)))
+        assertEquals(4096, Brain.answerRoom("x".repeat(60_000)))
+    }
 }

@@ -346,17 +346,40 @@ Os campos que existem:
         return d.atTime(LocalTime.of(9, 0)).atZone(zone).toInstant().toEpochMilli()
     }
 
-    /** A JSON object grammar (GBNF) for the on-device model: the answer can only be JSON. */
-    val JSON_GRAMMAR: String = """
-root   ::= ws object ws
-object ::= "{" ws ( pair ( ws "," ws pair )* )? ws "}"
-pair   ::= string ws ":" ws value
-array  ::= "[" ws ( value ( ws "," ws value )* )? ws "]"
-value  ::= object | array | string | number | ("true" | "false" | "null")
-string ::= "\"" ( [^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}) )* "\""
-number ::= "-"? ([0-9] | [1-9] [0-9]{0,15}) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
-ws     ::= [ \t\n]{0,20}
+    /**
+     * The answer's grammar (GBNF) for the on-device model: only what reads as a [Plan] can come
+     * out — the fields that exist, each with its kind of value (an id is a number, a list of
+     * entities is a list of {name, type}…). A small model left to any JSON at all now and then
+     * writes one that can't be read; with this it can't.
+     */
+    val PLAN_GRAMMAR: String = """
+root     ::= ws "{" ws ( top ( ws "," ws top )* )? ws "}"
+top      ::= "\"reply\"" sep string | "\"create\"" sep items | "\"update\"" sep changes | "\"search\"" sep strings | "\"period\"" sep period | ( "\"show\"" | "\"show_photos\"" ) sep ints | "\"photo_description\"" sep text | "\"keep_audio\"" sep bool
+items    ::= "[" ws ( item ( ws "," ws item )* )? ws "]"
+item     ::= "{" ws "\"kind\"" sep ( "\"task\"" | "\"note\"" | "\"diary\"" ) ws "," ws "\"title\"" sep string ( ws "," ws itemfield )* ws "}"
+itemfield ::= ( "\"body\"" | "\"due\"" | "\"remind_at\"" | "\"check_in_at\"" | "\"status\"" ) sep text | ( "\"tags\"" | "\"steps\"" ) sep strings | "\"entities\"" sep entities | ( "\"sensitive\"" | "\"photos\"" ) sep bool | "\"related\"" sep ints
+changes  ::= "[" ws ( change ( ws "," ws change )* )? ws "]"
+change   ::= "{" ws "\"id\"" sep int ( ws "," ws changefield )* ws "}"
+changefield ::= ( "\"status\"" | "\"title\"" | "\"append\"" | "\"body\"" | "\"due\"" | "\"remind_at\"" | "\"check_in_at\"" ) sep text | ( "\"steps_done\"" | "\"add_steps\"" ) sep strings | "\"entities\"" sep entities | ( "\"delete\"" | "\"photos\"" ) sep bool
+entities ::= "[" ws ( entity ( ws "," ws entity )* )? ws "]"
+entity   ::= "{" ws "\"name\"" sep string ( ws "," ws "\"type\"" sep string )? ws "}"
+period   ::= "{" ws ( day ( ws "," ws day )? )? ws "}" | "null"
+day      ::= ( "\"from\"" | "\"to\"" ) sep text
+strings  ::= "[" ws ( string ( ws "," ws string )* )? ws "]"
+ints     ::= "[" ws ( int ( ws "," ws int )* )? ws "]"
+text     ::= string | "null"
+bool     ::= "true" | "false"
+int      ::= [0-9]{1,15}
+sep      ::= ws ":" ws
+string   ::= "\"" ( [^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4}) )* "\""
+ws       ::= [ \t\n]{0,20}
 """.trim()
+
+    /**
+     * How long an answer on the phone may get, in tokens: room to write back all that was said
+     * (a long story of the day) and no more than that — a model that loses itself stops there.
+     */
+    fun answerRoom(user: String): Int = (800 + user.length / 3).coerceIn(1200, 4096)
 
     private const val MAX_TASKS = 30
     private const val MAX_RELATED = 8
