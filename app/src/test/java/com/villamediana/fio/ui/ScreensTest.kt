@@ -316,6 +316,26 @@ class ScreensTest {
     }
 
     @Test
+    fun aTurnedPhotoIsRedrawnWhereItShows() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val f = File(context.cacheDir, "turn-test.jpg")
+        Bitmap.createBitmap(80, 40, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF85CDCA.toInt()) }
+            .let { b -> f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+        val turn = androidx.compose.runtime.mutableIntStateOf(0)
+        var size = 0 to 0
+        compose.setContent {
+            val b = com.villamediana.fio.ui.components.rememberPhoto(f.path, 200, turn.intValue)
+            size = (b?.width ?: 0) to (b?.height ?: 0)
+        }
+        compose.waitUntil(5_000) { size == 80 to 40 }
+        // Turned (from the viewer), the same photo on screen follows without leaving it.
+        turn.intValue = 90
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(100)
+        runCatching { compose.waitUntil(5_000) { size == 40 to 80 } }.onFailure { throw AssertionError("still $size") }
+    }
+
+    @Test
     fun swipesMoveAlongTheLine() {
         seed()
         val nav = Nav()

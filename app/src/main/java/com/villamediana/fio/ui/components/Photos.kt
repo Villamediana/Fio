@@ -39,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -98,16 +100,20 @@ fun rememberAspects(photos: List<Photo>, min: Float, max: Float): Map<Long, Floa
     return aspects
 }
 
-/** The photo at [path], at most [maxPx] on its long side, upright ([turn] more to the right); null while it loads (or if it can't). */
+/**
+ * The photo at [path], at most [maxPx] on its long side, upright ([turn] more to the right); null
+ * while it loads (or if it can't). Turned, it keeps showing as it was until the turned one is ready.
+ */
 @Composable
 fun rememberPhoto(path: String, maxPx: Int, turn: Int = 0): Bitmap? {
     val key = "$path@$maxPx@$turn"
-    val bitmap by produceState(PhotoCache.get(key), key) {
-        if (value == null) {
-            value = withContext(Dispatchers.IO) { runCatching { uprightBitmap(File(path), maxPx, turn) }.getOrNull() }?.also { PhotoCache.put(key, it) }
-        }
+    val bitmap = remember(path) { mutableStateOf(PhotoCache.get(key)) }
+    LaunchedEffect(key) {
+        val ready = PhotoCache.get(key)
+            ?: withContext(Dispatchers.IO) { runCatching { uprightBitmap(File(path), maxPx, turn) }.getOrNull() }?.also { PhotoCache.put(key, it) }
+        if (ready != null) bitmap.value = ready
     }
-    return bitmap
+    return bitmap.value
 }
 
 /** A photo filling its box (cropped), coming in softly once it is decoded. */
