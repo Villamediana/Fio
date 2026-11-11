@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -86,16 +87,11 @@ fun Orb(
     val press by animateFloatAsState(if (pressed) 0.93f else 1f, spring(0.55f, Spring.StiffnessMedium), label = "press")
     val listen by animateFloatAsState(if (listening) 1f else 0f, spring(0.62f, 220f), label = "listen")
     val work by animateFloatAsState(if (working) 1f else 0f, tween(420), label = "work")
-    val fill by animateColorAsState(
-        when {
-            listening && dragging > 0.99f -> FioColors.TextMuted
-            listening -> FioColors.Accent
-            else -> FioColors.Text
-        },
-        tween(260), label = "fill",
-    )
+    // The drop is the thread's own color; it only goes gray when it is about to be thrown away.
+    val discarding = listening && dragging > 0.99f
+    val fill by animateColorAsState(if (discarding) FioColors.TextMuted else FioColors.Accent, tween(260), label = "fill")
     val ring = FioColors.Accent
-    val iconTint by animateColorAsState(if (listening) FioColors.OnAccent else FioColors.Background, tween(260), label = "icon")
+    val iconTint = Color.White
 
     // The clock only runs while something moves (listening, working, or settling back).
     var time by remember { mutableFloatStateOf(0f) }
@@ -122,6 +118,10 @@ fun Orb(
             val r = this.size.minDimension * 0.30f * press * (1f - 0.06f * work)
             val lvl = smooth
             val t = time
+
+            // At rest: one quiet, flat halo. It gives way to the ripples and to the thread.
+            val rest = (1f - listen).coerceIn(0f, 1f) * (1f - work)
+            if (rest > 0.01f) drawCircle(ring.copy(alpha = 0.10f * rest), radius = r * 1.30f, center = c)
 
             // Ripples going out with the voice.
             if (listen > 0.01f) {

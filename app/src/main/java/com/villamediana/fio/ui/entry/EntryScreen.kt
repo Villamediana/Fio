@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,7 +53,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,7 +70,6 @@ import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.CheckCircle
 import com.villamediana.fio.ui.components.Dates
 import com.villamediana.fio.ui.components.EntryCard
-import com.villamediana.fio.ui.components.KindDot
 import com.villamediana.fio.ui.components.Pill
 import com.villamediana.fio.ui.components.SectionLabel
 import com.villamediana.fio.ui.components.kindLabel
@@ -134,15 +136,7 @@ fun EntryScreen(nav: Nav, id: Long) {
         }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                KindDot(kind)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    kindLabel(kind).uppercase() + "  ·  " + Dates.dayTime(e.createdAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FioColors.TextFaint,
-                )
-            }
+            Text(kindLabel(kind) + " · " + Dates.dayTime(e.createdAt), style = MaterialTheme.typography.labelLarge, color = FioColors.TextFaint)
             Spacer(Modifier.height(10.dp))
             BasicTextField(
                 value = title,
@@ -196,7 +190,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                 SectionLabel("Andamento")
                 progress.forEach { p ->
                     Row(Modifier.padding(bottom = 10.dp)) {
-                        Box(Modifier.padding(top = 7.dp).size(6.dp).clip(CircleShape).background(FioColors.of(kind)))
+                        Box(Modifier.padding(top = 7.dp).size(6.dp).clip(CircleShape).background(FioColors.Surface3))
                         Spacer(Modifier.width(12.dp))
                         Column {
                             val st = Status.of(p.status)
@@ -242,27 +236,34 @@ fun EntryScreen(nav: Nav, id: Long) {
 private fun StepsBlock(e: Entry, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit) {
     val steps = remember(e.steps) { Steps.read(e.steps) }
     var adding by remember { mutableStateOf("") }
+    val haptics = LocalHapticFeedback.current
     SectionLabel(if (steps.isEmpty()) "Etapas" else "Etapas · ${steps.count { it.done }}/${steps.size}")
     if (steps.isNotEmpty()) {
         val frac = steps.count { it.done }.toFloat() / steps.size
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(FioColors.Surface2)) {
-            Box(Modifier.fillMaxWidth(frac).height(4.dp).clip(CircleShape).background(FioColors.of(Kind.TASK)))
+            Box(Modifier.fillMaxWidth(frac).height(4.dp).clip(CircleShape).background(FioColors.Accent))
         }
         Spacer(Modifier.height(6.dp))
     }
     steps.forEachIndexed { i, s ->
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CheckCircle(s.done, FioColors.of(Kind.TASK), onClick = { onToggle(i) }, size = 20.dp)
+            CheckCircle(s.done, FioColors.Accent, onClick = { onToggle(i) }, size = 20.dp)
+            // Tap ticks it; holding takes the step away.
             Text(
                 s.text,
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (s.done) FioColors.TextMuted else FioColors.Text,
                 textDecoration = if (s.done) TextDecoration.LineThrough else null,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .combinedClickable(
+                        onClick = { onToggle(i) },
+                        onLongClickLabel = "Tirar etapa",
+                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onRemove(i) },
+                    )
+                    .padding(vertical = 8.dp),
             )
-            Box(Modifier.size(36.dp).clip(CircleShape).clickable { onRemove(i) }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Close, "Tirar etapa", tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
-            }
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, top = 2.dp)) {
@@ -303,7 +304,7 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
             }
         }, start.year, start.monthValue - 1, start.dayOfMonth).show()
     }
-    SectionLabel("Quando")
+    Spacer(Modifier.height(24.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (e.kindEnum == Kind.TASK) {
             DateChip(

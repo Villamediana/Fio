@@ -26,6 +26,7 @@ class Library(private val db: FioDatabase, private val reminders: ReminderSync, 
                 status = status.key,
                 doneAt = if (status == Status.DONE) now else null,
                 checkInAt = if (status == Status.DONE) null else e.checkInAt,
+                remindAt = if (status == Status.DONE) null else e.remindAt, // done: nothing left to remind
                 updatedAt = now,
             ),
         )

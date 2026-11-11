@@ -1,6 +1,7 @@
 package com.villamediana.fio.mind
 
 import com.villamediana.fio.ai.Api
+import com.villamediana.fio.ai.ApiException
 import com.villamediana.fio.audio.Pieces
 import com.villamediana.fio.audio.Wav
 import com.villamediana.fio.local.LocalEngine
@@ -116,7 +117,24 @@ class Thinking(
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
             Source.LOCAL -> engine.generate(model.files, Brain.chatml(system, user), Brain.JSON_GRAMMAR)
-            Source.API -> api.chat(Api.Endpoint(s.apiBase, settings.apiKey().orEmpty()), s.thinkModel, system, user, image)
+            Source.API -> {
+                val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
+                // A model that doesn't see, or a server without the JSON mode, refuses the request
+                // as written: it goes again with only the text, then without asking for the mode
+                // (the instructions already ask for JSON).
+                try {
+                    api.chat(ep, s.thinkModel, system, user, image)
+                } catch (e: ApiException) {
+                    if (!e.refused) throw e
+                    try {
+                        if (image == null) throw e
+                        api.chat(ep, s.thinkModel, system, user, null)
+                    } catch (e2: ApiException) {
+                        if (!e2.refused) throw e2
+                        api.chat(ep, s.thinkModel, system, user, null, jsonOut = false)
+                    }
+                }
+            }
         }
     }
 }

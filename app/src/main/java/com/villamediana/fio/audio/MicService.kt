@@ -44,25 +44,41 @@ class MicService : Service() {
         runCatching {
             ServiceCompat.startForeground(this, Notifications.ID_MIC, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         }.onFailure { stopSelf() }
+        running = true
+        // Let go before this even started (a very short recording): Android still wants the
+        // foreground promise kept, so it is kept above and the service leaves right after.
+        if (!wanted) stopSelf()
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        running = false
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 
     companion object {
         private const val ACTION_STOP = "com.villamediana.fio.mic.STOP"
+
+        /** The recording wants the service (set by [AndroidMicHolder], read on the main thread). */
+        @Volatile var wanted = false
+
+        /** onStartCommand already ran: stopping it now is safe. */
+        @Volatile var running = false
     }
 }
 
 class AndroidMicHolder(private val context: Context) : MicHolder {
     override fun hold() {
+        MicService.wanted = true
         runCatching { ContextCompat.startForegroundService(context, Intent(context, MicService::class.java)) }
+            .onFailure { MicService.wanted = false }
     }
 
     override fun release() {
-        runCatching { context.stopService(Intent(context, MicService::class.java)) }
+        MicService.wanted = false
+        // Stopping a foreground service before its onStartCommand crashes the app; in that case it
+        // stops itself as soon as it starts.
+        if (MicService.running) runCatching { context.stopService(Intent(context, MicService::class.java)) }
     }
 }

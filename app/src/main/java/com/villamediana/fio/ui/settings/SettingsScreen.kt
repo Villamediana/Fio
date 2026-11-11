@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -265,11 +266,11 @@ private fun Choice(selected: Boolean, title: String, subtitle: String, onClick: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(22.dp).clip(CircleShape).background(if (selected) FioColors.Text else FioColors.Background)
-                .border(1.6.dp, if (selected) FioColors.Text else FioColors.TextFaint, CircleShape),
+            Modifier.size(22.dp).clip(CircleShape).background(if (selected) FioColors.Accent else FioColors.Background)
+                .border(1.6.dp, if (selected) FioColors.Accent else FioColors.TextFaint, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Rounded.Check, null, tint = FioColors.Background, modifier = Modifier.size(14.dp))
+            if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

@@ -44,11 +44,13 @@ class Reminders(private val context: Context, private val db: FioDatabase) : Rem
         }
     }
 
-    /** Every future reminder and check-in again (boot, update, app opening). */
+    /**
+     * Every reminder and check-in again (boot, update, app opening). One whose time passed while
+     * the phone was off is armed too: AlarmManager fires it right away, late but not lost.
+     */
     suspend fun syncAll() {
-        val now = System.currentTimeMillis()
-        db.entries().withReminderAfter(now).forEach { arm(it.id, REMIND, it.remindAt) }
-        db.entries().withCheckInAfter(now).forEach { arm(it.id, CHECK_IN, it.checkInAt) }
+        db.entries().withReminder().forEach { arm(it.id, REMIND, it.remindAt) }
+        db.entries().withCheckIn().forEach { arm(it.id, CHECK_IN, it.checkInAt) }
     }
 
     @SuppressLint("MissingPermission") // USE_EXACT_ALARM (33+) / SCHEDULE_EXACT_ALARM (≤32), checked below
@@ -105,7 +107,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     Reminders.ACTION_FIRE -> fire(context, db, e, kind, intent.getLongExtra(Reminders.EXTRA_AT, 0))
                     Reminders.ACTION_DONE -> {
                         val now = System.currentTimeMillis()
-                        db.entries().update(e.copy(status = Status.DONE.key, doneAt = now, updatedAt = now, checkInAt = null))
+                        db.entries().update(e.copy(status = Status.DONE.key, doneAt = now, updatedAt = now, checkInAt = null, remindAt = null))
                         db.progress().insert(Progress(entryId = e.id, at = now, text = "", status = Status.DONE.key))
                         graph.reminders.sync(listOf(e.id))
                         NotificationManagerCompat.from(context).cancel(Reminders.notificationId(e.id, kind))

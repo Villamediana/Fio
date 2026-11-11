@@ -9,10 +9,11 @@ Orb (segurar / tocar / arrastar pra cima)
   → Mind.process (fila, um por vez)
       Ears.transcribe     Hearing: LFM3 no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
-      Brain.context       AGORA · item em foco (check-in) · tarefas abertas · lembranças relacionadas · a fala
+      Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
       Thinker.answer      Thinking: LFM3 (gramática JSON GBNF) ou API /chat/completions (json_object)
-      Brain.parse → Plan  reply · create[] · update[] · search[] · show[]
-        se só "search": Recall com os termos e uma segunda chamada
+      Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
+        se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
+        e outra chamada com os resultados; até 2 procuras, somando o que achou
       Keeper.apply        cria/atualiza entries, tópicos (entities/entry_topics), links, progress
       Reminders.sync      AlarmManager exato (USE_EXACT_ALARM), religado no boot/atualização
   → MindState.Answer (resposta + cartões do que foi criado/mudado/mostrado)
@@ -21,6 +22,16 @@ Orb (segurar / tocar / arrastar pra cima)
 Nada se perde: sem rede ou sem Ajustes, a captura fica `recorded`/`failed` com o áudio, e volta à
 fila quando o app abre, quando os Ajustes mudam ou no "N coisas esperando · tentar agora".
 O áudio é apagado depois que a captura vai até o fim.
+
+Se a API recusa o pedido (400/415/422), `Thinking` tenta de novo sem a imagem e depois sem
+`response_format`. Lembrete que venceu com o celular desligado toca quando ele liga; tarefa feita
+perde o lembrete.
+
+## Visual
+
+Papel, tinta e um acento só (vermelhão `#EC4F2A`; `#FF6A43` no escuro). Nada de bloco preto: o
+botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
+a biblioteca é uma linha de palavras (Hoje, Tarefas, Notas, Diário, Tudo, Conexões).
 
 ## Pacotes
 

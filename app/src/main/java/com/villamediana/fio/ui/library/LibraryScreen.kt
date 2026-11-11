@@ -1,6 +1,7 @@
 package com.villamediana.fio.ui.library
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -33,7 +34,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +67,6 @@ import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.Dates
 import com.villamediana.fio.ui.components.EntryCard
 import com.villamediana.fio.ui.components.PT
-import com.villamediana.fio.ui.components.Pill
 import com.villamediana.fio.ui.components.SectionLabel
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioColors
@@ -127,20 +126,21 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                     }
                 }
             } else {
-                Text(title(filter), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.weight(1f).padding(start = 6.dp))
-                QuietIcon(Icons.Rounded.Share, "Conexões", { nav.go(Screen.Graph()) }, alpha = 0.6f)
-                QuietIcon(Icons.Rounded.Search, "Buscar", { searching = true }, alpha = 0.7f)
+                Spacer(Modifier.weight(1f))
+                QuietIcon(Icons.Rounded.Search, "Buscar", { searching = true }, alpha = 0.6f)
             }
         }
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            // The tabs are just words: the one you are in is ink, the others wait in gray.
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
                 listOf(Filter.TODAY, Filter.TASKS, Filter.NOTES, Filter.DIARY, Filter.ALL).forEach { f ->
-                    Pill(short(f), selected = filter == f, onClick = { filter = f; nav.go(Screen.Library(f)) }, dot = dotOf(f))
+                    Tab(title(f), selected = filter == f, onClick = { filter = f; nav.go(Screen.Library(f)) })
                 }
+                Tab("Conexões", selected = false, onClick = { nav.go(Screen.Graph()) })
             }
         }
 
@@ -163,7 +163,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                 items(items, key = { it.id }) { e ->
                     Box(Modifier.animateItem().padding(bottom = 8.dp)) {
                         if (filter == Filter.DIARY && hits == null) DiaryCard(e, onClick = { open(e.id) })
-                        else EntryCard(e, onClick = { open(e.id) }, terms = if (hits != null) terms else emptyList(), onToggle = { toggle(e.id) })
+                        else EntryCard(e, onClick = { open(e.id) }, terms = if (hits != null) terms else emptyList(), onToggle = { toggle(e.id) }, showKind = hits != null || filter == Filter.ALL || filter == Filter.TODAY, showStatus = hits != null || filter != Filter.TASKS)
                     }
                 }
             }
@@ -190,14 +190,16 @@ private fun title(f: Filter) = when (f) {
     Filter.ALL -> "Tudo"
 }
 
-private fun short(f: Filter) = title(f)
-
 @Composable
-private fun dotOf(f: Filter) = when (f) {
-    Filter.TASKS -> FioColors.of(Kind.TASK)
-    Filter.NOTES -> FioColors.of(Kind.NOTE)
-    Filter.DIARY -> FioColors.of(Kind.DIARY)
-    else -> null
+private fun Tab(text: String, selected: Boolean, onClick: () -> Unit) {
+    val color by animateColorAsState(if (selected) FioColors.Text else FioColors.TextFaint, label = "tab")
+    Text(
+        text,
+        style = if (selected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+        color = color,
+        maxLines = 1,
+        modifier = Modifier.clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp).animateContentSize(),
+    )
 }
 
 /** How each tab groups what is kept. */
@@ -242,11 +244,11 @@ private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<
 private fun DiaryCard(e: Entry, onClick: () -> Unit) {
     val d = Instant.ofEpochMilli(e.createdAt).atZone(ZoneId.systemDefault())
     Row(
-        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(FioColors.Surface).clickable(onClick = onClick).padding(16.dp).animateContentSize(),
+        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp).animateContentSize(),
     ) {
         Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.headlineMedium, color = FioColors.of(Kind.DIARY))
-            Text(d.month.getDisplayName(TextStyle.SHORT, PT).removeSuffix(".").uppercase(PT), style = MaterialTheme.typography.labelSmall, color = FioColors.TextFaint)
+            Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text)
+            Text(d.month.getDisplayName(TextStyle.SHORT, PT).removeSuffix("."), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

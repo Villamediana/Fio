@@ -2,6 +2,7 @@ package com.villamediana.fio.mind
 
 import com.villamediana.fio.audio.Recorder
 import com.villamediana.fio.data.Capture
+import com.villamediana.fio.data.Entry
 import com.villamediana.fio.data.FioDatabase
 import com.villamediana.fio.data.Outcome
 import kotlinx.coroutines.CoroutineScope
@@ -135,7 +136,7 @@ class Mind(
             val id = db.captures().insert(
                 Capture(createdAt = clock(), source = "voice", audioPath = file.path, durationMs = ms, state = Capture.RECORDED, focusEntryId = s.focusId),
             )
-            _state.value = MindState.Working(id, Stage.HEARING, "")
+            show(MindState.Working(id, Stage.HEARING, ""))
             enqueue(id)
         }
     }
@@ -151,7 +152,7 @@ class Mind(
     fun photo(file: File) {
         scope.launch {
             val id = db.captures().insert(Capture(createdAt = clock(), source = "photo", imagePath = file.path, state = Capture.RECORDED))
-            _state.value = MindState.Working(id, Stage.READING, "", photo = true)
+            show(MindState.Working(id, Stage.READING, "", photo = true))
             enqueue(id)
         }
     }
@@ -159,7 +160,7 @@ class Mind(
     fun retry(captureId: Long) {
         scope.launch {
             val c = db.captures().get(captureId) ?: return@launch
-            _state.value = MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript.orEmpty(), c.source == "photo")
+            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript.orEmpty(), c.source == "photo"))
             enqueue(captureId)
         }
     }
@@ -222,6 +223,13 @@ class Mind(
                 show(MindState.Problem(null, null, "Não ouvi nada. Tente de novo, um pouco mais perto."))
                 return
             }
+            if (photo && said.isBlank() && !thinking.seesImages()) {
+                // Nothing to read and a model that can't look: there is nothing to keep.
+                c.imagePath?.let { File(it).delete() }
+                db.captures().delete(id)
+                show(MindState.Problem(null, null, "Não consegui ler nada na foto. Tente de mais perto, com mais luz."))
+                return
+            }
             c = c.copy(state = Capture.THINKING).also { db.captures().update(it) }
             show(MindState.Working(id, Stage.THINKING, said, photo))
             val plan = think(c, said, photo)
@@ -253,7 +261,10 @@ class Mind(
         }
     }
 
-    /** One look at the context; if the model asks to search, one more look with what was found. */
+    /**
+     * One look at the context; while the model asks to look something up (words, a stretch of
+     * days), another look with everything found so far — [MAX_LOOKUPS] times at most.
+     */
     private suspend fun think(c: Capture, said: String, photo: Boolean): Plan {
         val now = clock()
         val z = zone()
@@ -266,16 +277,28 @@ class Mind(
         val image = if (photo && thinking.seesImages()) runCatching { photos.jpeg(File(c.imagePath!!)) }.getOrNull() else null
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
 
-        val first = Brain.context(heard, now, z, open, hits, focus, focusProgress, photo = photo)
+        val recent = all.take(RECENT) // all() comes newest first
+
+        val first = Brain.context(heard, now, z, open, hits, focus, focusProgress, recent, photo = photo)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
-        if (plan.isLookupOnly) {
+        var found = emptyList<Entry>()
+        val looked = ArrayList<String>()
+        var lookups = 0
+        while (plan.isLookupOnly && lookups < MAX_LOOKUPS) {
+            lookups++
             show(MindState.Working(c.id, Stage.LOOKING, said, photo))
-            val found = recall.search(plan.search.joinToString(" "), 15, now).map { it.entry }
-            val second = Brain.context(heard, now, z, open, found, focus, focusProgress, searched = plan.search, photo = photo)
-            plan = Brain.parse(thinking.answer(Brain.SYSTEM, second, image))?.copy(search = emptyList())
-                ?: plan.copy(search = emptyList(), reply = plan.reply.ifBlank { "Não achei nada sobre isso." })
+            val byWords = if (plan.search.isEmpty()) emptyList() else recall.search(plan.search.joinToString(" "), 15, now).map { it.entry }
+            val days = Brain.range(plan.period, z)
+            val byTime = if (days == null) emptyList() else all.filter { e -> e.createdAt in days || e.doneAt?.let { it in days } == true || e.dueAt?.let { it in days } == true }
+            found = (found + byWords + byTime).distinctBy { it.id }
+            looked += Brain.looked(plan)
+            val next = Brain.context(heard, now, z, open, found, focus, focusProgress, recent, looked = looked.joinToString(" · "), photo = photo)
+            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
+                ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
-        return plan
+        // Still asking after the last look: it answers with what it has.
+        if (plan.isLookupOnly) plan = plan.copy(reply = plan.reply.ifBlank { NOTHING_FOUND })
+        return plan.copy(search = emptyList(), period = null)
     }
 
     private fun show(state: MindState) {
@@ -287,5 +310,13 @@ class Mind(
     companion object {
         /** Shorter than this is a slip of the finger, not a thought. */
         const val MIN_MS = 700L
+
+        /** How many times the model may ask to look something up for one thing said. */
+        const val MAX_LOOKUPS = 2
+
+        /** The last things kept, shown to the model so "aquilo que acabei de falar" has a face. */
+        const val RECENT = 5
+
+        private const val NOTHING_FOUND = "Não achei nada sobre isso."
     }
 }
