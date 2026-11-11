@@ -34,6 +34,7 @@ struct Engine {
     const llama_vocab * vocab = nullptr;
     int n_batch = 1024;
     std::vector<llama_logit_bias> text_only; // no switch to speech in a text answer
+    std::vector<llama_token_data> cur;       // the candidates of one step (the whole vocabulary)
     std::atomic<bool> cancel{false};
 };
 
@@ -106,17 +107,61 @@ struct Sink {
     }
 };
 
+/** Every token with the logits of the last position, the switch to speech ruled out by [bias]. */
+llama_token_data_array candidates(Engine * e, llama_sampler * bias) {
+    const float * logits = llama_get_logits_ith(e->ctx, -1);
+    const int n = llama_vocab_n_tokens(e->vocab);
+    e->cur.resize((size_t) n);
+    for (int i = 0; i < n; i++) e->cur[(size_t) i] = llama_token_data{ (llama_token) i, logits[i], 0.0f };
+    llama_token_data_array arr{ e->cur.data(), e->cur.size(), -1, false };
+    if (bias) llama_sampler_apply(bias, &arr);
+    return arr;
+}
+
+/** Index of the highest finite logit (greedy, what the model card recommends for text); -1 if none. */
+int64_t best_of(const llama_token_data_array & arr) {
+    int64_t best = -1;
+    for (size_t i = 0; i < arr.size; i++) {
+        if (!std::isfinite(arr.data[i].logit)) continue;
+        if (best < 0 || arr.data[i].logit > arr.data[best].logit) best = (int64_t) i;
+    }
+    return best;
+}
+
+/**
+ * The next token, held to [grammar] the cheap way: the model's own pick is checked first (it nearly
+ * always fits); only when it doesn't is the grammar run over the whole vocabulary. Running it over
+ * every token at every step (~125k for LFM3) was what made organizing on the phone take minutes.
+ */
+llama_token pick(Engine * e, llama_sampler * bias, llama_sampler * grammar) {
+    llama_token_data_array arr = candidates(e, bias);
+    int64_t best = best_of(arr);
+    if (best < 0) return LLAMA_TOKEN_NULL;
+    const llama_token tok = arr.data[best].id;
+    if (!grammar) return tok;
+    llama_token_data one{ tok, 0.0f, 0.0f };
+    llama_token_data_array single{ &one, 1, -1, false };
+    llama_sampler_apply(grammar, &single);
+    if (std::isfinite(single.data[0].logit)) return tok;
+    arr = candidates(e, bias);
+    llama_sampler_apply(grammar, &arr);
+    best = best_of(arr);
+    return best < 0 ? LLAMA_TOKEN_NULL : arr.data[best].id;
+}
+
 /** Samples from the logits already computed for position n_past-1 until end, cancel or max. */
-std::string sample_loop(Engine * e, llama_sampler * chain, llama_pos n_past, int max_tokens, Sink & sink) {
+std::string sample_loop(Engine * e, llama_sampler * bias, llama_sampler * grammar, llama_pos n_past, int max_tokens, Sink & sink) {
     std::string out;
     for (int i = 0; i < max_tokens && !e->cancel.load(); i++) {
-        llama_token tok = llama_sampler_sample(chain, e->ctx, -1);
-        if (llama_vocab_is_eog(e->vocab, tok)) break;
+        const llama_token tok = pick(e, bias, grammar);
+        if (tok == LLAMA_TOKEN_NULL || llama_vocab_is_eog(e->vocab, tok)) break;
+        if (grammar) llama_sampler_accept(grammar, tok);
         if (!llama_vocab_is_control(e->vocab, tok)) {
             out += piece_of(e->vocab, tok);
             if (!sink.push(out)) break;
         }
-        llama_batch b = llama_batch_get_one(&tok, 1);
+        llama_token next = tok;
+        llama_batch b = llama_batch_get_one(&next, 1);
         if (llama_decode(e->ctx, b) != 0) {
             LOGE("decode failed at %d", (int) n_past);
             break;
@@ -126,20 +171,23 @@ std::string sample_loop(Engine * e, llama_sampler * chain, llama_pos n_past, int
     return out;
 }
 
-llama_sampler * make_chain(Engine * e, const char * grammar) {
-    llama_sampler * chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    if (!e->text_only.empty()) {
-        llama_sampler_chain_add(chain, llama_sampler_init_logit_bias(
-            llama_vocab_n_tokens(e->vocab), (int32_t) e->text_only.size(), e->text_only.data()));
-    }
-    if (grammar && *grammar) {
-        llama_sampler * g = llama_sampler_init_grammar(e->vocab, grammar, "root");
-        if (g) llama_sampler_chain_add(chain, g);
-        else LOGE("grammar rejected");
-    }
-    // Greedy: what the model card recommends for text (temperature 0).
-    llama_sampler_chain_add(chain, llama_sampler_init_greedy());
-    return chain;
+/** The switch to speech ruled out (a text answer never turns into audio); null when there is nothing to rule out. */
+llama_sampler * make_bias(Engine * e) {
+    if (e->text_only.empty()) return nullptr;
+    return llama_sampler_init_logit_bias(llama_vocab_n_tokens(e->vocab), (int32_t) e->text_only.size(), e->text_only.data());
+}
+
+/** The GBNF [grammar] (the brain's JSON), or null without one (or if llama.cpp refuses it). */
+llama_sampler * make_grammar(Engine * e, const char * grammar) {
+    if (!grammar || !*grammar) return nullptr;
+    llama_sampler * g = llama_sampler_init_grammar(e->vocab, grammar, "root");
+    if (!g) LOGE("grammar rejected");
+    return g;
+}
+
+void free_samplers(llama_sampler * bias, llama_sampler * grammar) {
+    if (bias) llama_sampler_free(bias);
+    if (grammar) llama_sampler_free(grammar);
 }
 
 std::string jstr(JNIEnv * env, jstring s) {
@@ -296,10 +344,10 @@ Java_com_villamediana_fio_local_LocalEngine_nativeTranscribe(JNIEnv * env, jobje
         llama_pos n_past = 0;
         rc = mtmd_helper_eval_chunks(e->mtmd, e->ctx, chunks, 0, 0, e->n_batch, true, &n_past);
         if (rc == 0 && !e->cancel.load()) {
-            llama_sampler * chain = make_chain(e, nullptr);
+            llama_sampler * bias = make_bias(e);
             Sink sink(env, jsink);
-            out = sample_loop(e, chain, n_past, max_tokens, sink);
-            llama_sampler_free(chain);
+            out = sample_loop(e, bias, nullptr, n_past, max_tokens, sink);
+            free_samplers(bias, nullptr);
         } else if (rc != 0) {
             LOGE("audio eval failed: %d", rc);
         }
@@ -351,11 +399,12 @@ Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject
     }
     if (e->cancel.load()) return to_bytes(env, std::string());
 
-    llama_sampler * chain = make_chain(e, grammar.c_str());
+    llama_sampler * bias = make_bias(e);
+    llama_sampler * gram = make_grammar(e, grammar.c_str());
     Sink sink(env, jsink);
     const int room = std::max(16, std::min((int) max_tokens, ctx_size - (int) n_past - 8));
-    std::string out = sample_loop(e, chain, n_past, room, sink);
-    llama_sampler_free(chain);
+    std::string out = sample_loop(e, bias, gram, n_past, room, sink);
+    free_samplers(bias, gram);
     return to_bytes(env, out);
 }
 
