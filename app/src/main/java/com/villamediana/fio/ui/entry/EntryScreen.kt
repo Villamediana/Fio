@@ -4,6 +4,19 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Build
 import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import com.villamediana.fio.ui.components.IconAction
+import com.villamediana.fio.ui.components.groupShape
+import com.villamediana.fio.ui.components.GroupGap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -106,6 +119,10 @@ fun EntryScreen(nav: Nav, id: Long) {
     var body by remember(e.id) { mutableStateOf(e.body) }
     var revealed by remember(e.id) { mutableStateOf(!e.sensitive) }
     var menu by remember { mutableStateOf(false) }
+    // Steps only take room when there are some (or one is being written); what was said, folded.
+    var addingStep by remember(e.id) { mutableStateOf(false) }
+    var showSaid by remember(e.id) { mutableStateOf(false) }
+    val hasSteps = remember(e.steps) { Steps.read(e.steps).isNotEmpty() }
     // Saved as it is typed (a beat after), and when leaving.
     LaunchedEffect(title, body) { delay(600); lib.edit(e.id, title, body) }
     DisposableEffect(e.id) { onDispose { graph.scope.launch { lib.edit(e.id, title, body) } } }
@@ -179,9 +196,22 @@ fun EntryScreen(nav: Nav, id: Long) {
                 }
             }
 
-            if (kind == Kind.TASK) StepsBlock(e, onToggle = { i -> scope.launch { lib.toggleStep(e.id, i) } }, onAdd = { t -> scope.launch { lib.addStep(e.id, t) } }, onRemove = { i -> scope.launch { lib.removeStep(e.id, i) } })
+            if (kind == Kind.TASK && (hasSteps || addingStep)) {
+                StepsBlock(
+                    e,
+                    focusNew = addingStep && !hasSteps,
+                    onToggle = { i -> scope.launch { lib.toggleStep(e.id, i) } },
+                    onAdd = { t -> scope.launch { lib.addStep(e.id, t) } },
+                    onRemove = { i -> scope.launch { lib.removeStep(e.id, i) } },
+                )
+            }
 
-            DatesBlock(e, onDue = { at, t -> scope.launch { lib.setDue(e.id, at, t) } }, onRemind = { at -> scope.launch { lib.setReminder(e.id, at) } })
+            DatesBlock(
+                e,
+                onDue = { at, t -> scope.launch { lib.setDue(e.id, at, t) } },
+                onRemind = { at -> scope.launch { lib.setReminder(e.id, at) } },
+                onAddStep = if (kind == Kind.TASK && !hasSteps && !addingStep) ({ addingStep = true }) else null,
+            )
 
             if (progress.any { it.text.isNotBlank() || it.status != null }) {
                 SectionLabel("Andamento")
@@ -210,19 +240,32 @@ fun EntryScreen(nav: Nav, id: Long) {
                     }
                     Spacer(Modifier.height(12.dp))
                 }
-                related.forEach { r ->
-                    Box(Modifier.padding(bottom = 8.dp)) { EntryCard(r, onClick = { nav.go(Screen.Entry(r.id)) }) }
+                // Related things in one line each (their story is one tap away, not repeated here).
+                Column(verticalArrangement = Arrangement.spacedBy(GroupGap)) {
+                    related.forEachIndexed { i, r -> RelatedRow(r, groupShape(i, related.size, outer = 18.dp)) { nav.go(Screen.Entry(r.id)) } }
                 }
             }
 
+            // What was said stays folded: it is the source, not the thing kept.
             capture?.transcript?.takeIf { it.isNotBlank() }?.let { said ->
-                SectionLabel(if (capture?.source == "photo") "Da foto" else "O que você disse")
-                Text(
-                    "“" + said.trim() + "”",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FioColors.TextMuted,
-                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(FioColors.Surface2).padding(14.dp).animateContentSize(),
-                )
+                Row(
+                    Modifier.padding(top = 18.dp).clip(RoundedCornerShape(10.dp)).clickable { showSaid = !showSaid }.padding(vertical = 8.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (capture?.source == "photo") "Da foto" else "O que você disse", style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted)
+                    Icon(
+                        FioIcons.Chevron, null, tint = FioColors.TextFaint,
+                        modifier = Modifier.padding(start = 4.dp).size(16.dp).graphicsLayer { rotationZ = if (showSaid) 90f else 0f },
+                    )
+                }
+                AnimatedVisibility(showSaid, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                    Text(
+                        "“" + said.trim() + "”",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FioColors.TextMuted,
+                        modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(16.dp)).background(FioColors.Surface2).padding(14.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(48.dp))
         }
@@ -230,9 +273,11 @@ fun EntryScreen(nav: Nav, id: Long) {
 }
 
 @Composable
-private fun StepsBlock(e: Entry, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit) {
+private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit) {
     val steps = remember(e.steps) { Steps.read(e.steps) }
     var adding by remember { mutableStateOf("") }
+    val newStep = remember { FocusRequester() }
+    LaunchedEffect(focusNew) { if (focusNew) runCatching { newStep.requestFocus() } }
     val haptics = LocalHapticFeedback.current
     SectionLabel(if (steps.isEmpty()) "Etapas" else "Etapas · ${steps.count { it.done }}/${steps.size}")
     if (steps.isNotEmpty()) {
@@ -275,17 +320,17 @@ private fun StepsBlock(e: Entry, onToggle: (Int) -> Unit, onAdd: (String) -> Uni
                 },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
                 cursorBrush = SolidColor(FioColors.Accent),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(newStep),
             )
         }
         if (adding.isNotBlank()) {
-            Text("Pôr", style = MaterialTheme.typography.labelLarge, color = FioColors.Accent, modifier = Modifier.clip(CircleShape).clickable { onAdd(adding); adding = "" }.padding(12.dp))
+            IconAction(FioIcons.Check, "Pôr etapa", { onAdd(adding); adding = "" }, primary = true, size = 36.dp)
         }
     }
 }
 
 @Composable
-private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Long?) -> Unit) {
+private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Long?) -> Unit, onAddStep: (() -> Unit)?) {
     val context = LocalContext.current
     val zone = ZoneId.systemDefault()
     fun pick(initial: Long?, withTime: Boolean, done: (Long, Boolean) -> Unit) {
@@ -303,21 +348,25 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
     }
     Spacer(Modifier.height(24.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Unset: just the icon (calendar, bell, list). Set: the icon and when, with an × to take it off.
         if (e.kindEnum == Kind.TASK) {
             DateChip(
-                label = Dates.due(e)?.let { "Prazo: $it" } ?: "Pôr prazo",
-                set = e.dueAt != null,
+                icon = FioIcons.Calendar,
+                label = Dates.due(e),
+                name = "Prazo",
                 onClick = { pick(e.dueAt, withTime = false) { at, t -> onDue(at, t) } },
                 onClear = { onDue(null, false) },
             )
         }
         val remind = e.remindAt?.takeIf { it > System.currentTimeMillis() }
         DateChip(
-            label = remind?.let { "Lembrete: " + Dates.dayTime(it) } ?: "Lembrar",
-            set = remind != null,
+            icon = FioIcons.Bell,
+            label = remind?.let { Dates.dayTime(it) },
+            name = "Lembrete",
             onClick = { pick(remind, withTime = true) { at, _ -> onRemind(at) } },
             onClear = { onRemind(null) },
         )
+        if (onAddStep != null) DateChip(icon = FioIcons.Steps, label = null, name = "Etapas", onClick = onAddStep, onClear = {})
     }
     e.checkInAt?.takeIf { it > System.currentTimeMillis() && e.isOpenTask }?.let {
         Spacer(Modifier.height(8.dp))
@@ -325,14 +374,43 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
     }
 }
 
+/** Something related, in one line: what it is, its title, when. */
 @Composable
-private fun DateChip(label: String, set: Boolean, onClick: () -> Unit, onClear: () -> Unit) {
+private fun RelatedRow(r: Entry, shape: androidx.compose.ui.graphics.Shape, onClick: () -> Unit) {
     Row(
-        Modifier.clip(CircleShape).background(if (set) FioColors.Surface else FioColors.Surface2).clickable(onClick = onClick).padding(start = 14.dp, end = if (set) 4.dp else 14.dp),
+        Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (set) FioColors.Text else FioColors.TextMuted, modifier = Modifier.padding(vertical = 9.dp))
+        Text(
+            r.title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = FioColors.Text,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(kindLabel(r.kindEnum).lowercase() + " · " + Dates.day(r.createdAt), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint, maxLines = 1)
+    }
+}
+
+@Composable
+private fun DateChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String?, name: String, onClick: () -> Unit, onClear: () -> Unit) {
+    val set = label != null
+    Row(
+        Modifier
+            .height(40.dp)
+            .clip(CircleShape)
+            .background(if (set) FioColors.Surface else FioColors.Surface2)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = if (set) "$name: $label" else name }
+            .padding(start = if (set) 12.dp else 11.dp, end = if (set) 4.dp else 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = if (set) FioColors.Accent else FioColors.TextMuted, modifier = Modifier.size(18.dp))
         if (set) {
+            Spacer(Modifier.width(8.dp))
+            Text(label!!, style = MaterialTheme.typography.labelLarge, color = FioColors.Text)
             Box(Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
                 Icon(FioIcons.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(14.dp))
             }

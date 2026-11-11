@@ -49,6 +49,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import com.villamediana.fio.ui.components.IconAction
 import com.villamediana.fio.ui.components.swipeNav
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.clip
@@ -191,6 +194,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         onDiscard = { mind.discard(it) },
                         onSettings = { nav.go(Screen.Settings) },
                         onStop = mind::stopWork,
+                        onCancel = mind::cancelListening,
                     )
                     Spacer(Modifier.height(24.dp))
                 }
@@ -259,6 +263,7 @@ private fun StatusArea(
     onDiscard: (Long) -> Unit,
     onSettings: () -> Unit,
     onStop: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     AnimatedContent(
         targetState = state,
@@ -286,7 +291,7 @@ private fun StatusArea(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                is MindState.Listening -> ListeningText(s, inCancelZone)
+                is MindState.Listening -> ListeningText(s, inCancelZone, onCancel)
                 is MindState.Working -> WorkingText(s, onStop)
                 is MindState.Answer -> AnswerView(s, entries, onOpen, onToggle, onDismiss)
                 is MindState.Problem -> ProblemView(s, onRetry, onDiscard, onSettings, onDismiss)
@@ -296,7 +301,7 @@ private fun StatusArea(
 }
 
 @Composable
-private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean) {
+private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCancel: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.startedAt) {
         while (true) { now = System.currentTimeMillis(); delay(250) }
@@ -318,6 +323,11 @@ private fun ListeningText(s: MindState.Listening, inCancelZone: Boolean) {
         color = if (inCancelZone) FioColors.Danger else FioColors.TextMuted,
         textAlign = TextAlign.Center,
     )
+    // Listening by itself (tapped): throwing it away is one touch, without saying it.
+    if (s.locked) {
+        Spacer(Modifier.height(18.dp))
+        IconAction(FioIcons.Close, "Descartar a gravação", onCancel)
+    }
 }
 
 @Composable
@@ -339,8 +349,8 @@ private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     }
     // Taking too long: a stop. What was said stays, to try again or discard.
     if (s.captureId != 0L) {
-        Spacer(Modifier.height(8.dp))
-        QuietWord("parar", onStop)
+        Spacer(Modifier.height(14.dp))
+        IconAction(FioIcons.Stop, "Parar", onStop, size = 40.dp)
     }
 }
 
@@ -379,9 +389,10 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (s.said.isNotBlank()) {
                     QuietWord(if (showSaid) "esconder" else if (s.photo) "da foto" else "o que você disse") { showSaid = !showSaid }
-                    Text("·", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
                 }
-                QuietWord("fechar", onDismiss)
+                Box(Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onDismiss).semantics { contentDescription = "Fechar" }, contentAlignment = Alignment.Center) {
+                    Icon(FioIcons.Close, null, tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
+                }
             }
             Spacer(Modifier.height(14.dp))
             val byId = entries.associateBy { it.id }
@@ -440,13 +451,13 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
         Said(s.said, maxLines = 4)
     }
     Spacer(Modifier.height(16.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (s.need != null) Pill("Ajustes", selected = true, onClick = onSettings)
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (s.need != null) IconAction(FioIcons.Tune, "Ajustes", onSettings, primary = true)
         if (s.captureId != null) {
-            Pill("Tentar de novo", selected = s.need == null, onClick = { onRetry(s.captureId) })
-            Pill("Descartar", selected = false, onClick = { onDiscard(s.captureId) })
+            IconAction(FioIcons.Retry, "Tentar de novo", { onRetry(s.captureId) }, primary = s.need == null)
+            IconAction(FioIcons.Trash, "Descartar", { onDiscard(s.captureId) })
         } else {
-            Pill("Ok", selected = false, onClick = onDismiss)
+            IconAction(FioIcons.Check, "Ok", onDismiss)
         }
     }
     if (s.captureId != null && s.need != null) {

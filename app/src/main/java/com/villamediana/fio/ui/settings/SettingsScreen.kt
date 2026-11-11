@@ -64,6 +64,7 @@ import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.FioIcons
 import com.villamediana.fio.ui.components.FioMark
 import com.villamediana.fio.ui.components.Group
+import com.villamediana.fio.ui.components.IconAction
 import com.villamediana.fio.ui.components.Pill
 import com.villamediana.fio.ui.components.SectionLabel
 import com.villamediana.fio.ui.components.Segmented
@@ -194,7 +195,7 @@ fun SettingsScreen(nav: Nav) {
                         onClick = { if (!loading) loadModels() },
                     ) {
                         if (loading) CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                        else Pill("Testar", selected = true, onClick = { loadModels() })
+                        else IconAction(FioIcons.Retry, "Testar a conexão", { loadModels() }, primary = true, size = 40.dp)
                     }
                 },
             )
@@ -334,10 +335,10 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State) {
             subtitleColor = if (state is LocalModel.State.Failed) FioColors.Danger else FioColors.TextMuted,
         ) {
             if (LocalEngine.available) when (state) {
-                LocalModel.State.Missing, is LocalModel.State.Failed -> Pill("Baixar", selected = true, onClick = { model.download() })
-                is LocalModel.State.Downloading -> Pill("Parar", selected = false, onClick = { model.cancel() })
+                LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(FioIcons.Download, "Baixar", { model.download() }, primary = true, size = 40.dp)
+                is LocalModel.State.Downloading -> IconAction(FioIcons.Stop, "Parar o download", { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                LocalModel.State.Ready -> Pill("Apagar", selected = false, onClick = { model.delete() })
+                LocalModel.State.Ready -> IconAction(FioIcons.Trash, "Apagar do celular", { model.delete() }, size = 40.dp)
             }
         }
         if (state is LocalModel.State.Downloading) {
@@ -437,7 +438,7 @@ private fun ModelPicker(
         Row(Modifier.padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { Field(value = typed, onChange = { typed = it }, hint = "Nome do modelo ou deployment") }
             AnimatedVisibility(typed.isNotBlank()) {
-                Pill("Usar", selected = true, onClick = { onPick(typed.trim()) }, modifier = Modifier.padding(start = 8.dp))
+                IconAction(FioIcons.Check, "Usar", { onPick(typed.trim()) }, modifier = Modifier.padding(start = 8.dp), primary = true)
             }
         }
         if (!settings.apiReady) {

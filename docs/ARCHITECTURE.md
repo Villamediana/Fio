@@ -58,6 +58,11 @@ Tarefas, …, Conexões). Na principal, deslizar pra direita abre a câmera e pr
 (o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
 próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.
 
+Ações que se entendem pelo desenho são ícones (`IconAction`, com o nome pro leitor de tela): descartar a
+gravação (×, no modo toque), parar o organizar (■), tentar de novo (↻), descartar (lixeira), baixar/parar/apagar o
+modelo, testar a API, prazo (calendário), lembrete (sino) e etapas (lista). Status, abas e "Ver feitas" seguem em
+texto. Na tarefa, etapas só aparecem quando existem e "O que você disse" fica recolhido; o relacionado é uma linha.
+
 ## Pacotes
 
 | Pacote | O quê |

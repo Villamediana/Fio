@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -122,6 +123,27 @@ fun Pill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifie
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
+    }
+}
+
+/**
+ * An action as an icon in a soft circle ([label] is what a screen reader says). [primary] wears
+ * the accent (the likely next step); the others stay quiet.
+ */
+@Composable
+fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false, size: Dp = 44.dp) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .size(size)
+            .pressScale(interaction, 0.9f)
+            .clip(CircleShape)
+            .background(if (primary) FioColors.Accent.copy(alpha = 0.13f) else FioColors.Surface2)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .semantics { role = Role.Button; contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = if (primary) FioColors.Accent else FioColors.TextMuted, modifier = Modifier.size(size * 0.45f))
     }
 }
 
