@@ -186,6 +186,8 @@
     <string name="setup_notifications_why">lembretes e o “como está?”</string>
     <string name="setup_camera">Câmera</string>
     <string name="setup_camera_why">pra ler e guardar fotos</string>
+    <string name="setup_alarms">Lembretes na hora</string>
+    <string name="setup_alarms_why">pra avisar no minuto certo</string>
     <string name="setup_backup_title">Onde guardar seu backup?</string>
     <string name="setup_backup_line">Um arquivo só, atualizado todo dia, numa pasta sua. Se trocar de celular, tudo volta.</string>
     <string name="setup_choose_folder">Escolher pasta</string>

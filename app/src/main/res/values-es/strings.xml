@@ -186,6 +186,8 @@
     <string name="setup_notifications_why">recordatorios y el “¿cómo va?”</string>
     <string name="setup_camera">Cámara</string>
     <string name="setup_camera_why">para leer y guardar fotos</string>
+    <string name="setup_alarms">Recordatorios a tiempo</string>
+    <string name="setup_alarms_why">para avisar en el minuto justo</string>
     <string name="setup_backup_title">¿Dónde guardar tu copia?</string>
     <string name="setup_backup_line">Un solo archivo, actualizado todos los días, en una carpeta tuya. Si cambias de celular, todo vuelve.</string>
     <string name="setup_choose_folder">Elegir carpeta</string>

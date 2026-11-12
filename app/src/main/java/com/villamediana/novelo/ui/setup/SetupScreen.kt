@@ -81,6 +81,7 @@ import com.villamediana.novelo.R
 import com.villamediana.novelo.ai.Provider
 import com.villamediana.novelo.ai.Providers
 import com.villamediana.novelo.local.LocalEngine
+import com.villamediana.novelo.remind.Reminders
 import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.AppLang
 import com.villamediana.novelo.settings.Lang
@@ -255,18 +256,30 @@ private fun PermissionsStep(onNext: () -> Unit) {
     val mic = remember(tick) { granted(context, Manifest.permission.RECORD_AUDIO) }
     val notif = remember(tick) { !notifications || granted(context, Manifest.permission.POST_NOTIFICATIONS) }
     val camera = remember(tick) { granted(context, Manifest.permission.CAMERA) }
+    // Reminders at the very minute: not a question Android asks in the app, but a switch on a system
+    // page ("Alarmes e lembretes"); only shown when this phone needs it (the GitHub build never does).
+    val onTime = remember(tick) { Reminders.onTime(context) }
+    val asksOnTime = remember { !Reminders.onTime(context) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { tick++ }
+    val openOnTime = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { tick++ }
     val missing = buildList {
         if (!mic) add(Manifest.permission.RECORD_AUDIO)
         if (!notif && notifications) add(Manifest.permission.POST_NOTIFICATIONS)
         if (!camera) add(Manifest.permission.CAMERA)
     }
+    val allSet = missing.isEmpty() && onTime
     Page(
         title = t(R.string.setup_hello),
         line = t(R.string.setup_permissions_line),
-        primary = t(if (missing.isEmpty()) R.string.setup_continue else R.string.setup_allow),
-        onPrimary = { if (missing.isEmpty()) onNext() else ask.launch(missing.toTypedArray()) },
-        secondary = if (missing.isEmpty()) null else t(R.string.setup_not_now),
+        primary = t(if (allSet) R.string.setup_continue else R.string.setup_allow),
+        onPrimary = {
+            when {
+                missing.isNotEmpty() -> ask.launch(missing.toTypedArray())
+                !onTime -> runCatching { openOnTime.launch(Reminders.onTimeSettings(context)) }.onFailure { onNext() }
+                else -> onNext()
+            }
+        },
+        secondary = if (allSet) null else t(R.string.setup_not_now),
         onSecondary = onNext,
         top = { LanguagePicker(Modifier.padding(bottom = 22.dp)) },
     ) {
@@ -274,6 +287,7 @@ private fun PermissionsStep(onNext: () -> Unit) {
             Permission(NoveloIcons.Mic, t(R.string.setup_mic), t(R.string.setup_mic_why), mic)
             Permission(NoveloIcons.Bell, t(R.string.setup_notifications), t(R.string.setup_notifications_why), notif)
             Permission(NoveloIcons.PhotoCamera, t(R.string.setup_camera), t(R.string.setup_camera_why), camera)
+            if (asksOnTime) Permission(NoveloIcons.Clock, t(R.string.setup_alarms), t(R.string.setup_alarms_why), onTime)
         }
     }
 }
