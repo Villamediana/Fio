@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(fio_engine C CXX)
+project(novelo_engine C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -29,10 +29,10 @@ set(GGML_CPU_ARM_ARCH "armv8.2-a+dotprod+fp16" CACHE STRING "" FORCE)
 
 add_subdirectory(${LLAMA_DIR} build-llama)
 
-add_library(fio_engine SHARED fio_engine.cpp)
-target_include_directories(fio_engine PRIVATE
+add_library(novelo_engine SHARED novelo_engine.cpp)
+target_include_directories(novelo_engine PRIVATE
     ${LLAMA_DIR}/include
     ${LLAMA_DIR}/ggml/include
     ${LLAMA_DIR}/tools/mtmd)
-target_compile_options(fio_engine PRIVATE -O3 -fvisibility=hidden)
-target_link_libraries(fio_engine PRIVATE mtmd llama ggml android log)
+target_compile_options(novelo_engine PRIVATE -O3 -fvisibility=hidden)
+target_link_libraries(novelo_engine PRIVATE mtmd llama ggml android log)

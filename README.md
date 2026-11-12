@@ -1,6 +1,6 @@
 # Novelo
 
-Um botão pra tirar as coisas da cabeça. (Antes se chamava Fio. O app é `com.villamediana.novelo`; o repositório e o código por dentro seguem com o nome antigo.)
+Um botão pra tirar as coisas da cabeça. (Antes se chamava Fio; desde a 1.24.0 é Novelo em tudo: `com.villamediana.novelo`, código e repositório.)
 
 Segure e fale (ou toque pra deixar ouvindo). O Novelo transcreve, entende o que é e guarda no lugar certo:
 
@@ -40,7 +40,7 @@ O app procura versões novas nas [releases](../../releases) deste repositório e
 JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular). A chave da Inteligência do Novelo não fica no repositório: o build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env` (sem ela, o app sai só com a inteligência própria).
 
 ```bash
-./gradlew :app:testDebugUnitTest             # testes (FIO_SHOTS: prints das telas em app/build/fio-shots)
+./gradlew :app:testDebugUnitTest             # testes (NOVELO_SHOTS: prints das telas em app/build/novelo-shots)
 tools/release.sh -n $'- novidade'            # versão nova, com o motor no celular (ver docs/ARCHITECTURE.md)
 ```
 

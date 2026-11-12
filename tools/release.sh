@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publica uma versão do Novelo (ex-Fio) no GitHub Releases. Os celulares com o app instalado
+# Publica uma versão do Novelo (ex-Novelo) no GitHub Releases. Os celulares com o app instalado
 # acham a versão sozinhos (ao abrir o app e numa checagem diária) e se atualizam com um toque.
 #
 #   tools/release.sh -n $'- Novidade um\n- Novidade dois'   # notas na linha de comando
@@ -14,9 +14,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REPO=Villamediana/Fio
+REPO=Villamediana/Novelo
 PACKAGE=com.villamediana.novelo
-# SHA-256 do certificado da chave de release (~/keystores/fio-release.jks).
+# SHA-256 do certificado da chave de release (~/keystores/novelo-release.jks).
 CERT_SHA256=f538e5002e8ae68cac35b25785e655d40a1e6bf54f9db606493500633d48bffc
 
 die() { echo "release: $*" >&2; exit 1; }
@@ -68,16 +68,16 @@ sys.exit(0 if a + [0] * (n - len(a)) > b + [0] * (n - len(b)) else 1)
 PY
 
 # 3. Release assinada (o Gradle falha sem a chave em ~/keystores).
-# O motor no celular (LFM3 via llama.cpp) entra sempre (FIO_NATIVE=0 tira). O llama.cpp vem numa pasta
+# O motor no celular (LFM3 via llama.cpp) entra sempre (NOVELO_NATIVE=0 tira). O llama.cpp vem numa pasta
 # temporária só pro build e sai no fim, com o que o CMake compilou: nada dele fica no servidor.
 llama=""
-if [[ ${FIO_NATIVE:-1} != 0 ]]; then
+if [[ ${NOVELO_NATIVE:-1} != 0 ]]; then
   work=$(mktemp -d)
   trap 'rm -rf "$work" app/.cxx app/build/intermediates/cxx' EXIT
   tools/fetch-llama.sh "$work/llama.cpp"
   llama=$work/llama.cpp
 fi
-./gradlew :app:assembleRelease -Pfio.llama="$llama" --console=plain -q
+./gradlew :app:assembleRelease -Pnovelo.llama="$llama" --console=plain -q
 mkdir -p dist
 cp app/build/outputs/apk/release/app-release.apk "$apk"
 
@@ -87,7 +87,7 @@ badging=$("$BUILD_TOOLS/aapt2" dump badging "$apk" | awk 'NR == 1')
 [[ $badging == *"name='$PACKAGE'"* && $badging == *"versionCode='$code'"* && $badging == *"versionName='$name'"* ]] \
   || die "APK não bate com $PACKAGE $name ($code): $badging"
 if [[ -n $llama ]]; then
-  unzip -l "$apk" | grep "lib/arm64-v8a/libfio_engine.so" >/dev/null || die "APK sem o motor no celular (libfio_engine.so)"
+  unzip -l "$apk" | grep "lib/arm64-v8a/libnovelo_engine.so" >/dev/null || die "APK sem o motor no celular (libnovelo_engine.so)"
 fi
 cert=$("$BUILD_TOOLS/apksigner" verify --print-certs "$apk" | awk '/Signer.*certificate SHA-256 digest:/ && !seen { print $NF; seen = 1 }')
 [[ $cert == "$CERT_SHA256" ]] || die "APK assinada com outra chave ($cert): os celulares recusariam a atualização"
