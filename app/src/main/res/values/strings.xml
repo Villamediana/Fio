@@ -314,4 +314,7 @@
     <string name="local_use_mobile">Usar dados móveis</string>
     <string name="ai_provider_title">De quem é a IA</string>
     <string name="ai_provider_choose">Escolher</string>
+    <string name="setup_backup_cloud">Dica: se aparecer um drive na lista (OneDrive, Dropbox…), escolha uma pasta dele. Assim o backup fica fora do celular e nada se perde, aconteça o que acontecer.</string>
+    <string name="setup_ears_agree">Baixe o ouvido pra seguir</string>
+    <string name="setup_ears_waiting">Esperando o ouvido · %1$s</string>
 </resources>

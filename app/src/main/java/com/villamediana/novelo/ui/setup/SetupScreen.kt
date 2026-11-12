@@ -118,11 +118,6 @@ import java.text.NumberFormat
 @Composable
 fun SetupScreen(onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
-    val model = NoveloApplication.graph.localModel
-    val ears by model.state.collectAsStateWithLifecycle()
-    LaunchedEffect(step >= 1, ears == LocalModel.State.Missing) {
-        if (step >= 1 && ears == LocalModel.State.Missing && LocalEngine.available && model.onWifi()) model.download(wifiOnly = true)
-    }
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Steps(step, count = 4, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
         AnimatedContent(
@@ -136,9 +131,9 @@ fun SetupScreen(onDone: () -> Unit) {
         ) { at ->
             when (at) {
                 0 -> PermissionsStep(onNext = { step = 1 })
-                1 -> BackupStep(onNext = { step = 2 })
-                2 -> IntelligenceStep(onNext = { step = 3 })
-                else -> EarsStep(onDone = onDone)
+                1 -> EarsStep(onNext = { step = 2 })
+                2 -> BackupStep(onNext = { step = 3 })
+                else -> IntelligenceStep(onDone = onDone)
             }
         }
     }
@@ -353,8 +348,7 @@ private fun BackupStep(onNext: () -> Unit) {
         primary = t(if (chosen) R.string.setup_continue else R.string.setup_choose_folder),
         onPrimary = { if (chosen) onNext() else choose() },
         primaryEnabled = !bringing,
-        secondary = if (chosen || bringing) null else t(R.string.setup_later),
-        onSecondary = onNext,
+        // A folder is a must: with it nothing is lost, whatever happens to the phone.
     ) {
         Card(onClick = { if (!bringing) choose() }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -385,6 +379,11 @@ private fun BackupStep(onNext: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Note(it, NoveloColors.Success)
         }
+        // Better in a cloud drive on the phone (one that shows in the list): the backup lives off the phone.
+        if (!chosen && !bringing) {
+            Spacer(Modifier.height(14.dp))
+            Note(t(R.string.setup_backup_cloud), NoveloColors.TextMuted)
+        }
     }
 }
 
@@ -392,22 +391,36 @@ private fun BackupStep(onNext: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IntelligenceStep(onNext: () -> Unit) {
+private fun IntelligenceStep(onDone: () -> Unit) {
     val graph = NoveloApplication.graph
     val st = graph.settings
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
+    val ears by graph.localModel.state.collectAsStateWithLifecycle()
+    // The app opens only with the ears on the phone (they came down while she went on).
+    val earsReady = ears == LocalModel.State.Ready || !LocalEngine.available
+    val percent = NumberFormat.getPercentInstance(Lang.locale)
     // Hers when her API already thinks; the Novelo's otherwise.
     var own by rememberSaveable { mutableStateOf(s.think == Source.API) }
     // Hers goes on only when it is whole: whose, the key, connected, the model.
     var ownReady by remember { mutableStateOf(OwnReady.PROVIDER) }
-    val canGo = !own || ownReady == OwnReady.READY
+    val ownOk = !own || ownReady == OwnReady.READY
+    val canGo = ownOk && earsReady
 
     Page(
         title = t(R.string.setup_ai_title),
         line = t(R.string.setup_ai_line),
-        primary = if (canGo) t(R.string.setup_continue) else t(ownReady.need),
-        onPrimary = onNext,
+        primary = when {
+            !ownOk -> t(ownReady.need)
+            !earsReady -> (ears as? LocalModel.State.Downloading)?.let { t(R.string.setup_ears_waiting, percent.format(it.fraction.toDouble())) } ?: t(R.string.setup_ears_wait)
+            else -> t(R.string.setup_start)
+        },
+        onPrimary = {
+            scope.launch {
+                st.setSetupDone()
+                onDone()
+            }
+        },
         primaryEnabled = canGo,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -441,36 +454,31 @@ internal enum class OwnReady(val need: Int) {
 // ——— 4. The ears ———
 
 /**
- * The Novelo's ears (LFM3-Omni, on the phone): without them nothing is heard, so the first steps
- * only end once they are here — "Começar" waits for them. (A build without the engine, only for
- * tests, can't have them: it lets her go.)
+ * The Novelo's ears (LFM3-Omni, on the phone): without them nothing is heard. They never come by
+ * themselves — she agrees (Baixar; off Wi-Fi she picks Wi-Fi or mobile data). Once they are coming
+ * she goes on (it goes on in the background), and the last step's "Começar" waits for them. (A build
+ * without the engine, only for tests, can't have them: it lets her go.)
  */
 @Composable
-private fun EarsStep(onDone: () -> Unit) {
+private fun EarsStep(onNext: () -> Unit) {
     val graph = NoveloApplication.graph
-    val scope = rememberCoroutineScope()
     val state by graph.localModel.state.collectAsStateWithLifecycle()
-    val ready = state == LocalModel.State.Ready || !LocalEngine.available
+    val agreed = !LocalEngine.available || state == LocalModel.State.Ready || state == LocalModel.State.Checking || state is LocalModel.State.Downloading
     Page(
         title = t(R.string.setup_ears_title),
         line = t(R.string.setup_ears_line, formatBytes(graph.localModel.totalBytes)),
-        primary = t(if (ready) R.string.setup_start else R.string.setup_ears_wait),
-        onPrimary = {
-            scope.launch {
-                graph.settings.setSetupDone()
-                onDone()
-            }
-        },
-        primaryEnabled = ready,
+        primary = t(if (agreed) R.string.setup_continue else R.string.setup_ears_agree),
+        onPrimary = onNext,
+        primaryEnabled = agreed,
     ) {
         LocalDownload()
     }
 }
 
 /**
- * The model on the phone: ready, coming, or how she wants it to come. On Wi-Fi it simply starts —
- * and only ever on Wi-Fi by itself (never her mobile data); off it, she chooses: wait for the Wi-Fi
- * or use mobile data. It says when it waits (for the Wi-Fi, for a network), when the phone has no
+ * The model on the phone: ready, coming, or how she wants it to come. It never starts by itself:
+ * on Wi-Fi she taps Baixar (it then waits if the Wi-Fi goes, never her mobile data unasked); off
+ * it, she chooses: wait for the Wi-Fi or use mobile data. It says when it waits (for the Wi-Fi, for a network), when the phone has no
  * room, and that it goes on with the app in the background.
  */
 @Composable
@@ -478,9 +486,6 @@ internal fun LocalDownload(modifier: Modifier = Modifier) {
     val model = NoveloApplication.graph.localModel
     val state by model.state.collectAsStateWithLifecycle()
     val onWifi by remember { model.wifi() }.collectAsStateWithLifecycle(initialValue = remember { model.onWifi() })
-    LaunchedEffect(state == LocalModel.State.Missing, onWifi) {
-        if (LocalEngine.available && onWifi && state == LocalModel.State.Missing) model.download(wifiOnly = true)
-    }
     val percent = NumberFormat.getPercentInstance(Lang.locale)
 
     /** Off Wi-Fi: wait for it, or use mobile data now. */
