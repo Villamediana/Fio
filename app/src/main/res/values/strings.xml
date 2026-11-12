@@ -317,4 +317,11 @@
     <string name="setup_backup_cloud">Dica: se aparecer um drive na lista (OneDrive, Dropbox…), escolha uma pasta dele. Assim o backup fica fora do celular e nada se perde, aconteça o que acontecer.</string>
     <string name="setup_ears_agree">Baixe o ouvido pra seguir</string>
     <string name="setup_ears_waiting">Esperando o ouvido · %1$s</string>
+    <string name="unlock_title">Ver o que é sensível</string>
+    <string name="privacy">Privacidade</string>
+    <string name="privacy_on">pede a digital pra ver o sensível</string>
+    <string name="privacy_off">toque para ver o sensível</string>
+    <string name="privacy_lock">Pedir a digital pra ver o que é sensível</string>
+    <string name="privacy_lock_line">Digital, rosto ou a senha do celular</string>
+    <string name="privacy_no_lock">O celular não tem bloqueio: configure uma senha ou digital nas configurações do Android</string>
 </resources>

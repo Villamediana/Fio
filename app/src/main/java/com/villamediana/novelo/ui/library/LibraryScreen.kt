@@ -166,7 +166,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     }
     val terms = remember(recall, debounced, more) { recall?.terms(debounced).orEmpty() + more }
     // The photos: the gallery, the day's diary, and the search (by what each one shows).
-    val photos by graph.library.allPhotos().collectAsStateWithLifecycle(initialValue = emptyList())
+    val photos by graph.library.loosePhotos().collectAsStateWithLifecycle(initialValue = emptyList())
     val photoIndex = remember(photos) { PhotoRecall(photos) }
     val photoHits = remember(photoIndex, debounced, more) {
         if (debounced.isBlank()) emptyList() else {

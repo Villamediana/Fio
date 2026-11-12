@@ -18,11 +18,18 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
 
     /** The photos taken in [day] (first to last ms), in the order they were taken. */
     fun photos(day: LongRange): Flow<List<com.villamediana.novelo.mind.Photo>> =
-        db.captures().observePhotos(day.first, day.last).map { list -> list.mapNotNull(com.villamediana.novelo.mind.Photo::of) }
+        loose(db.captures().observePhotos(day.first, day.last))
+
+    /** [photos] without those that live inside a note or a sensitive item ([Attached.keptInside]). */
+    private fun loose(photos: Flow<List<Capture>>): Flow<List<com.villamediana.novelo.mind.Photo>> =
+        kotlinx.coroutines.flow.combine(photos, db.captures().observeAttachments(), db.captures().observeAllPhotos(), db.entries().observeAll()) { list, attached, all, entries ->
+            val inside = Attached.keptInside((attached + all).distinctBy { it.id }, entries)
+            list.filter { it.id !in inside }.mapNotNull(com.villamediana.novelo.mind.Photo::of)
+        }.flowOn(kotlinx.coroutines.Dispatchers.Default)
 
     /** The photos [entryId] holds (sent with what she said; see [Attached]), in order. */
     fun photosOf(entryId: Long): Flow<List<com.villamediana.novelo.mind.Photo>> =
-        db.captures().observeAttachments()
+        kotlinx.coroutines.flow.combine(db.captures().observeAttachments(), db.captures().observeAllPhotos()) { attached, all -> (attached + all).distinctBy { it.id } }
             .map { list -> Attached.photosOf(entryId, list).filter { java.io.File(it.imagePath!!).isFile }.mapNotNull(com.villamediana.novelo.mind.Photo::of) }
             .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
@@ -35,6 +42,9 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
     /** Every photo kept, the newest first. */
     fun allPhotos(): Flow<List<com.villamediana.novelo.mind.Photo>> =
         db.captures().observeAllPhotos().map { list -> list.mapNotNull(com.villamediana.novelo.mind.Photo::of) }
+
+    /** The gallery's photos (and the search's): all but those that live inside a note or a sensitive item. */
+    fun loosePhotos(): Flow<List<com.villamediana.novelo.mind.Photo>> = loose(db.captures().observeAllPhotos())
 
     /** Whether [entryId] is the day's diary (the newest of [day]) — the one that shows the day's photos. */
     suspend fun isDayDiary(entryId: Long, day: LongRange): Boolean = db.entries().diariesBetween(day.first, day.last).firstOrNull()?.id == entryId

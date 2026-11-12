@@ -64,6 +64,8 @@ data class NoveloSettings(
     val accent: String = "",
     /** The "segure ou toque" hint under the button was seen (it shows only until the first capture). */
     val hintSeen: Boolean = false,
+    /** The phone's lock (fingerprint, face or its PIN) before something sensitive shows. */
+    val lockSensitive: Boolean = false,
     /** The folder the backup goes to (a tree uri the app holds a permission for); empty = none. */
     val backupFolder: String = "",
     /** Where that is, to show: "Documents/Novelo backup.zip". */
@@ -104,6 +106,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             theme = ThemeMode.of(p[THEME]),
             accent = p[ACCENT].orEmpty(),
             hintSeen = p[HINT_SEEN] ?: false,
+            lockSensitive = p[LOCK_SENSITIVE] ?: false,
             backupFolder = p[BACKUP_FOLDER].orEmpty(),
             backupPlace = p[BACKUP_PLACE].orEmpty(),
             backupAt = p[BACKUP_AT] ?: 0L,
@@ -133,6 +136,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
+    suspend fun setLockSensitive(on: Boolean) = store.edit { it[LOCK_SENSITIVE] = on }
     suspend fun setBackupPlace(place: String) = store.edit { it[BACKUP_PLACE] = place }
 
     suspend fun setBackupFolder(uri: String, place: String) = store.edit {
@@ -164,6 +168,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val THEME = stringPreferencesKey("theme")
         val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")
+        val LOCK_SENSITIVE = booleanPreferencesKey("lock_sensitive")
         val BACKUP_FOLDER = stringPreferencesKey("backup_folder")
         val BACKUP_PLACE = stringPreferencesKey("backup_place")
         val BACKUP_AT = longPreferencesKey("backup_at")
