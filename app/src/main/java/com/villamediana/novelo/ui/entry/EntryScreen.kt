@@ -270,7 +270,7 @@ fun EntryScreen(nav: Nav, id: Long) {
             DatesBlock(
                 e,
                 onDue = { at, t -> scope.launch { lib.setDue(e.id, at, t) } },
-                onRemind = { at -> scope.launch { lib.setReminder(e.id, at) } },
+                onRemind = { at, rule -> scope.launch { lib.setReminder(e.id, at, rule) } },
                 onAddStep = if (kind == Kind.TASK && !hasSteps && !addingStep) ({ addingStep = true }) else null,
             )
 
@@ -395,7 +395,14 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
 }
 
 @Composable
-private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Long?) -> Unit, onAddStep: (() -> Unit)?) {
+private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Long?, com.villamediana.novelo.remind.Repeat?) -> Unit, onAddStep: (() -> Unit)?) {
+    var setting by remember(e.id) { mutableStateOf(false) }
+    if (setting) ReminderSheet(
+        e,
+        onSave = { at, rule -> setting = false; onRemind(at, rule) },
+        onRemove = { setting = false; onRemind(null, null) },
+        onDismiss = { setting = false },
+    )
     val context = LocalContext.current
     val zone = ZoneId.systemDefault()
     fun pick(initial: Long?, withTime: Boolean, done: (Long, Boolean) -> Unit) {
@@ -425,12 +432,14 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
         }
         val remind = e.remindAt?.takeIf { it > System.currentTimeMillis() }
         // A reminder is a task's; a diary or a note shows one only when it already has it (to see it, or take it off).
+        // When it comes back, the rule says it ("seg e qua às 08:00"); otherwise the day and the hour.
+        val rule = com.villamediana.novelo.remind.Repeat.read(e.repeat)
         if (e.kindEnum == Kind.TASK || remind != null) DateChip(
             icon = NoveloIcons.Bell,
-            label = remind?.let { Dates.dayTime(it) },
+            label = remind?.let { rule?.describe() ?: Dates.dayTime(it) },
             name = t(R.string.reminder),
-            onClick = { pick(remind, withTime = true) { at, _ -> onRemind(at) } },
-            onClear = { onRemind(null) },
+            onClick = { setting = true },
+            onClear = { onRemind(null, null) },
         )
         if (onAddStep != null) DateChip(icon = NoveloIcons.Steps, label = null, name = t(R.string.steps), onClick = onAddStep, onClear = {})
     }

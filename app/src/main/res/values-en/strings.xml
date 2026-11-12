@@ -358,4 +358,17 @@
     <string name="done_kept">Kept</string>
     <string name="done_waiting">Left waiting</string>
     <string name="work_away">You can minimize or close the app: Novelo carries on and lets you know when it\'s done.</string>
+    <string name="repeat_daily_at">every day at %1$s</string>
+    <string name="repeat_days_at">%1$s at %2$s</string>
+    <string name="repeat_monthly_at">every month on day %1$d at %2$s</string>
+    <string name="and">and</string>
+    <string name="repeat">Repeat</string>
+    <string name="repeat_none">Doesn\'t repeat</string>
+    <string name="repeat_day">Every day</string>
+    <string name="repeat_week">Days of the week</string>
+    <string name="repeat_month">Every month</string>
+    <string name="reminder_day">Day</string>
+    <string name="reminder_time">Time</string>
+    <string name="reminder_save">Save</string>
+    <string name="reminder_remove">Remove reminder</string>
 </resources>

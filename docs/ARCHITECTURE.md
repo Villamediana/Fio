@@ -434,6 +434,15 @@ item, borrados como o resto). A busca acha pelo nome e pela descrição (`FileRe
 também). Backup: `Snapshot.files` → `Arquivos/<ano>/<data hora> (<id>) <nome>`, link no Markdown do item, e
 o import devolve com o nome dele.
 
+## Lembretes que se repetem (1.34.0)
+
+`Entry.repeat` (Room v8) guarda a regra (`remind/Repeat`): todo dia, dias da semana (1 = segunda) ou todo mês
+num dia, sempre com hora. O modelo diz `"repeat": {"every": "day" | "week" | "month", "days": […]}` (o
+`remind_at` é a primeira vez; `{"every": "none"}` para). Pela tela, o Lembrete abre `ui/entry/ReminderSheet`
+(dia, hora, Repetir e os dias da semana). Quando o alarme toca, o próximo já é armado (`ReminderReceiver.fire`).
+Uma tarefa que repete, concluída (no app, na notificação ou falando), fica registrada como feita
+(`Progress`) e volta aberta pra próxima vez, com as etapas zeradas e o prazo junto (`Repeat.done`).
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa
