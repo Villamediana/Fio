@@ -354,4 +354,8 @@
     <string name="new_task">New task</string>
     <string name="new_note">New note</string>
     <string name="step_move">Drag to reorder</string>
+    <string name="channel_done">Done</string>
+    <string name="done_kept">Kept</string>
+    <string name="done_waiting">Left waiting</string>
+    <string name="work_away">You can minimize or close the app: Novelo carries on and lets you know when it\'s done.</string>
 </resources>

@@ -354,4 +354,8 @@
     <string name="new_task">Nueva tarea</string>
     <string name="new_note">Nueva nota</string>
     <string name="step_move">Arrastra para cambiar el orden</string>
+    <string name="channel_done">Listo</string>
+    <string name="done_kept">Guardado</string>
+    <string name="done_waiting">Quedó esperando</string>
+    <string name="work_away">Puedes minimizar o cerrar la app: Novelo sigue y te avisa cuando termine.</string>
 </resources>
