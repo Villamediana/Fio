@@ -120,7 +120,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
-| `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
+| `update/` (só em `src/github`) | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
 ## O prompt
@@ -355,6 +355,24 @@ do motor); abrir a busca já carrega o Omni (`warm`). Mudou a busca, o pedido an
 (`LocalEngine.cancel(tag)` só para o trabalho daquele pedido, nunca uma transcrição). Respostas ficam numa
 memória de 50 buscas. Sem o ouvido baixado, só palavras.
 
+## Duas versões: GitHub e Google Play
+
+O mesmo app sai de dois jeitos (`productFlavors`, dimensão `store`), os dois `com.villamediana.novelo`:
+
+- **github**: a de sempre, com o atualizador próprio (`src/github`: `update/`, `ui/update/`, o manifesto com
+  `REQUEST_INSTALL_PACKAGES`, `UpdateService`, o `FileProvider` da APK e `USE_EXACT_ALARM`), assinada com a
+  chave de release. `tools/release.sh` publica no GitHub.
+- **play**: sem nada de se atualizar (a Play atualiza, e app da Play não pode se atualizar por conta própria) e
+  com `SCHEDULE_EXACT_ALARM` no lugar de `USE_EXACT_ALARM` (reservado a despertador e calendário na Play; sem a
+  permissão dada, `Reminders` cai no alarme não exato, perto da hora). Assinada com a chave de envio
+  (`~/keystores/novelo-upload.jks` + `novelo-upload.properties`, fora do repositório): quem assina o app que
+  chega no celular é a Play. `tools/play-bundle.sh` monta `dist/Novelo-<versão>.aab` e confere pacote,
+  versão, que não tem atualizador nem permissão proibida, bibliotecas nativas em 16 KB e a chave de envio.
+
+O código comum chama `Store` (um em cada versão: `early`, `started`, `opened`, `Host`, `settingsLine`); na play
+ele não faz nada. Testes: `testGithubDebugUnitTest` (tudo, com o atualizador) e `testPlayDebugUnitTest` (sem o
+atualizador, mais `PlayBuildTest`: as permissões da Play).
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa
@@ -369,6 +387,6 @@ Android congelava o app e o download caía no meio ("A conexão caiu"). Liga só
 
 ## Testes
 
-`./gradlew :app:testDebugUnitTest`: Recall, Brain, Keeper, o caminho inteiro do Mind com motores falsos,
+`./gradlew :app:testGithubDebugUnitTest :app:testPlayDebugUnitTest`: Recall, Brain, Keeper, o caminho inteiro do Mind com motores falsos,
 Api contra MockWebServer, Wav/Pieces, o atualizador (copiado do FreeSong) e `ScreensTest`: o app
 real com a API num MockWebServer, que salva os prints de cada tela em `app/build/novelo-shots`.

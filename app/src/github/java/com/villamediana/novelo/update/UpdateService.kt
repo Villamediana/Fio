@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.villamediana.novelo.NoveloActivity
-import com.villamediana.novelo.NoveloApplication
+import com.villamediana.novelo.Store
 import com.villamediana.novelo.Notifications
 import com.villamediana.novelo.R
 import com.villamediana.novelo.settings.t
@@ -52,7 +52,7 @@ class UpdateService : Service() {
         holdWake()
         if (watch == null) {
             watch = scope.launch {
-                NoveloApplication.graph.updates.state.collect { s -> if (s is UpdateState.Downloading) show(s.fraction) }
+                Store.updates.state.collect { s -> if (s is UpdateState.Downloading) show(s.fraction) }
             }
         }
         return START_NOT_STICKY

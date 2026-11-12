@@ -40,8 +40,9 @@ O app procura versões novas nas [releases](../../releases) deste repositório e
 JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular). A chave da Inteligência do Novelo não fica no repositório: o build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env` (sem ela, o app sai só com a inteligência própria).
 
 ```bash
-./gradlew :app:testDebugUnitTest             # testes (NOVELO_SHOTS: prints das telas em app/build/novelo-shots)
-tools/release.sh -n $'- novidade'            # versão nova, com o motor no celular (ver docs/ARCHITECTURE.md)
+./gradlew :app:testGithubDebugUnitTest :app:testPlayDebugUnitTest   # testes das duas versões (NOVELO_SHOTS: prints em app/build/novelo-shots)
+tools/release.sh -n $'- novidade'            # versão GitHub nova, com o motor no celular (ver docs/ARCHITECTURE.md)
+tools/play-bundle.sh                         # versão Google Play: dist/Novelo-<versão>.aab pro Play Console
 ```
 
 Licenças: llama.cpp (MIT); os modelos LFM3 são baixados do Hugging Face sob a LFM Open License v1.0.

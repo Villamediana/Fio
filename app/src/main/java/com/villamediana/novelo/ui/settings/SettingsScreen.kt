@@ -69,7 +69,6 @@ import com.villamediana.novelo.ui.components.paper
 import com.villamediana.novelo.ui.home.QuietIcon
 import com.villamediana.novelo.ui.theme.NoveloAccents
 import com.villamediana.novelo.ui.theme.NoveloColors
-import com.villamediana.novelo.ui.update.UpdateRow
 
 /** The parts of Ajustes, each opened in place. */
 private enum class Part { AI, THEME, BACKUP, LANGUAGE }
@@ -103,7 +102,7 @@ fun SettingsScreen(nav: Nav) {
             Fold(t(R.string.language), Lang.current.label, false, open == Part.LANGUAGE, { toggle(Part.LANGUAGE) }) { LanguagePicker() }
 
             Spacer(Modifier.height(18.dp))
-            val updateLine: (@Composable () -> Unit)? = if (graph.updates.enabled) ({ UpdateRow() }) else null
+            val updateLine: (@Composable () -> Unit)? = com.villamediana.novelo.Store.settingsLine
             Group(
                 Modifier,
                 {

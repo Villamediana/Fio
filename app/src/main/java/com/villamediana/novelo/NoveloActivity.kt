@@ -28,7 +28,6 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import com.villamediana.novelo.update.UpdateNotifier
 
 /** What a notification asked the app to do when it opens. */
 sealed interface Ask {
@@ -129,7 +128,7 @@ class NoveloActivity : ComponentActivity() {
     }
 
     private fun read(intent: Intent?) {
-        if (intent?.getBooleanExtra(UpdateNotifier.EXTRA_OPEN, false) == true) NoveloApplication.graph.updates.openSheet()
+        Store.opened(intent)
         val open = intent?.getLongExtra(EXTRA_OPEN_ENTRY, -1L) ?: -1L
         val talk = intent?.getLongExtra(EXTRA_TALK_ABOUT, -1L) ?: -1L
         ask = when {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Só a versão da Google Play. Lembretes na hora certa com a permissão que a pessoa dá (USE_EXACT_ALARM
+  é só pra despertador e calendário na Play); sem ela, o lembrete chega perto da hora (Reminders cai no
+  alarme não exato). Nada de instalar atualizações: quem atualiza é a Play.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+</manifest>

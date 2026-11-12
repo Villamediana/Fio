@@ -26,7 +26,6 @@ import com.villamediana.novelo.ui.library.LibraryScreen
 import com.villamediana.novelo.ui.settings.SettingsScreen
 import com.villamediana.novelo.ui.theme.NoveloColors
 import com.villamediana.novelo.ui.theme.Motion
-import com.villamediana.novelo.ui.update.UpdateHost
 import kotlinx.coroutines.delay
 
 @Composable
@@ -86,6 +85,6 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
                 Screen.Camera -> CameraScreen(nav)
             }
         }
-        UpdateHost()
+        com.villamediana.novelo.Store.Host()
     }
 }
