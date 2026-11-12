@@ -186,6 +186,8 @@
     <string name="setup_notifications_why">reminders and the “how is it going?”</string>
     <string name="setup_camera">Camera</string>
     <string name="setup_camera_why">to read and keep photos</string>
+    <string name="setup_alarms">Reminders on time</string>
+    <string name="setup_alarms_why">to remind you at the right minute</string>
     <string name="setup_backup_title">Where should your backup go?</string>
     <string name="setup_backup_line">One single file, updated every day, in a folder of yours. If you change phones, everything comes back.</string>
     <string name="setup_choose_folder">Choose a folder</string>

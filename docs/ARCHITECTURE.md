@@ -364,14 +364,20 @@ O mesmo app sai de dois jeitos (`productFlavors`, dimensão `store`), os dois `c
   chave de release. `tools/release.sh` publica no GitHub.
 - **play**: sem nada de se atualizar (a Play atualiza, e app da Play não pode se atualizar por conta própria) e
   com `SCHEDULE_EXACT_ALARM` no lugar de `USE_EXACT_ALARM` (reservado a despertador e calendário na Play; sem a
-  permissão dada, `Reminders` cai no alarme não exato, perto da hora). Assinada com a chave de envio
+  permissão dada, `Reminders` cai no alarme não exato, perto da hora). Os primeiros passos pedem essa permissão
+  quando o celular precisa (`Reminders.onTime`: cartão "Lembretes na hora", e "Permitir" abre a página do
+  Android "Alarmes e lembretes"; dada, o `RearmReceiver` arma de novo os lembretes). O código é o mesmo nas duas
+  versões; na github o cartão nunca aparece, porque `USE_EXACT_ALARM` já vem dado. Assinada com a chave de envio
   (`~/keystores/novelo-upload.jks` + `novelo-upload.properties`, fora do repositório): quem assina o app que
   chega no celular é a Play. `tools/play-bundle.sh` monta `dist/Novelo-<versão>.aab` e confere pacote,
   versão, que não tem atualizador nem permissão proibida, bibliotecas nativas em 16 KB e a chave de envio.
 
 O código comum chama `Store` (um em cada versão: `early`, `started`, `opened`, `Host`, `settingsLine`); na play
 ele não faz nada. Testes: `testGithubDebugUnitTest` (tudo, com o atualizador) e `testPlayDebugUnitTest` (sem o
-atualizador, mais `PlayBuildTest`: as permissões da Play).
+atualizador, mais `PlayBuildTest`: as permissões da Play, e `OnTimeAskTest`: o pedido de lembrete na hora).
+
+A política de privacidade (PT/ES/EN) fica em `site/` e é publicada no repositório público `Villamediana/novelo-site`
+(GitHub Pages): https://villamediana.github.io/novelo-site/privacidade.html — é o link que vai na Play.
 
 ## Lançar versão
 
