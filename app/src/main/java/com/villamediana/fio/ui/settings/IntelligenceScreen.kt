@@ -228,7 +228,8 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: Str
                 }, primary = true, size = 40.dp)
                 is LocalModel.State.Downloading -> IconAction(FioIcons.Stop, t(R.string.local_stop_download), { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                LocalModel.State.Ready -> IconAction(FioIcons.Trash, t(R.string.local_delete), { model.delete() }, size = 40.dp)
+                // Hearing needs it: once here it stays (nothing to delete it with).
+                LocalModel.State.Ready -> Unit
             }
         }
         if (askWifi && (state == LocalModel.State.Missing || state is LocalModel.State.Failed)) {

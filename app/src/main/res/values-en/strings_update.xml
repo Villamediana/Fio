@@ -6,6 +6,7 @@
     <string name="update_action">Update</string>
     <string name="update_later">Not now</string>
     <string name="update_downloading">Downloading · %1$s</string>
+    <string name="update_downloading_note">Downloading the new version</string>
     <string name="update_installing">Installing…</string>
     <string name="update_permission_body">Let Novelo install its own updates.</string>
     <string name="update_permission_action">Allow</string>
