@@ -244,6 +244,19 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
 ## Backup (1.14.0; um arquivo só desde a 1.17.1)
 
+**Desde a 1.28.0** (o Miguel perdeu tudo ao ligar a pasta depois de reinstalar):
+
+- **A cada mudança**: `Backups.watch` observa as tabelas do Room (entries, captures, entities, entry_topics,
+  links, progress); 4 s depois da última mudança de uma rajada sai um backup (`soon`), e o `BackupWorker.soon`
+  (WorkManager, 2 min, KEEP) termina se o app fechar antes. O diário continua por cima. Nada mudou de verdade
+  (mesmo SHA) → nada é escrito.
+- **Nunca escreve por cima de um backup que não é dele**: se a pasta já tem "Novelo backup.zip" e este app nunca
+  escreveu ali (estado vazio pra essa pasta), o arquivo é copiado antes pra "Novelo backup antes de <data>.zip",
+  que aparece em Importar e volta inteiro. Escolher a pasta (primeiros passos ou Ajustes) com o app vazio traz o
+  backup de volta na hora (`chooseAndBringBack`); depois de trazer, o estado já é o do arquivo (não regrava).
+- **Vai tudo**: itens, fotos, áudios guardados, tópicos e ligações (Conexões), etapas/andamento, e também o que
+  foi gravado e ainda não foi ouvido (volta como `RECORDED`, com o som, pra ser ouvido).
+
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
 com `takePersistableUriPermission`) e o backup é **um arquivo só**, `Novelo backup.zip`, direto nessa
 pasta, trocado a cada backup (só existe o último). Ao escolher, faz um na hora; depois sozinho

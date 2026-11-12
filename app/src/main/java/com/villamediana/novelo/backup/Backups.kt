@@ -44,6 +44,42 @@ class Backups(
 
     private fun root(uri: String): Shelf = TreeShelf.root(resolver, Uri.parse(uri))
 
+    /** Something changed since the backup that is running or waiting. */
+    @Volatile private var dirty = false
+    @Volatile private var lastChange = 0L
+    private var runner: Job? = null
+
+    /**
+     * Every change in what she keeps (something new, changed, taken out; its photos, connections,
+     * steps) makes a backup: a few seconds after the last of a burst, so one talk is one backup.
+     * Room says when the tables change; WorkManager finishes it if the app goes away first.
+     */
+    fun watch(db: com.villamediana.novelo.data.NoveloDatabase) {
+        db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(arrayOf("entries", "captures", "entities", "entry_topics", "links", "progress")) {
+            override fun onInvalidated(tables: Set<String>) = soon()
+        })
+    }
+
+    /** A backup soon (see [watch]). */
+    fun soon() {
+        lastChange = android.os.SystemClock.elapsedRealtime()
+        dirty = true
+        runCatching { BackupWorker.soon(context) }
+        if (runner?.isActive == true) return
+        runner = scope.launch {
+            while (dirty) {
+                // A moment of quiet first: a burst of changes makes one backup.
+                while (true) {
+                    val quiet = android.os.SystemClock.elapsedRealtime() - lastChange
+                    if (quiet >= QUIET_MS) break
+                    kotlinx.coroutines.delay(QUIET_MS - quiet)
+                }
+                dirty = false
+                if (settings.current().backupFolder.isNotBlank()) save()
+            }
+        }
+    }
+
     /** The folder chosen in the picker: kept, the old one let go, the automatic backup set, and a backup right away. */
     fun choose(uri: Uri): Job = scope.launch {
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -80,7 +116,9 @@ class Backups(
             val r = core.save(root, key = folder)
             // Where it is now (a folder chosen before the backup became one file showed another place).
             core.place(root).let { if (it != settings.current().backupPlace) settings.setBackupPlace(it) }
-            settings.setBackupDone(System.currentTimeMillis(), if (r.empty) t(R.string.backup_nothing_yet) else note(r.entries, r.photos, r.sounds))
+            val said = if (r.empty) t(R.string.backup_nothing_yet) else note(r.entries, r.photos, r.sounds)
+            // A backup that was already in the folder: kept beside, and she is told where.
+            settings.setBackupDone(System.currentTimeMillis(), r.aside?.let { said + " · " + t(R.string.backup_kept_aside, it.removeSuffix(".zip")) } ?: said)
             true
         } catch (e: Throwable) {
             settings.setBackupFailed(message(e))
@@ -104,7 +142,7 @@ class Backups(
         if (!mind.idle) return Result.failure(IOException(t(R.string.backup_wait_busy)))
         _busy.value = IMPORTING
         val r = try {
-            Result.success(core.restore(root(folder), name))
+            Result.success(core.restore(root(folder), name, key = folder))
         } catch (e: Throwable) {
             Result.failure(IOException(message(e), e))
         } finally {
@@ -125,6 +163,9 @@ class Backups(
     }
 
     companion object {
+        /** Quiet after a change before the backup goes (a talk changes several things at once). */
+        const val QUIET_MS = 4_000L
+
         const val SAVING = "Fazendo o backup…"
         const val IMPORTING = "Importando…"
 
@@ -136,7 +177,7 @@ class Backups(
     }
 }
 
-/** The automatic backup: once a day, with battery and room enough. */
+/** The automatic backup: after every change (see [Backups.watch]), and once a day besides. */
 class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         NoveloApplication.graph.backups.save()
@@ -145,6 +186,18 @@ class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
     companion object {
         private const val NAME = "backup"
+        private const val SOON = "backup-soon"
+
+        /**
+         * After a change, a backup in a while even if the app goes away first (the app does it sooner
+         * itself while it is open; this one then finds nothing new and writes nothing).
+         */
+        fun soon(context: Context) {
+            val request = androidx.work.OneTimeWorkRequestBuilder<BackupWorker>()
+                .setInitialDelay(2, TimeUnit.MINUTES)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(SOON, androidx.work.ExistingWorkPolicy.KEEP, request)
+        }
 
         /**
          * In step with Ajustes: on when there is a folder, off when there isn't. [replace] when she

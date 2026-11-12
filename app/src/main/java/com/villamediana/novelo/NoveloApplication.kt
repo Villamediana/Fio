@@ -21,6 +21,8 @@ class NoveloApplication : Application() {
         graph.scope.launch { runCatching { graph.reminders.syncAll() } }
         // One diary a day (days left with two from before become one).
         graph.scope.launch { runCatching { graph.library.joinDayDiaries() } }
+        // A backup after every change in what she keeps (and the daily one besides).
+        graph.scope.launch { runCatching { graph.backups.watch(graph.db) } }
         // The automatic backup, as Ajustes has it (kept when it is already scheduled).
         graph.scope.launch { runCatching { BackupWorker.schedule(this@NoveloApplication, graph.settings.current(), replace = false) } }
         if (graph.updates.enabled) runCatching { UpdateCheckWorker.schedule(this) }
