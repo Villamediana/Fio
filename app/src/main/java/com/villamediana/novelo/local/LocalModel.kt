@@ -8,6 +8,7 @@ import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,11 +44,17 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
             "d1-2B-Q4_0.gguf", "LFM3-1.7B-QAD-Q4_0.gguf",
         )
         private const val OLD_MEMO = "ready-omni.txt"
+
+        /** Room left over after the download (the phone needs some to go on working). */
+        const val ROOM_MARGIN = 300L * 1024 * 1024
     }
+
+    enum class Waiting { WIFI, NETWORK }
 
     sealed interface State {
         data object Missing : State
-        data class Downloading(val fraction: Float, val bytes: Long, val total: Long) : State
+        /** Coming; [waiting]: Android holds it until there is Wi-Fi, or a network (it goes on by itself). */
+        data class Downloading(val fraction: Float, val bytes: Long, val total: Long, val waiting: Waiting? = null) : State
         data object Checking : State
         data object Ready : State
         data class Failed(val message: String) : State
@@ -100,10 +107,20 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
         cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
     }.getOrDefault(false)
 
-    /** To the phone; [wifiOnly]: it waits for Wi-Fi (Android's download goes by itself when it comes). */
+    /**
+     * To the phone; [wifiOnly]: it waits for Wi-Fi (Android's download goes by itself when it comes).
+     * Not enough room on the phone: it says so (how much it needs, how much there is) and doesn't start.
+     * Android's download goes on with the app in the background or closed (its notification shows it).
+     */
     fun download(wifiOnly: Boolean = false) {
         if (_state.value is State.Downloading || _state.value == State.Ready || _state.value == State.Checking) return
         scope.launch(Dispatchers.IO) {
+            val missing = PARTS.filter { File(dir, it.name).length() != it.size }.sumOf { it.size }
+            val free = dir.usableSpace
+            if (free < missing + ROOM_MARGIN) {
+                _state.value = State.Failed(t(R.string.local_no_room, size(missing + ROOM_MARGIN), size(free)))
+                return@launch
+            }
             wanted.writeText(if (wifiOnly) "wifi" else "any")
             next()
             follow()
@@ -155,6 +172,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 var done = 0L
                 var failed: String? = null
                 var running = false
+                var waiting: Waiting? = null
                 PARTS.forEach { part ->
                     val file = File(dir, part.name)
                     val id = activeId(part)
@@ -169,8 +187,17 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                             when (status) {
                                 DownloadManager.STATUS_SUCCESSFUL -> { File(dir, part.name + ".id").delete(); done += part.size }
                                 DownloadManager.STATUS_FAILED -> {
-                                    failed = t(R.string.local_download_stopped, c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)))
+                                    val reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                                    failed = if (reason == DownloadManager.ERROR_INSUFFICIENT_SPACE) t(R.string.local_no_room_now) else t(R.string.local_download_stopped, reason)
                                     File(dir, part.name + ".id").delete()
+                                }
+                                DownloadManager.STATUS_PAUSED -> {
+                                    running = true
+                                    done += got.coerceAtLeast(0)
+                                    waiting = when (c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))) {
+                                        DownloadManager.PAUSED_QUEUED_FOR_WIFI -> Waiting.WIFI
+                                        else -> Waiting.NETWORK
+                                    }
                                 }
                                 else -> { running = true; done += got.coerceAtLeast(0) }
                             }
@@ -182,7 +209,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 val total = totalBytes
                 when {
                     failed != null -> { wanted.delete(); _state.value = State.Failed(failed!!); return@launch }
-                    running -> _state.value = State.Downloading((done.toFloat() / total).coerceIn(0f, 1f), done, total)
+                    running -> _state.value = State.Downloading((done.toFloat() / total).coerceIn(0f, 1f), done, total, waiting)
                     // One part ended: the next one comes (the bar goes on), or all are here.
                     wanted.isFile && next() -> _state.value = State.Downloading((done.toFloat() / total).coerceIn(0f, 1f), done, total)
                     else -> { verify(); return@launch }
@@ -218,6 +245,25 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
 
     private fun checked(part: Part): Boolean =
         File(dir, part.name).length() == part.size && ok(part).let { it.isFile && it.readText().trim() == part.sha256 }
+
+    private fun size(bytes: Long): String = android.text.format.Formatter.formatShortFileSize(context, bytes)
+
+    /** Whether the phone is on Wi-Fi (or another network that doesn't count data), as it changes. */
+    fun wifi(): kotlinx.coroutines.flow.Flow<Boolean> = kotlinx.coroutines.flow.callbackFlow {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        trySend(onWifi())
+        val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
+                trySend(caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED))
+            }
+
+            override fun onLost(network: android.net.Network) {
+                trySend(onWifi())
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(cb) }
+        awaitClose { runCatching { cm.unregisterNetworkCallback(cb) } }
+    }
 
     private fun activeId(part: Part): Long? = File(dir, part.name + ".id").takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull()
 

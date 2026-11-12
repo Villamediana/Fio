@@ -32,6 +32,12 @@ object Lang {
     @Volatile private var chosen: AppLang? = null
     @Volatile private var resources: Resources? = null
 
+    /**
+     * Read by every word asked on a screen, changed when the language changes: the screens are
+     * drawn again right there, in the new language (nothing restarts, she stays where she is).
+     */
+    private val changes = androidx.compose.runtime.mutableIntStateOf(0)
+
     /** Once, when the app starts (before anything asks for a word). */
     fun init(context: Context) {
         app = context.applicationContext ?: context
@@ -48,12 +54,13 @@ object Lang {
     /** Dates and numbers in the app's language. */
     val locale: Locale get() = current.locale
 
-    /** Chooses [lang]: kept, and every word asked from now on is in it (the screen is made again by whoever called). */
+    /** Chooses [lang]: kept, and the screens on show are drawn again in it at once. */
     fun set(context: Context, lang: AppLang) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, lang.key).apply()
         chosen = lang
         resources = null
         Locale.setDefault(lang.locale)
+        changes.intValue++
     }
 
     /** [base] speaking the app's language. */
@@ -65,6 +72,8 @@ object Lang {
 
     /** The words, in the app's language. */
     fun res(): Resources {
+        // On a screen, this word follows the language from now on (see [changes]).
+        changes.intValue
         resources?.let { return it }
         val context = app ?: error("Lang.init was not called")
         val config = Configuration(context.resources.configuration).apply { setLocale(current.locale) }

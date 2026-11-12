@@ -216,6 +216,15 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
 ## Primeiros passos, provedores e idioma (1.18.0)
 
+- **1.29.0**: na inteligência própria o botão só segue com tudo pronto (de quem é a IA → chave → conectado →
+  modelo; `OwnReady`), dizendo o que falta; de quem é a IA é uma linha que abre a lista (`ChoiceLine`), nada
+  marcado antes de ela escolher, e os campos só depois. O ouvido: só baixa sozinho no Wi-Fi (nunca dados
+  móveis por conta própria), diz quando espera o Wi-Fi ou a internet, avisa quando falta espaço (`local_no_room`,
+  checado antes; e o erro de espaço do DownloadManager) e que dá pra sair do app. Idioma troca na hora, sem
+  reiniciar (`Lang` com um estado do Compose lido em cada palavra). Ajustes › Backup é só a pasta (com o último
+  backup embaixo); escolher uma pasta com backup sempre traz ele (o que o app tinha fica ao lado, datado).
+  Fotos: pinça e dois toques pra aproximar; aproximada, o dedo anda nela em vez de passar pra próxima.
+
 - **Desde a 1.27.0**: quatro passos — permissões; **backup** (escolher a pasta; se ela já tem um backup do Novelo e o
   app está vazio, ele volta na hora e a pasta fica ligada a ele: `Backups.chooseAndBringBack`, nunca substitui o que
   já existe); quem pensa; e o **ouvido** (`EarsStep`): os primeiros passos só terminam com o ouvido no celular

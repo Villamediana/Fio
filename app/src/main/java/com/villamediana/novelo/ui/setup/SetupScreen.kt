@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.villamediana.novelo.ui.sheets.NoveloSheet
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -120,7 +121,7 @@ fun SetupScreen(onDone: () -> Unit) {
     val model = NoveloApplication.graph.localModel
     val ears by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(step >= 1, ears == LocalModel.State.Missing) {
-        if (step >= 1 && ears == LocalModel.State.Missing && LocalEngine.available && model.onWifi()) model.download()
+        if (step >= 1 && ears == LocalModel.State.Missing && LocalEngine.available && model.onWifi()) model.download(wifiOnly = true)
     }
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Steps(step, count = 4, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
@@ -296,23 +297,13 @@ internal fun LanguagePicker(modifier: Modifier = Modifier) {
         langs.map { it.label },
         selected = langs.indexOf(Lang.current),
         onSelect = { i ->
-            if (langs[i] != Lang.current) {
-                Lang.set(context, langs[i])
-                (context as? Activity)?.recreate() ?: context.findActivity()?.recreate()
-            }
+            // The screens follow at once (no restart): she stays right where she is.
+            if (langs[i] != Lang.current) Lang.set(context, langs[i])
         },
         modifier = modifier,
     )
 }
 
-private fun Context.findActivity(): Activity? {
-    var c: Context? = this
-    while (c is android.content.ContextWrapper) {
-        if (c is Activity) return c
-        c = c.baseContext
-    }
-    return null
-}
 
 @Composable
 private fun Permission(icon: ImageVector, title: String, why: String, ok: Boolean) {
@@ -408,12 +399,16 @@ private fun IntelligenceStep(onNext: () -> Unit) {
     val s by st.now.collectAsStateWithLifecycle()
     // Hers when her API already thinks; the Novelo's otherwise.
     var own by rememberSaveable { mutableStateOf(s.think == Source.API) }
+    // Hers goes on only when it is whole: whose, the key, connected, the model.
+    var ownReady by remember { mutableStateOf(OwnReady.PROVIDER) }
+    val canGo = !own || ownReady == OwnReady.READY
 
     Page(
         title = t(R.string.setup_ai_title),
         line = t(R.string.setup_ai_line),
-        primary = t(R.string.setup_continue),
+        primary = if (canGo) t(R.string.setup_continue) else t(ownReady.need),
         onPrimary = onNext,
+        primaryEnabled = canGo,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Card(selected = !own, onClick = {
@@ -429,9 +424,18 @@ private fun IntelligenceStep(onNext: () -> Unit) {
                 ChoiceTitle(t(R.string.setup_ai_own))
             }
             Spacer(Modifier.height(6.dp))
-            if (own) OwnSetup()
+            if (own) OwnSetup(onReady = { ownReady = it })
         }
     }
+}
+
+/** Where her own intelligence is in its setup, and what the button says while something is missing. */
+internal enum class OwnReady(val need: Int) {
+    PROVIDER(R.string.setup_need_provider),
+    KEY(R.string.setup_need_key),
+    CONNECTION(R.string.setup_need_connection),
+    MODEL(R.string.setup_need_model),
+    READY(R.string.setup_continue),
 }
 
 // ——— 4. The ears ———
@@ -463,16 +467,37 @@ private fun EarsStep(onDone: () -> Unit) {
     }
 }
 
-/** The model on the phone: ready, coming, or how she wants it to come (Wi-Fi or now). */
+/**
+ * The model on the phone: ready, coming, or how she wants it to come. On Wi-Fi it simply starts —
+ * and only ever on Wi-Fi by itself (never her mobile data); off it, she chooses: wait for the Wi-Fi
+ * or use mobile data. It says when it waits (for the Wi-Fi, for a network), when the phone has no
+ * room, and that it goes on with the app in the background.
+ */
 @Composable
 internal fun LocalDownload(modifier: Modifier = Modifier) {
     val model = NoveloApplication.graph.localModel
     val state by model.state.collectAsStateWithLifecycle()
-    var waitingWifi by rememberSaveable { mutableStateOf(false) }
-    val onWifi = remember { model.onWifi() }
-    // On Wi-Fi it simply starts (also when the choice changes what has to come).
-    LaunchedEffect(state == LocalModel.State.Missing) { if (LocalEngine.available && onWifi && state == LocalModel.State.Missing) model.download() }
+    val onWifi by remember { model.wifi() }.collectAsStateWithLifecycle(initialValue = remember { model.onWifi() })
+    LaunchedEffect(state == LocalModel.State.Missing, onWifi) {
+        if (LocalEngine.available && onWifi && state == LocalModel.State.Missing) model.download(wifiOnly = true)
+    }
     val percent = NumberFormat.getPercentInstance(Lang.locale)
+
+    /** Off Wi-Fi: wait for it, or use mobile data now. */
+    @Composable
+    fun Choose() {
+        Card {
+            Column {
+                Text(t(R.string.setup_local_no_wifi, formatBytes(model.totalBytes)), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Text)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill(t(R.string.setup_local_wait_wifi), selected = true, onClick = { model.download(wifiOnly = true) })
+                    Pill(t(R.string.local_use_mobile), selected = false, onClick = { model.download() })
+                }
+            }
+        }
+    }
+
     Column(modifier.fillMaxWidth().animateContentSize()) {
         when {
             !LocalEngine.available -> Note(t(R.string.local_not_in_version), NoveloColors.Danger)
@@ -480,33 +505,35 @@ internal fun LocalDownload(modifier: Modifier = Modifier) {
             state is LocalModel.State.Downloading -> {
                 val d = state as LocalModel.State.Downloading
                 Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(NoveloColors.Surface2)) {
-                    Box(Modifier.fillMaxWidth(d.fraction.coerceIn(0f, 1f)).height(6.dp).clip(CircleShape).background(NoveloColors.Accent))
+                    Box(Modifier.fillMaxWidth(d.fraction.coerceIn(0f, 1f)).height(6.dp).clip(CircleShape).background(if (d.waiting != null) NoveloColors.Accent.copy(alpha = 0.45f) else NoveloColors.Accent))
                 }
                 Spacer(Modifier.height(8.dp))
-                Note(
-                    if (waitingWifi && d.bytes == 0L) t(R.string.setup_local_waiting_wifi)
-                    else t(R.string.setup_local_downloading, percent.format(d.fraction.toDouble()), formatBytes(model.totalBytes)),
-                    NoveloColors.TextMuted,
-                )
+                when (d.waiting) {
+                    LocalModel.Waiting.WIFI -> {
+                        Note(t(R.string.local_waiting_wifi, percent.format(d.fraction.toDouble())), NoveloColors.TextMuted)
+                        Spacer(Modifier.height(10.dp))
+                        // Waiting for the Wi-Fi: mobile data now, if she wants (the piece coming starts again).
+                        Pill(t(R.string.local_use_mobile), selected = false, onClick = {
+                            model.cancel()
+                            model.download()
+                        })
+                    }
+                    LocalModel.Waiting.NETWORK -> Note(t(R.string.local_waiting_network, percent.format(d.fraction.toDouble())), NoveloColors.TextMuted)
+                    null -> {
+                        Note(t(R.string.setup_local_downloading, percent.format(d.fraction.toDouble()), formatBytes(model.totalBytes)), NoveloColors.TextMuted)
+                        Note(t(R.string.local_background), NoveloColors.TextFaint)
+                    }
+                }
             }
             state == LocalModel.State.Checking -> Note(t(R.string.local_checking), NoveloColors.TextMuted)
             else -> {
-                val failed = (state as? LocalModel.State.Failed)?.message
-                if (failed != null) Note(failed, NoveloColors.Danger)
-                if (!onWifi) {
-                    Card {
-                        Column {
-                            Text(t(R.string.setup_local_no_wifi, formatBytes(model.totalBytes)), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Text)
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Pill(t(R.string.setup_local_wait_wifi), selected = true, onClick = { waitingWifi = true; model.download(wifiOnly = true) })
-                                Pill(t(R.string.setup_local_download_anyway), selected = false, onClick = { model.download() })
-                            }
-                        }
-                    }
-                } else {
-                    Pill(t(R.string.local_download), selected = true, onClick = { model.download() })
+                // Missing, or it stopped (no room, a damaged file, the download failed): what happened, and again.
+                (state as? LocalModel.State.Failed)?.message?.let {
+                    Note(it, NoveloColors.Danger)
+                    Spacer(Modifier.height(10.dp))
                 }
+                if (onWifi) Pill(if (state is LocalModel.State.Failed) t(R.string.try_again) else t(R.string.local_download), selected = true, onClick = { model.download(wifiOnly = true) })
+                else Choose()
             }
         }
     }
@@ -523,7 +550,7 @@ private fun Note(text: String, color: Color) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true) {
+internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true, onReady: (OwnReady) -> Unit = {}) {
     val graph = NoveloApplication.graph
     val st = graph.settings
     val scope = rememberCoroutineScope()
@@ -534,7 +561,18 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
     var status by remember { mutableStateOf<Pair<String, Boolean?>?>(null) }
     var loading by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
+    var choosingProvider by remember { mutableStateOf(false) }
     val provider = s.provider
+    // Whose it is, once she chose (an address from before, without a provider, is "Outro").
+    val chosen = s.apiProvider.isNotBlank() || s.apiBase.isNotBlank()
+    val ready = when {
+        !chosen -> OwnReady.PROVIDER
+        !s.apiReady -> OwnReady.KEY
+        status?.second != true -> OwnReady.CONNECTION
+        s.thinkModel.isBlank() -> OwnReady.MODEL
+        else -> OwnReady.READY
+    }
+    LaunchedEffect(ready) { onReady(ready) }
 
     suspend fun connect() {
         if (base.isNotBlank() && base.trim().trimEnd('/') != s.apiBase) st.setApiBase(base)
@@ -557,16 +595,10 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
     }
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Providers.all.forEach { p ->
-                Pill(providerName(p), selected = p.id == provider.id && (s.apiProvider.isNotBlank() || p == Providers.OTHER), onClick = {
-                    scope.launch {
-                        st.setApiProvider(p.id)
-                        models = emptyList(); status = null
-                    }
-                })
-            }
-        }
+        // Whose it is: one line that opens the list (calmer than a row of names).
+        ChoiceLine(t(R.string.ai_provider_title), if (chosen) providerName(provider) else null, tag = "provider-line") { choosingProvider = true }
+        // The fields only once she said whose it is.
+        if (!chosen) return@Column
         if (provider.base == null) SetupField(t(R.string.api_address), base, { base = it }, provider.baseHint, KeyboardType.Uri)
         SetupField(
             t(R.string.api_key),
@@ -583,7 +615,36 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
                 Text(text, style = MaterialTheme.typography.bodySmall, color = if (ok == true) NoveloColors.Success else NoveloColors.Danger, modifier = Modifier.padding(start = if (loading) 8.dp else 0.dp))
             }
         }
-        if (showModels && s.apiReady) ModelLine(t(R.string.ai_model_thinks), s.thinkModel) { picking = true }
+        // The model only once it connected (its list comes from there).
+        if (showModels && s.apiReady && status?.second == true) ModelLine(t(R.string.ai_model_thinks), s.thinkModel) { picking = true }
+    }
+
+    if (choosingProvider) {
+        NoveloSheet(onDismissRequest = { choosingProvider = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+                Text(t(R.string.ai_provider_title), style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text, modifier = Modifier.padding(bottom = 10.dp))
+                Providers.all.forEach { p ->
+                    val on = chosen && p.id == provider.id
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                choosingProvider = false
+                                scope.launch {
+                                    st.setApiProvider(p.id)
+                                    models = emptyList(); status = null
+                                }
+                            }
+                            .padding(horizontal = 6.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(providerName(p), style = MaterialTheme.typography.titleMedium, color = if (on) NoveloColors.Accent else NoveloColors.Text, modifier = Modifier.weight(1f))
+                        if (on) Icon(NoveloIcons.Check, null, tint = NoveloColors.Accent, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
     }
 
     if (picking) {
@@ -606,15 +667,19 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
 }
 
 @Composable
-private fun ModelLine(title: String, model: String, onClick: () -> Unit) {
-    Card(onClick = onClick) {
+private fun ModelLine(title: String, model: String, onClick: () -> Unit) = ChoiceLine(title, model.ifBlank { null }, empty = t(R.string.ai_choose_model), onClick = onClick)
+
+/** A choice as one line: what it is, what is chosen (or, in the accent, that it is still to choose). */
+@Composable
+private fun ChoiceLine(title: String, value: String?, empty: String = t(R.string.ai_provider_choose), tag: String? = null, onClick: () -> Unit) {
+    Card(modifier = if (tag != null) Modifier.testTag(tag) else Modifier, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
                 Text(
-                    model.ifBlank { t(R.string.ai_choose_model) },
+                    value ?: empty,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (model.isBlank()) NoveloColors.Accent else NoveloColors.TextMuted,
+                    color = if (value == null) NoveloColors.Accent else NoveloColors.TextMuted,
                 )
             }
             Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))

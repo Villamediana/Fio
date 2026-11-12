@@ -302,4 +302,16 @@
     <string name="setup_ears_line">Te escucha aquí en el celular, sin internet. Se descarga una sola vez (%1$s).</string>
     <string name="setup_ears_wait">Esperando el oído…</string>
     <string name="backup_kept_aside">la copia que ya estaba en la carpeta quedó guardada como “%1$s”</string>
+    <string name="setup_need_provider">Elige de quién es la IA</string>
+    <string name="setup_need_key">Pon la clave</string>
+    <string name="setup_need_connection">Esperando conectar…</string>
+    <string name="setup_need_model">Elige el modelo</string>
+    <string name="local_no_room">Falta espacio: el oído necesita %1$s libres y el celular tiene %2$s. Libera espacio e inténtalo de nuevo.</string>
+    <string name="local_no_room_now">Faltó espacio en el celular. Libera espacio e inténtalo de nuevo.</string>
+    <string name="local_waiting_wifi">Esperando el Wi-Fi para seguir · %1$s</string>
+    <string name="local_waiting_network">Sin internet ahora; sigue solo cuando vuelva · %1$s</string>
+    <string name="local_background">Puedes salir de la app: sigue descargando.</string>
+    <string name="local_use_mobile">Usar datos móviles</string>
+    <string name="ai_provider_title">De quién es la IA</string>
+    <string name="ai_provider_choose">Elegir</string>
 </resources>

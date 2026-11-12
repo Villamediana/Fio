@@ -302,4 +302,16 @@
     <string name="setup_ears_line">They hear you right here on the phone, offline. Downloaded once (%1$s).</string>
     <string name="setup_ears_wait">Waiting for the ears…</string>
     <string name="backup_kept_aside">the backup already in the folder was kept as “%1$s”</string>
+    <string name="setup_need_provider">Choose whose AI it is</string>
+    <string name="setup_need_key">Add the key</string>
+    <string name="setup_need_connection">Waiting to connect…</string>
+    <string name="setup_need_model">Choose the model</string>
+    <string name="local_no_room">Not enough room: the ears need %1$s free and the phone has %2$s. Free up space and try again.</string>
+    <string name="local_no_room_now">The phone ran out of room. Free up space and try again.</string>
+    <string name="local_waiting_wifi">Waiting for Wi-Fi to go on · %1$s</string>
+    <string name="local_waiting_network">No internet right now; it goes on when it is back · %1$s</string>
+    <string name="local_background">You can leave the app: it keeps downloading.</string>
+    <string name="local_use_mobile">Use mobile data</string>
+    <string name="ai_provider_title">Whose AI</string>
+    <string name="ai_provider_choose">Choose</string>
 </resources>
