@@ -11,7 +11,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.villamediana.fio.FioApplication
 import com.villamediana.fio.mind.Mind
-import com.villamediana.fio.settings.BackupEvery
 import com.villamediana.fio.settings.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -52,11 +51,6 @@ class Backups(
         settings.setBackupFolder(uri.toString(), place)
         BackupWorker.schedule(context, settings.current(), replace = true)
         save()
-    }
-
-    fun every(every: BackupEvery): Job = scope.launch {
-        settings.setBackupEvery(every)
-        BackupWorker.schedule(context, settings.current(), replace = true)
     }
 
     fun now(): Job = scope.launch { save() }
@@ -126,7 +120,7 @@ class Backups(
     }
 }
 
-/** The automatic backup: once a day or a week, with battery and room enough. */
+/** The automatic backup: once a day, with battery and room enough. */
 class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         FioApplication.graph.backups.save()
@@ -137,16 +131,16 @@ class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         private const val NAME = "backup"
 
         /**
-         * In step with Ajustes: on (a folder and a frequency) or off. [replace] when she changed
-         * something (the next one counts from now); otherwise a schedule already there stays.
+         * In step with Ajustes: on when there is a folder, off when there isn't. [replace] when she
+         * changed it (the next one counts from now); otherwise a schedule already there stays.
          */
         fun schedule(context: Context, s: com.villamediana.fio.settings.FioSettings, replace: Boolean) {
             val wm = WorkManager.getInstance(context)
-            if (s.backupFolder.isBlank() || s.backupEvery == BackupEvery.OFF) {
+            if (s.backupFolder.isBlank()) {
                 wm.cancelUniqueWork(NAME)
                 return
             }
-            val days = s.backupEvery.days
+            val days = 1L
             val request = PeriodicWorkRequestBuilder<BackupWorker>(days, TimeUnit.DAYS)
                 .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build())
                 .setInitialDelay(days, TimeUnit.DAYS)

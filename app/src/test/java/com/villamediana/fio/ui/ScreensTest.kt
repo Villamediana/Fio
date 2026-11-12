@@ -491,20 +491,47 @@ class ScreensTest {
     }
 
     @Test
-    fun backupInSettings() {
+    fun settingsAreThreeDoors() {
         val nav = Nav()
         compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
+        // Ajustes is three ways in; the details live behind them.
+        compose.onNodeWithText("Inteligência").assertExists()
+        compose.onNodeWithText("Tema").assertExists()
+        compose.onNodeWithText("Backup").assertExists()
+        // No language to choose (it is automatic), nothing about the API on the first page.
+        assertTrue(compose.onAllNodesWithText("Idioma da fala").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Endereço").fetchSemanticsNodes().isEmpty())
+        // No folder yet: the door says so.
+        compose.onNodeWithText("escolher onde guardar").assertExists()
+        compose.onNodeWithText("Inteligência").performClick()
+        assertEquals(Screen.Intelligence, nav.top)
+    }
+
+    @Test
+    fun theIntelligencePageShowsOnlyWhatTheChoiceNeeds() {
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.settings.IntelligenceScreen(nav) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvir").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(500)
+        shot("30-settings-intelligence")
+        // Hearing and thinking on the API here: its address and key, no button to test (it tests by itself).
+        assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun backupInSettings() {
+        val nav = Nav()
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.settings.BackupScreen(nav) } }
         // No folder yet: one line to choose it, and the import.
         compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
-        assertTrue(compose.onAllNodesWithText("Automático").fetchSemanticsNodes().isEmpty())
         runBlocking {
-            graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Fio")
+            graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Novelo backup.zip")
             graph.settings.setBackupDone(System.currentTimeMillis(), "120 itens · 34 fotos")
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Fio").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Novelo backup.zip").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Importar backup").performScrollTo()
-        compose.onNodeWithText("Automático").assertExists()
-        compose.onNodeWithText("Diário").assertExists()
+        // It goes by itself every day: nothing to choose about how often.
+        assertTrue(compose.onAllNodesWithText("Automático").fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithText("último: hoje", substring = true).fetchSemanticsNodes().isNotEmpty())
         compose.mainClock.advanceTimeBy(500)
         shot("18-settings-backup")

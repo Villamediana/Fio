@@ -16,10 +16,10 @@ A **câmera** do app lê o que está na foto (um papel, um quadro, um recibo) e 
 
 ## Onde roda
 
-Em Ajustes você escolhe, separadamente, quem **ouve** (transcreve) e quem **pensa** (organiza):
+Em Ajustes › Inteligência você escolhe, separadamente, quem **ouve** (transcreve) e quem **pensa** (organiza). O idioma da fala é reconhecido sozinho.
 
 - **No celular** (Liquid AI, via llama.cpp, sem internet): o LFM3-Omni 2B ouve, organiza e vê as fotos. São 1,56 GB baixados uma vez, em Ajustes.
-- **Por uma API compatível com OpenAI** (OpenAI, Azure AI Foundry, OpenRouter, um servidor local): você informa o endereço e a chave, carrega a lista e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
+- **Por uma API compatível com OpenAI** (OpenAI, Azure AI Foundry, OpenRouter, um servidor local): você informa o endereço e a chave (a conexão é testada sozinha) e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
 
 Tudo o que você guarda fica no celular. Sai dele só o que vai pra API escolhida.
 

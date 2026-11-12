@@ -41,24 +41,6 @@ enum class ThemeMode(val key: String) {
     }
 }
 
-/** The language spoken: "auto" lets the model tell. */
-enum class SpeechLang(val key: String, val asr: String?) {
-    AUTO("auto", null), PT("pt", "Portuguese"), ES("es", "Spanish"), EN("en", "English");
-
-    companion object {
-        fun of(key: String?): SpeechLang = entries.firstOrNull { it.key == key } ?: AUTO
-    }
-}
-
-/** How often the backup goes to the folder by itself. */
-enum class BackupEvery(val key: String, val days: Long) {
-    OFF("off", 0), DAY("day", 1), WEEK("week", 7);
-
-    companion object {
-        fun of(key: String?): BackupEvery = entries.firstOrNull { it.key == key } ?: DAY
-    }
-}
-
 data class FioSettings(
     val hear: Source = Source.LOCAL,
     val hearModel: String = "",
@@ -66,7 +48,6 @@ data class FioSettings(
     val thinkModel: String = "",
     val apiBase: String = "",
     val hasApiKey: Boolean = false,
-    val lang: SpeechLang = SpeechLang.AUTO,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     /** The highlight color's id (see FioAccents); empty is the thread's own vermilion. */
     val accent: String = "",
@@ -76,7 +57,6 @@ data class FioSettings(
     val backupFolder: String = "",
     /** Where that is, to show: "Documents/Novelo backup.zip". */
     val backupPlace: String = "",
-    val backupEvery: BackupEvery = BackupEvery.DAY,
     /** When the last backup ended well (0 = never). */
     val backupAt: Long = 0,
     /** What the last backup took ("120 itens · 34 fotos"), or why it didn't go. */
@@ -100,13 +80,11 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             thinkModel = p[THINK_MODEL].orEmpty(),
             apiBase = p[API_BASE].orEmpty(),
             hasApiKey = !p[API_KEY].isNullOrEmpty(),
-            lang = SpeechLang.of(p[LANG]),
             theme = ThemeMode.of(p[THEME]),
             accent = p[ACCENT].orEmpty(),
             hintSeen = p[HINT_SEEN] ?: false,
             backupFolder = p[BACKUP_FOLDER].orEmpty(),
             backupPlace = p[BACKUP_PLACE].orEmpty(),
-            backupEvery = BackupEvery.of(p[BACKUP_EVERY]),
             backupAt = p[BACKUP_AT] ?: 0L,
             backupNote = p[BACKUP_NOTE].orEmpty(),
             backupFailed = p[BACKUP_FAILED] ?: false,
@@ -128,7 +106,6 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val k = key.trim()
         if (k.isEmpty()) p.remove(API_KEY) else p[API_KEY] = vault.seal(k)
     }
-    suspend fun setLang(lang: SpeechLang) = store.edit { it[LANG] = lang.key }
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
@@ -141,7 +118,6 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         it.remove(BACKUP_NOTE)
         it.remove(BACKUP_FAILED)
     }
-    suspend fun setBackupEvery(every: BackupEvery) = store.edit { it[BACKUP_EVERY] = every.key }
     suspend fun setBackupDone(at: Long, note: String) = store.edit {
         it[BACKUP_AT] = at
         it[BACKUP_NOTE] = note
@@ -159,13 +135,11 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val THINK_MODEL = stringPreferencesKey("think_model")
         val API_BASE = stringPreferencesKey("api_base")
         val API_KEY = stringPreferencesKey("api_key_sealed")
-        val LANG = stringPreferencesKey("lang")
         val THEME = stringPreferencesKey("theme")
         val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")
         val BACKUP_FOLDER = stringPreferencesKey("backup_folder")
         val BACKUP_PLACE = stringPreferencesKey("backup_place")
-        val BACKUP_EVERY = stringPreferencesKey("backup_every")
         val BACKUP_AT = longPreferencesKey("backup_at")
         val BACKUP_NOTE = stringPreferencesKey("backup_note")
         val BACKUP_FAILED = booleanPreferencesKey("backup_failed")

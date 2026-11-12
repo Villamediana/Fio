@@ -128,9 +128,9 @@ fun Orb(
             val rest = (1f - listen).coerceIn(0f, 1f) * (1f - work)
             if (rest > 0.01f) drawStitchRing(c, r, ring, rest)
 
-            // The yarn's loose end stays: still at rest, it sways with the voice while listening
-            // and gently while working, and goes gray with the ball when it is being thrown away.
-            drawLooseEnd(c, r, fill, time = t, sway = maxOf(listen, work), level = lvl, swell = swell)
+            // The yarn's loose end stays, still (a moving tail only pulls the eye): it follows the
+            // ball as it grows and goes gray with it when it is being thrown away.
+            drawLooseEnd(c, r, fill, swell = swell)
 
             // Ripples going out with the voice.
             if (listen > 0.01f) {
@@ -272,30 +272,13 @@ fun DrawScope.drawStitchRing(c: Offset, r: Float, color: Color, strength: Float)
     drawCircle(color.copy(alpha = 0.18f * strength), radius = r * 1.40f, center = c, style = Stroke(width = 1.dp.toPx()))
 }
 
-/**
- * The yarn's loose end: out of the ball at the bottom right, a little curl. [sway] (0..1) lets it
- * swing from where it leaves the ball, in one piece (the curl keeps its shape), more with the voice
- * ([level]); [swell] is how much the ball grew, so it stays attached to it.
- */
-fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color, time: Float = 0f, sway: Float = 0f, level: Float = 0f, swell: Float = 1f) {
+/** The yarn's loose end: out of the ball at the bottom right, a little curl; [swell] keeps it on the ball as it grows. */
+fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color, swell: Float = 1f) {
     val o = Offset(c.x + (swell - 1f) * r * 0.66f, c.y + (swell - 1f) * r * 0.66f)
-    val start = Offset(o.x + r * 0.62f, o.y + r * 0.66f)
-    val angle = sway * (0.10f + 0.16f * level) * sin(time * 2.6f) + sway * 0.04f * sin(time * 4.1f + 0.7f)
-    val curl = 1f + sway * (0.04f + 0.05f * level) * sin(time * 3.3f + 1.4f)
-    val cosA = cos(angle)
-    val sinA = sin(angle)
-    // A point of the curl (in radii from the ball's center), swung around where it leaves the ball.
-    fun at(x: Float, y: Float): Offset {
-        val dx = (o.x + r * x - start.x) * curl
-        val dy = (o.y + r * y - start.y) * curl
-        return Offset(start.x + dx * cosA - dy * sinA, start.y + dx * sinA + dy * cosA)
-    }
     val p = Path().apply {
-        moveTo(start.x, start.y)
-        val a1 = at(0.92f, 0.96f); val a2 = at(1.20f, 0.94f); val a3 = at(1.24f, 1.20f)
-        cubicTo(a1.x, a1.y, a2.x, a2.y, a3.x, a3.y)
-        val b1 = at(1.28f, 1.44f); val b2 = at(1.02f, 1.50f); val b3 = at(0.98f, 1.34f)
-        cubicTo(b1.x, b1.y, b2.x, b2.y, b3.x, b3.y)
+        moveTo(o.x + r * 0.62f, o.y + r * 0.66f)
+        cubicTo(o.x + r * 0.92f, o.y + r * 0.96f, o.x + r * 1.20f, o.y + r * 0.94f, o.x + r * 1.24f, o.y + r * 1.20f)
+        cubicTo(o.x + r * 1.28f, o.y + r * 1.44f, o.x + r * 1.02f, o.y + r * 1.50f, o.x + r * 0.98f, o.y + r * 1.34f)
     }
     drawPath(p, color, style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round))
 }
