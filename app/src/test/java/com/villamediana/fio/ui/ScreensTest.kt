@@ -498,7 +498,7 @@ class ScreensTest {
         val nav = Nav()
         compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
         // One page: each part a line, closed, saying how it is.
-        for (part in listOf("Inteligência", "Atalho", "Tema", "Backup", "Idioma")) compose.onNodeWithText(part).assertExists()
+        for (part in listOf("Inteligência", "Tema", "Backup", "Idioma")) compose.onNodeWithText(part).assertExists()
         assertTrue(compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isEmpty())
         // No folder yet: its line says so.
         compose.onNodeWithText("escolher onde guardar").assertExists()
@@ -509,11 +509,11 @@ class ScreensTest {
         compose.onNodeWithText("Quem pensa").assertExists()
         assertEquals(1, nav.stack.size) // nothing was opened on top of it
         shot("12b-settings-intelligence-open")
-        compose.onNodeWithText("Atalho").performScrollTo().performClick()
+        compose.onNodeWithText("Backup").performScrollTo().performClick()
         compose.mainClock.advanceTimeBy(600)
-        compose.onNodeWithText("Gravar com um gesto").assertExists()
+        compose.onNodeWithText("Importar backup").assertExists()
         assertTrue(compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isEmpty())
-        shot("12c-settings-shortcut-open")
+        shot("12c-settings-backup-open")
     }
 
     @Test
