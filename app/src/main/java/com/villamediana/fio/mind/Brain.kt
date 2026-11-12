@@ -30,7 +30,7 @@ data class Plan(
     val show: List<Long> = emptyList(),
     /** Photos that answer a question (foto#N → N), to show. */
     @SerialName("show_photos") val showPhotos: List<Long> = emptyList(),
-    /** The photo just taken: what it is and what can be seen in it, in her words — shown under it, and what the search finds it by. */
+    /** The photo just taken: what it is and what can be seen in it, in her words — what the search finds it by later (never on screen). */
     @SerialName("photo_description") val photoDescription: String? = null,
     /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
     @SerialName("keep_audio") val keepAudio: Boolean = false,
@@ -117,9 +117,9 @@ Como preencher:
 - sensitive: true para senhas, números de documento, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
-- photo_description: quando ela tirou uma foto, diga o que é e o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Ela lê esse texto embaixo da foto, e a busca acha a foto por ele.
+- photo_description: quando ela tirou uma foto, diga o que é e o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
 - A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
-- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho. Em photo_description, o que são e o que se vê nelas.
+- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho. Em photo_description, o que são e o que se vê nelas, só pra busca.
 - keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.

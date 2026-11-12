@@ -147,9 +147,9 @@ fun Modifier.bleed(by: Dp): Modifier = layout { measurable, constraints ->
 private val WHEN: DateTimeFormatter get() = DateTimeFormatter.ofPattern(t(R.string.fmt_photo_when), PT)
 
 /**
- * Photos big, on black, one beside the other: swipe between them; under each, what it is (in the
- * model's words, written when it was organized), when it was taken and a light menu to turn it,
- * save it to the phone's gallery or take it out of Fio. × or back closes.
+ * Photos big, on black, one beside the other: swipe between them; under each, when it was taken
+ * and a light menu to turn it, save it to the phone's gallery or take it out of Fio (what it
+ * shows, in the model's words, is only for the search — never on screen). × or back closes.
  */
 @Composable
 fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
@@ -188,7 +188,7 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = shown; scaleX = scale; scaleY = scale },
                         )
                     }
-                    // Under the photo: what it is, when it was taken, and a light menu to turn it, save it, take it out.
+                    // Under the photo: when it was taken, and a light menu to turn it, save it, take it out.
                     var asking by remember(p.id) { mutableStateOf(false) }
                     var note by remember(p.id) { mutableStateOf<String?>(null) }
                     LaunchedEffect(asking) { if (asking) { delay(3_000); asking = false } }
@@ -202,17 +202,6 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             .padding(top = 40.dp, bottom = 18.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        p.description?.let { about ->
-                            Text(
-                                about,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.9f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                maxLines = 4,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 28.dp).padding(bottom = 8.dp).semantics { contentDescription = "photo-about" },
-                            )
-                        }
                         Text(
                             note ?: Instant.ofEpochMilli(p.takenAt).atZone(ZoneId.systemDefault()).format(WHEN).replaceFirstChar { it.titlecase(PT) },
                             style = MaterialTheme.typography.labelMedium,
