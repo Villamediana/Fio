@@ -94,7 +94,6 @@ fun IntelligenceSection() {
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
     var picking by remember { mutableStateOf(false) }
-    var plans by remember { mutableStateOf(false) }
 
 /** The models of her API, for the list. */
     fun loadModels() {
@@ -120,12 +119,6 @@ fun IntelligenceSection() {
                 )
             })
 
-            // The Novelo's: the plan (trial, Novelo+), what is left today and this week, and the way to Novelo+.
-            if (s.think == Source.NOVELO && graph.novelo.available) {
-                Spacer(Modifier.height(10.dp))
-                com.villamediana.novelo.ui.plans.PlanCard(onPlans = { plans = true })
-            }
-
             SectionLabel(t(R.string.ai_on_phone))
             Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear)) })
 
@@ -135,8 +128,6 @@ fun IntelligenceSection() {
             }
         }
     }
-
-    if (plans) com.villamediana.novelo.ui.plans.PlansSheet(onDismiss = { plans = false })
 
     if (picking) {
         ModelPicker(

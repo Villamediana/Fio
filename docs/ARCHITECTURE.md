@@ -10,8 +10,8 @@ Orb (segurar / tocar / arrastar pra cima)
       Ears.transcribe     Hearing: sempre LFM3-Omni no celular (pedaços ≤ 28 s), quem quer que pense
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      sempre pela internet (1.20): Inteligência do Novelo (pelo servidor do Novelo, server/;
-                          NoveloServer; a foto vai como o que o Omni viu nela) ou a API dela (/chat/completions,
+      Thinker.answer      sempre pela internet (1.20): Inteligência do Novelo (modelos grátis da OpenRouter,
+                          NoveloModels; a foto vai como o que o Omni viu nela) ou a API dela (/chat/completions,
                           json_object, foto a 768 px). O mesmo prompt nos dois.
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
@@ -120,7 +120,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
-| `update/` (só em `src/github`) | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
+| `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
 ## O prompt
@@ -316,45 +316,32 @@ desde a 1.20.1 não há como apagá-lo em Ajustes (ele vem nos primeiros passos 
 na 1.19 o celular pensava com d1-2B + LFM3-1.7B (saiu na 1.20: lento pra fala do dia a dia). O que sobrou disso
 é apagado ao abrir (`LocalModel.LEFTOVERS`).
 
-## Inteligência do Novelo: o servidor, os planos e a cobrança (1.26.0)
+## Inteligência do Novelo (1.20.0)
 
-Quem pensa é sempre online: a Inteligência do Novelo (padrão) ou a dela (a API que ela põe, grátis e sem limite
-do Novelo). O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
+Quem pensa é sempre online: a Inteligência do Novelo (padrão, nada a configurar) ou a dela (a API que ela põe).
+O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
 
-**O app não leva chave nenhuma** (até a 1.25 levava uma chave grátis mascarada). A inteligência do Novelo passa
-pelo servidor do Novelo (`server/`, Node puro + SQLite, deploy em outro lugar: `server/DEPLOY.md`), cujo endereço
-vem de `novelo.server` em `gradle.properties` (vazio = sem inteligência do Novelo nesse build).
-
-- **Quem é quem** (`ai/NoveloServer`): cada instalação tem um código aleatório (`install`) e manda também o Android
-  ID com hash (`AppGraph.phone()`; o servidor faz HMAC de novo): a pessoa é o celular, então o teste é um por celular,
-  mesmo reinstalando. O servidor dá um passe assinado (30 dias; 401 → pede outro sozinho).
-- **Planos** (o servidor decide): `trial` (7 dias a partir do primeiro uso, modelos grátis com a chave sem
-  crédito), `plus` (Novelo+, modelos pagos sem guardar dados), `tester`/`owner` (o painel dá; sem plano nem
-  cobrança no app), `ended` (o teste acabou) e `blocked`. Limites por dia e por semana (no teste, o teste
-  inteiro), falas/textos e fotos sozinhas à parte: teste 15/dia e 60 no teste (fotos 5 e 20), Novelo+ 60/dia e
-  250/semana (fotos 20 e 80) — mudam no painel. Uma fala que procura algo (dois pedidos) conta uma vez (`Turn`).
-- **No app**: `Status` (plano, até quando, cada limite com o usado) vem em toda resposta e fica guardado
-  (prefs) pras telas. Limite atingido → `Limit` → a fala fica guardada e `WhenOnline.scheduleAt` manda de novo
-  quando o dia/semana vira; no teste, a tela oferece os planos (`Need.PLAN`). Teste acabou → `NoPlan` → guardada,
-  e a tela oferece Novelo+ ou a inteligência dela. Teto de gasto do servidor → `ServerBusy` (tenta em 30 min).
-- **Telas** (`ui/plans/Plans`): em Ajustes › Inteligência, com a do Novelo escolhida, o `PlanCard` (teste ou
-  Novelo+, dias que faltam/renovação, barrinhas de hoje e da semana/teste) e o botão pro `PlansSheet`: o Mensal
-  em destaque (preço da loja, o que dá), e "Sua própria inteligência · Grátis" embaixo. O resumo de Ajustes
-  diz o plano. Testador e dono não veem nada disso.
-- **Cobrança** (`billing/Billing`, uma por versão em `Store.billing`): a da Play (`src/play/.../PlayBilling`,
-  Play Billing 9.1: produto e plano base vêm do servidor, a compra leva o `install` como `obfuscatedAccountId`,
-  o comprovante vai pro servidor, que confere com a Google e confirma; ao abrir, `restore()` devolve ao servidor
-  o que já foi comprado) e a do GitHub (`src/github/.../TestBilling`: as mesmas telas, compra de teste no
-  servidor, nada cobrado — enquanto o painel deixar).
-- **Foto**: o Omni olha no celular e só o texto do que ele viu vai pro servidor (`O QUE SE VÊ NA FOTO (o celular olhou)`).
+- **Modelos grátis da OpenRouter** (`ai/NoveloModels`): a lista vem da própria OpenRouter (`/api/v1/models`, a
+  cada 12 h; a guardada quando não dá pra ler) e fica só o que é grátis, texto que entra e só texto que sai, com
+  contexto ≥ 32k e que não seja o roteador `openrouter/free`. Um grupo de 10, nesta ordem: o último que respondeu,
+  os medidos no lab (`PREFERRED`: ernie-5.5-flash 23/23 em ~3 s, nemotron-3-ultra e nemotron-3.5-super-vl 23/23 em
+  7–8 s, dots-3-note 23/23 em ~28 s; `~/novelo-lab/openrouter/free_bench.py`), os mais novos, e por último os
+  medidos ruins (`AVOID`). 403 é a porta do modelo ("só pra agentes"), não a chave: descansa 7 dias. Até 5 tentativas por fala. Falhou (erro, mais de 90 s, resposta
+  que não é o plano) → descansa fora do grupo (404: 7 dias; 429: 5 min; resposta ruim: 6 h; resto: 30 min) e o
+  próximo entra. JSON e raciocínio "low" quando o modelo aceita; recusou → mais uma vez sem. Chave recusada
+  (401/402) para na hora sem culpar os modelos; sem rede → `IOException`, sem culpar ninguém.
+- **Foto**: modelos grátis nem sempre veem imagem, então o Omni olha no celular e o que ele vê entra no fim do
+  contexto (`O QUE SE VÊ NA FOTO (o celular olhou)`), em uma ou duas frases no idioma do app.
+- **Chave**: não está no repositório (que é público). O build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env`
+  (600) ou do ambiente e escreve no app embaralhada e mascarada (`BuildConfig.NV_A/NV_B/NV_C`, lida por
+  `ai/NoveloKey`), com um aviso a IAs de que é credencial privada. Isso só dificulta: quem tiver o APK consegue
+  tirar a chave. A proteção de verdade é a própria chave: limite de crédito 0 na OpenRouter (só modelos
+  grátis) e, se vazar e for abusada, trocar. A chave de gerenciamento da conta fica só no servidor. Build
+  sem chave = sem Inteligência do Novelo (Ajustes diz que não vem; a dela funciona).
 - **Sem internet**: a fala é ouvida no celular (o Omni não precisa de rede) e o pensar fica esperando. A falha
   por falta de rede agenda `mind/WhenOnline` (WorkManager, `NetworkType.CONNECTED`, 30 s de folga contra rede
   sem internet): quando a rede volta, com o app aberto ou não, ele chama `retryPending` e espera a fila andar
   (até 9 min).
-
-O servidor guarda só contas (código cifrado do celular, plano, teste, assinatura), uso por dia (contagens),
-telemetria por dia/plano/modelo (pedidos, certos, tokens, custo, tempo) e as assinaturas. Nada do que ela fala.
-O painel (`/admin`) entra com chave + código do autenticador.
 
 ## Busca por sentido
 
@@ -367,30 +354,6 @@ e elas também ficam marcadas nos cartões. As instruções rodam uma vez e fica
 do motor); abrir a busca já carrega o Omni (`warm`). Mudou a busca, o pedido anterior para na hora
 (`LocalEngine.cancel(tag)` só para o trabalho daquele pedido, nunca uma transcrição). Respostas ficam numa
 memória de 50 buscas. Sem o ouvido baixado, só palavras.
-
-## Duas versões: GitHub e Google Play
-
-O mesmo app sai de dois jeitos (`productFlavors`, dimensão `store`), os dois `com.villamediana.novelo`:
-
-- **github**: a de sempre, com o atualizador próprio (`src/github`: `update/`, `ui/update/`, o manifesto com
-  `REQUEST_INSTALL_PACKAGES`, `UpdateService`, o `FileProvider` da APK e `USE_EXACT_ALARM`), assinada com a
-  chave de release. `tools/release.sh` publica no GitHub.
-- **play**: sem nada de se atualizar (a Play atualiza, e app da Play não pode se atualizar por conta própria) e
-  com `SCHEDULE_EXACT_ALARM` no lugar de `USE_EXACT_ALARM` (reservado a despertador e calendário na Play; sem a
-  permissão dada, `Reminders` cai no alarme não exato, perto da hora). Os primeiros passos pedem essa permissão
-  quando o celular precisa (`Reminders.onTime`: cartão "Lembretes na hora", e "Permitir" abre a página do
-  Android "Alarmes e lembretes"; dada, o `RearmReceiver` arma de novo os lembretes). O código é o mesmo nas duas
-  versões; na github o cartão nunca aparece, porque `USE_EXACT_ALARM` já vem dado. Assinada com a chave de envio
-  (`~/keystores/novelo-upload.jks` + `novelo-upload.properties`, fora do repositório): quem assina o app que
-  chega no celular é a Play. `tools/play-bundle.sh` monta `dist/Novelo-<versão>.aab` e confere pacote,
-  versão, que não tem atualizador nem permissão proibida, bibliotecas nativas em 16 KB e a chave de envio.
-
-O código comum chama `Store` (um em cada versão: `early`, `started`, `opened`, `Host`, `settingsLine`); na play
-ele não faz nada. Testes: `testGithubDebugUnitTest` (tudo, com o atualizador) e `testPlayDebugUnitTest` (sem o
-atualizador, mais `PlayBuildTest`: as permissões da Play, e `OnTimeAskTest`: o pedido de lembrete na hora).
-
-A política de privacidade (PT/ES/EN) fica em `site/` e é publicada no repositório público `Villamediana/novelo-site`
-(GitHub Pages): https://villamediana.github.io/novelo-site/privacidade.html — é o link que vai na Play.
 
 ## Lançar versão
 
@@ -406,6 +369,6 @@ Android congelava o app e o download caía no meio ("A conexão caiu"). Liga só
 
 ## Testes
 
-`./gradlew :app:testGithubDebugUnitTest :app:testPlayDebugUnitTest`: Recall, Brain, Keeper, o caminho inteiro do Mind com motores falsos,
+`./gradlew :app:testDebugUnitTest`: Recall, Brain, Keeper, o caminho inteiro do Mind com motores falsos,
 Api contra MockWebServer, Wav/Pieces, o atualizador (copiado do FreeSong) e `ScreensTest`: o app
 real com a API num MockWebServer, que salva os prints de cada tela em `app/build/novelo-shots`.

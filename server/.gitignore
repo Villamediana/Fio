@@ -1,5 +1,0 @@
-.env
-data/
-*.db
-*.db-*
-node_modules/

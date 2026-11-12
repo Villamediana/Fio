@@ -22,9 +22,11 @@ import com.villamediana.novelo.mind.Mind
 import com.villamediana.novelo.mind.MlKitPhotoReader
 import com.villamediana.novelo.mind.Thinking
 import com.villamediana.novelo.mind.WhenOnline
-import com.villamediana.novelo.ai.NoveloServer
+import com.villamediana.novelo.ai.NoveloModels
 import com.villamediana.novelo.remind.Reminders
 import com.villamediana.novelo.settings.Settings
+import com.villamediana.novelo.update.Updates
+import com.villamediana.novelo.update.createUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -60,29 +62,8 @@ class AppGraph(context: Context) {
             scope.launch { model.state.collect { if (it == LocalModel.State.Ready) mind.retryPending() } }
         }
     }
-    /** Where the Novelo's server is (the build's; a test points it at its own before first use). */
-    var noveloServer: String = BuildConfig.NOVELO_SERVER
-
-    /** The Novelo's own intelligence, through the Novelo's server (no key in the app; today's limits there). */
-    val novelo: NoveloServer by lazy {
-        NoveloServer(
-            http,
-            appContext.getSharedPreferences("novelo-server", Context.MODE_PRIVATE),
-            base = { noveloServer },
-            agent = "Novelo/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})",
-            device = { phone() },
-        )
-    }
-
-    /**
-     * This phone for the Novelo's server, so the trial is one per phone (reinstalled or not): the
-     * Android ID (the same for this app's signature on this phone and user, until a factory reset),
-     * hashed here and again on the server. Never used for anything else.
-     */
-    private fun phone(): String? = runCatching {
-        val id = android.provider.Settings.Secure.getString(appContext.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
-        id?.takeIf { it.isNotBlank() }?.let { java.security.MessageDigest.getInstance("SHA-256").digest("novelo:$it".toByteArray()).joinToString("") { b -> "%02x".format(b) } }
-    }.getOrNull()
+    /** The Novelo's own intelligence: free models online, picked and swapped by themselves. */
+    val novelo: NoveloModels by lazy { NoveloModels(http, appContext.getSharedPreferences("novelo-models", Context.MODE_PRIVATE)) }
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
@@ -106,7 +87,6 @@ class AppGraph(context: Context) {
             mic = AndroidMicHolder(appContext),
             dir = captures,
             offline = { WhenOnline.schedule(appContext) },
-            later = { at -> WhenOnline.scheduleAt(appContext, at) },
         )
     }
 
@@ -180,4 +160,5 @@ class AppGraph(context: Context) {
     }
 
     /** The app updating itself from the GitHub releases (Ajustes › Sobre, the update sheet). */
+    val updates: Updates by lazy { createUpdates(appContext, http, scope) }
 }

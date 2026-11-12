@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publica a versão GitHub do Novelo (ex-Fio) no GitHub Releases. Os celulares com o app instalado
+# Publica uma versão do Novelo (ex-Novelo) no GitHub Releases. Os celulares com o app instalado
 # acham a versão sozinhos (ao abrir o app e numa checagem diária) e se atualizam com um toque.
 #
 #   tools/release.sh -n $'- Novidade um\n- Novidade dois'   # notas na linha de comando
@@ -77,9 +77,9 @@ if [[ ${NOVELO_NATIVE:-1} != 0 ]]; then
   tools/fetch-llama.sh "$work/llama.cpp"
   llama=$work/llama.cpp
 fi
-./gradlew :app:assembleGithubRelease -Pnovelo.llama="$llama" --console=plain -q
+./gradlew :app:assembleRelease -Pnovelo.llama="$llama" --console=plain -q
 mkdir -p dist
-cp app/build/outputs/apk/github/release/app-github-release.apk "$apk"
+cp app/build/outputs/apk/release/app-release.apk "$apk"
 
 # 4. A APK é este app, nesta versão, com a chave de sempre.
 # (awk lê tudo: um "head" fecharia o pipe e o pipefail mataria o script com SIGPIPE)

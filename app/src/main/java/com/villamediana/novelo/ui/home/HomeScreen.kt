@@ -115,7 +115,6 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 
     var focus by remember { mutableStateOf<Entry?>(null) }
     var writing by remember { mutableStateOf(false) }
-    var plans by remember { mutableStateOf(false) }
     var inCancelZone by remember { mutableStateOf(false) }
     var wantsAfterPermission by remember { mutableStateOf<Long?>(null) }
 
@@ -220,7 +219,6 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         onRetry = { mind.retry(it) },
                         onDiscard = { mind.discard(it) },
                         onSettings = { nav.go(Screen.Settings) },
-                        onPlans = { plans = true },
                         onStop = mind::stopWork,
                         onCancel = mind::cancelListening,
                     )
@@ -253,8 +251,6 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
             )
         }
     }
-
-    if (plans) com.villamediana.novelo.ui.plans.PlansSheet(onDismiss = { plans = false })
 
     if (writing) {
         WriteSheet(
@@ -381,7 +377,6 @@ private fun StatusArea(
     onRetry: (Long) -> Unit,
     onDiscard: (Long) -> Unit,
     onSettings: () -> Unit,
-    onPlans: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -414,7 +409,7 @@ private fun StatusArea(
                 is MindState.Listening -> ListeningText(s, inCancelZone, onCancel)
                 is MindState.Working -> WorkingText(s, onStop)
                 is MindState.Answer -> AnswerView(s, entries, onOpen, onToggle, onDismiss)
-                is MindState.Problem -> ProblemView(s, onRetry, onDiscard, onSettings, onPlans, onDismiss)
+                is MindState.Problem -> ProblemView(s, onRetry, onDiscard, onSettings, onDismiss)
             }
         }
     }
@@ -571,20 +566,15 @@ private fun outcomeLabel(o: Outcome, e: Entry): String = when (o.action) {
 }
 
 @Composable
-private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard: (Long) -> Unit, onSettings: () -> Unit, onPlans: () -> Unit, onDismiss: () -> Unit) {
+private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard: (Long) -> Unit, onSettings: () -> Unit, onDismiss: () -> Unit) {
     Text(s.message, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
     if (!s.said.isNullOrBlank()) {
         Spacer(Modifier.height(10.dp))
         Said(s.said, maxLines = 4)
     }
     Spacer(Modifier.height(16.dp))
-    // The trial over (or its limit reached): the plans, Novelo+ or her own intelligence.
-    if (s.need == Need.PLAN) {
-        com.villamediana.novelo.ui.components.Pill(t(R.string.plans_see), selected = true, onClick = onPlans)
-        Spacer(Modifier.height(12.dp))
-    }
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (s.need != null && s.need != Need.PLAN) IconAction(NoveloIcons.Tune, t(R.string.settings), onSettings, primary = true)
+        if (s.need != null) IconAction(NoveloIcons.Tune, t(R.string.settings), onSettings, primary = true)
         if (s.captureId != null) {
             IconAction(NoveloIcons.Retry, t(R.string.try_again), { onRetry(s.captureId) }, primary = s.need == null)
             IconAction(NoveloIcons.Trash, t(R.string.discard), { onDiscard(s.captureId) })
