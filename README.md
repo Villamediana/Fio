@@ -12,7 +12,9 @@ Também dá pra **perguntar** ("o que eu tenho pra hoje?", "quando falei do cont
 
 Pessoas, lugares, projetos e assuntos citados viram nós de um **grafo**. É ele que liga as lembranças entre si e ajuda a achar as coisas.
 
-A **câmera** do app lê o que está na foto (um papel, um quadro, um recibo) e guarda do mesmo jeito.
+A **câmera** do app lê o que está na foto (um papel, um quadro, um recibo) e guarda do mesmo jeito; a foto também vai pra galeria do celular na hora, e embaixo dela fica escrito o que ela é.
+
+A **busca** acha pelas palavras e pelo sentido: o Omni, no próprio celular, lembra as outras palavras que podem ter sido usadas pra mesma coisa.
 
 ## Primeiros passos
 

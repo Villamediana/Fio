@@ -103,7 +103,8 @@
     <string name="checkin_will_ask">Novelo will ask how it\'s going %1$s.</string>
     <string name="fmt_weekday_day_month">EEEE, MMMM d</string>
     <string name="fmt_weekday_day_month_year">EEEE, MMMM d, yyyy</string>
-    <string name="search_nothing">Nothing with those words</string>
+    <string name="search_nothing">Nothing found</string>
+    <string name="search_by_meaning">Looking by meaning…</string>
     <string name="photos">Photos</string>
     <string name="done_hide">Hide done</string>
     <string name="done_show">Show done (%1$d)</string>

@@ -103,7 +103,8 @@
     <string name="checkin_will_ask">O Novelo vai perguntar como está %1$s.</string>
     <string name="fmt_weekday_day_month">EEEE, d \'de\' MMMM</string>
     <string name="fmt_weekday_day_month_year">EEEE, d \'de\' MMMM \'de\' yyyy</string>
-    <string name="search_nothing">Nada com essas palavras</string>
+    <string name="search_nothing">Nada encontrado</string>
+    <string name="search_by_meaning">Procurando pelo sentido…</string>
     <string name="photos">Fotos</string>
     <string name="done_hide">Esconder feitas</string>
     <string name="done_show">Ver feitas (%1$d)</string>

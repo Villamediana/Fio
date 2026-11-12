@@ -25,6 +25,9 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
     private var loadedFrom: String? = null
     @Volatile private var lastUse = 0L
 
+    /** Whose work is running now (see [cancel] with a tag). */
+    private var running: Any? = null
+
     suspend fun transcribe(files: LocalModel.Files, pcm: FloatArray, language: String?, onText: (String) -> Unit = {}): String =
         use(files) { h ->
             val seconds = pcm.size / 16_000
@@ -45,9 +48,10 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
      * [image]: a JPEG the model looks at, placed at [MEDIA] in the prompt (left out when it can't be read).
      * [fixed]: the start of [prompt] that is the same every time (the instructions): run once and
      * then put back, so each answer only runs what changed.
+     * [tag]: who asks, so that only this work can be stopped by [cancel] with it.
      */
-    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, image: ByteArray? = null, maxTokens: Int = 1200, fixed: String = "", onText: (String) -> Unit = {}): String =
-        use(files) { h ->
+    suspend fun generate(files: LocalModel.Files, prompt: String, grammar: String?, image: ByteArray? = null, maxTokens: Int = 1200, fixed: String = "", tag: Any? = null, onText: (String) -> Unit = {}): String =
+        use(files, tag) { h ->
             val bytes = prompt.toByteArray()
             val keep = if (fixed.isNotEmpty() && prompt.startsWith(fixed)) fixed.toByteArray().size else 0
             val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException(t(R.string.local_no_answer))
@@ -57,6 +61,11 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
     fun cancel() {
         val h = handle
         if (h != 0L) nativeCancel(h)
+    }
+
+    /** Stops the work asked with [tag], only if it is the one running (never someone else's). */
+    fun cancel(tag: Any) {
+        synchronized(this) { if (running === tag) cancel() }
     }
 
     /** Lets the model go if it hasn't been used for [idleMs]. */
@@ -74,7 +83,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         }
     }
 
-    private suspend fun <T> use(files: LocalModel.Files, block: (Long) -> T): T = lock.withLock {
+    private suspend fun <T> use(files: LocalModel.Files, tag: Any? = null, block: (Long) -> T): T = lock.withLock {
         withContext(Dispatchers.Default) {
             check(available) { t(R.string.local_no_engine) }
             if (handle == 0L || loadedFrom != files.model.path) {
@@ -85,9 +94,11 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
                 loadedFrom = files.model.path
             }
             lastUse = System.currentTimeMillis()
+            synchronized(this@LocalEngine) { running = tag }
             try {
                 block(handle)
             } finally {
+                synchronized(this@LocalEngine) { running = null }
                 lastUse = System.currentTimeMillis()
             }
         }

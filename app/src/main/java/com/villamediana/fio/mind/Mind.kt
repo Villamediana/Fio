@@ -543,7 +543,7 @@ class Mind(
                     outcomes = ids.encodeToString(ListSerializer(Outcome.serializer()), result.outcomes),
                     shown = ids.encodeToString(ListSerializer(Long.serializer()), shown),
                     shownPhotos = ids.encodeToString(ListSerializer(Long.serializer()), shownPhotos),
-                    // What the photo shows, in her words: what the search finds it by.
+                    // What the photo is, in her words: shown under it, and what the search finds it by.
                     description = if (photo) plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() } ?: c.description else c.description,
                     audioPath = if (keep) c.audioPath else null,
                     sound = keep,

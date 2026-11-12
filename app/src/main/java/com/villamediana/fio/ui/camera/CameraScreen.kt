@@ -142,8 +142,8 @@ fun CameraScreen(nav: Nav) {
                                 ContextCompat.getMainExecutor(context),
                                 object : ImageCapture.OnImageSavedCallback {
                                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                        // It waits on the main screen: sent as it is, or with what she says next.
-                                        FioApplication.graph.mind.stage(listOf(file to System.currentTimeMillis()))
+                                        // To the phone's gallery too, then it waits on the main screen: sent as it is, or with what she says next.
+                                        FioApplication.graph.taken(file, System.currentTimeMillis())
                                         nav.back()
                                     }
 

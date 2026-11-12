@@ -127,6 +127,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 @Composable
 fun LibraryScreen(nav: Nav, screen: Screen.Library) {
@@ -138,16 +140,41 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     var showDone by rememberSaveable { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
 
-    // Searching is the whole library, words matched (and their neighbours in the graph).
+    // Searching is the whole library, words matched (and their neighbours in the graph)…
     val recall by produceState<Recall?>(null, entries) { value = graph.library.recall() }
     var debounced by remember { mutableStateOf(query) }
     LaunchedEffect(query) { delay(180); debounced = query }
-    val hits = remember(recall, debounced) { if (debounced.isBlank()) null else recall?.search(debounced, limit = 60) }
-    val terms = remember(recall, debounced) { recall?.terms(debounced).orEmpty() }
+    // …and by meaning: once she stops typing, Omni gives the words her notes may use for it, and
+    // what they find comes after what her own words found.
+    val byMeaning by produceState(false) { value = withContext(Dispatchers.IO) { graph.meaning.available } }
+    LaunchedEffect(searching, byMeaning) { if (searching && byMeaning) graph.meaning.warm() }
+    var meant by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
+    val asked = debounced.trim()
+    val looking = asked.isNotEmpty() && byMeaning && meant?.first != asked
+    LaunchedEffect(asked, byMeaning) {
+        if (asked.isEmpty() || !byMeaning) return@LaunchedEffect
+        delay(MEANING_PAUSE_MS)
+        meant = asked to runCatching { graph.meaning.words(asked) }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else emptyList() }
+    }
+    val more = meant?.takeIf { it.first == asked }?.second.orEmpty()
+    val hits = remember(recall, debounced, more) {
+        if (debounced.isBlank()) null else recall?.let { r ->
+            val own = r.search(debounced, limit = 60)
+            val near = if (more.isEmpty()) emptyList() else r.search(more.joinToString(" "), limit = 60).filter { h -> own.none { it.entry.id == h.entry.id } }
+            (own + near).take(60)
+        }
+    }
+    val terms = remember(recall, debounced, more) { recall?.terms(debounced).orEmpty() + more }
     // The photos: the gallery, the day's diary, and the search (by what each one shows).
     val photos by graph.library.allPhotos().collectAsStateWithLifecycle(initialValue = emptyList())
     val photoIndex = remember(photos) { PhotoRecall(photos) }
-    val photoHits = remember(photoIndex, debounced) { if (debounced.isBlank()) emptyList() else photoIndex.search(debounced, limit = 30) }
+    val photoHits = remember(photoIndex, debounced, more) {
+        if (debounced.isBlank()) emptyList() else {
+            val own = photoIndex.search(debounced, limit = 30)
+            val near = if (more.isEmpty()) emptyList() else photoIndex.search(more.joinToString(" "), limit = 30).filter { p -> own.none { it.id == p.id } }
+            (own + near).take(30)
+        }
+    }
     val dayPhotos = remember(entries, photos) { DayPhotosIndex.of(entries.orEmpty(), photos, ZoneId.systemDefault()) }
 
     LaunchedEffect(searching) { if (searching) runCatching { focus.requestFocus() } }
@@ -194,11 +221,15 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (pull <= 0f) return Velocity.Zero
-                if (swipeGoes(pull, available.x, density) == 1) {
-                    back()
-                    return available
+                if (swipeGoes(pull, available.x, density) == 1) back()
+                // Gone or not, the lean goes back — and all the way, even when a quick touch cuts
+                // the way back short: the screen reused when she comes right back (before its way
+                // out ended) must not stay off-center.
+                try {
+                    animate(pull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> pull = v }
+                } finally {
+                    pull = 0f
                 }
-                animate(pull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> pull = v }
                 return available
             }
         }
@@ -229,7 +260,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         val list = entries
         if (hits != null) {
             val nothing = hits.isEmpty() && photoHits.isEmpty()
-            val found = listOf((if (nothing) t(R.string.search_nothing) else null) to hits.map { it.entry })
+            val found = listOf((if (nothing) t(if (looking) R.string.search_by_meaning else R.string.search_nothing) else null) to hits.map { it.entry })
             Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle, photos = photoHits)
             return@Column
         }
@@ -589,3 +620,6 @@ private fun Empty(filter: Filter) {
         )
     }
 }
+
+/** How long she stops typing before the search by meaning starts (Omni takes a moment). */
+private const val MEANING_PAUSE_MS = 500L

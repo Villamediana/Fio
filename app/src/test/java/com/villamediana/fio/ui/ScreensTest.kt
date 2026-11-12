@@ -366,8 +366,8 @@ class ScreensTest {
         shot("22-gallery")
         compose.onNodeWithTag("gallery-photo-0").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
-        // What it shows is only for the search: never under the photo.
-        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isEmpty())
+        // What it is, in the model's words, under the photo (the search finds it by the same words).
+        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isNotEmpty())
         // The light menu under it turns the photo, and the turn stays with it.
         compose.onAllNodesWithContentDescription("Girar")[0].performClick() // the page next to it is drawn too
         compose.mainClock.advanceTimeBy(600)
@@ -469,6 +469,25 @@ class ScreensTest {
         val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
         val hint = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot
         assertEquals(root.center.x, hint.center.x, 2f)
+    }
+
+    @Test
+    fun theLibraryComesBackToTheMiddleAfterASwipeHome() {
+        seed()
+        val nav = Nav().apply { go(Screen.Library(Filter.TODAY)) }
+        // The library kept on (as when she comes right back before its way out ended).
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { LibraryScreen(nav, Screen.Library(Filter.TODAY)) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Pagar o IPVA").fetchSemanticsNodes().isNotEmpty() }
+        val before = compose.onAllNodesWithText("Pagar o IPVA")[0].fetchSemanticsNode().boundsInRoot.left
+        compose.onRoot().performTouchInput {
+            val y = height * 0.72f
+            swipe(Offset(width * 0.15f, y), Offset(width * 0.85f, y), durationMillis = 120)
+        }
+        compose.waitUntil(3_000) { nav.top == Screen.Home }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        val after = compose.onAllNodesWithText("Pagar o IPVA")[0].fetchSemanticsNode().boundsInRoot.left
+        assertEquals(before, after, 2f)
     }
 
     @Test
