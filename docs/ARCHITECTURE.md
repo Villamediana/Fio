@@ -68,8 +68,9 @@ contraste (`onAccentFor`). A Home tem o botão e, embaixo, câmera · Hoje · bu
 a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria, Tudo) com uma
 costura sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por enquanto: `TABS`
 em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos
-redondos só nas pontas). Ajustes (1.17.2) são três portas e o "Sobre": Inteligência, Tema e Backup,
-cada uma dizendo em poucas palavras como está (no acento quando falta algo) e com os detalhes atrás.
+redondos só nas pontas). Ajustes (1.22) é uma página só: Inteligência, Atalho, Tema, Backup e Idioma, cada um uma linha dizendo em
+poucas palavras como está (no acento quando falta algo) que abre ali mesmo, um de cada vez (`Fold`); embaixo, o
+Novelo e a atualização.
 Inteligência mostra só "Quem pensa" (Novelo ou API; ouvir é sempre do celular) e o que a escolha pede — o
 download do ouvido (sempre) e, quando a API pensa, o endereço e a chave dela, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
 sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
@@ -302,6 +303,16 @@ Ajustes. Quando termina, o que esperava por ele vai sozinho (`AppGraph` → `ret
 desde a 1.20.1 não há como apagá-lo em Ajustes (ele vem nos primeiros passos e fica). Até a 1.6 quem ouvia era o LFM3-Audio;
 na 1.19 o celular pensava com d1-2B + LFM3-1.7B (saiu na 1.20: lento pra fala do dia a dia). O que sobrou disso
 é apagado ao abrir (`LocalModel.LEFTOVERS`).
+
+## Atalho por gesto (1.22.0)
+
+Um app comum não ouve os botões físicos com a tela apagada (só com root; a acessibilidade só com a tela
+ligada, e a Play Store recusa esse uso). O que funciona: o gesto do próprio celular que abre um app (botão
+lateral 2x no Samsung, toque duplo nas costas no Pixel e outros). Em Ajustes › Atalho, "Gravar com um gesto"
+liga a entrada "Novelo · Gravar" (`shortcut/RecordGesture`, `android:enabled="false"` até ela ligar, via
+`Gesture.set`): uma tela invisível que vale até bloqueado (`setShowWhenLocked`), começa a gravar (modo tocado,
+até o próximo gesto) com uma vibração firme, ou para com duas (`Buzz`), e sai sozinha 450 ms depois (o serviço
+do microfone tem que começar com o app na frente). Sem permissão de microfone, abre o app.
 
 ## Inteligência do Novelo (1.20.0)
 

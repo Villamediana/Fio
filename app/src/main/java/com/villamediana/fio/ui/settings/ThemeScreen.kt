@@ -1,5 +1,9 @@
 package com.villamediana.fio.ui.settings
 
+import androidx.compose.ui.graphics.graphicsLayer
+
+import androidx.compose.foundation.layout.requiredSize
+
 import com.villamediana.fio.R
 import com.villamediana.fio.settings.t
 import androidx.compose.animation.animateColorAsState
@@ -58,41 +62,37 @@ import com.villamediana.fio.ui.theme.FioAccents
 import com.villamediana.fio.ui.theme.FioColors
 import kotlinx.coroutines.launch
 
-/** "Tema": the main screen in small, as it will look; light, dark or the system's; and the thread's color. */
+/** "Tema" (opened in place): the main screen in small, as it will look; light, dark or the system's; and the thread's color. */
 @Composable
-fun ThemeScreen(nav: Nav) {
+fun ThemeSection() {
     val st = FioApplication.graph.settings
     val s by st.now.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
-            Text(t(R.string.theme), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
+    Column(Modifier.fillMaxWidth()) {
+        // The main screen in small (its 220×400 drawn at 70 %): enough to see the choice, inline.
+        Box(Modifier.size(154.dp, 280.dp).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
+            Preview(Modifier.requiredSize(220.dp, 400.dp).graphicsLayer(scaleX = 0.7f, scaleY = 0.7f))
         }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            Spacer(Modifier.height(14.dp))
-            Preview(Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(22.dp))
 
-            // Escuro / Claro / Sistema
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf(
-                    Triple(ThemeMode.DARK, t(R.string.theme_dark), FioIcons.Moon),
-                    Triple(ThemeMode.LIGHT, t(R.string.theme_light), FioIcons.Sun),
-                    Triple(ThemeMode.SYSTEM, t(R.string.theme_system), FioIcons.Contrast),
-                ).forEach { (mode, label, icon) ->
-                    ModeChip(label, icon, selected = s.theme == mode, modifier = Modifier.weight(1f)) { scope.launch { st.setTheme(mode) } }
-                }
+        // Escuro / Claro / Sistema
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf(
+                Triple(ThemeMode.DARK, t(R.string.theme_dark), FioIcons.Moon),
+                Triple(ThemeMode.LIGHT, t(R.string.theme_light), FioIcons.Sun),
+                Triple(ThemeMode.SYSTEM, t(R.string.theme_system), FioIcons.Contrast),
+            ).forEach { (mode, label, icon) ->
+                ModeChip(label, icon, selected = s.theme == mode, modifier = Modifier.weight(1f)) { scope.launch { st.setTheme(mode) } }
             }
-            Spacer(Modifier.height(26.dp))
+        }
+        Spacer(Modifier.height(22.dp))
 
-            // The thread's color.
-            val chosen = FioAccents.byId(s.accent).id
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                FioAccents.all.forEach { a ->
-                    Swatch(if (FioColors.palette.dark) a.dark else a.light, selected = chosen == a.id, label = a.name) { scope.launch { st.setAccent(a.id) } }
-                }
+        // The thread's color.
+        val chosen = FioAccents.byId(s.accent).id
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            FioAccents.all.forEach { a ->
+                Swatch(if (FioColors.palette.dark) a.dark else a.light, selected = chosen == a.id, label = a.name) { scope.launch { st.setAccent(a.id) } }
             }
         }
     }

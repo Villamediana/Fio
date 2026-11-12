@@ -82,11 +82,11 @@ import com.villamediana.fio.settings.t
 import com.villamediana.fio.ui.setup.OwnSetup
 
 /**
- * Ajustes › Inteligência: who thinks (the Novelo's own intelligence, or her API) and only what that
- * choice needs. Hearing is always on the phone (LFM3-Omni), so its download is always here.
+ * Ajustes › Inteligência (opened in place): who thinks (the Novelo's own intelligence, or her API)
+ * and only what that choice needs. Hearing is always on the phone (LFM3-Omni): its download is here.
  */
 @Composable
-fun IntelligenceScreen(nav: Nav) {
+fun IntelligenceSection() {
     val graph = FioApplication.graph
     val st = graph.settings
     val scope = rememberCoroutineScope()
@@ -105,10 +105,8 @@ fun IntelligenceScreen(nav: Nav) {
         }
     }
 
-    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        PageTop(t(R.string.ai_title)) { nav.back() }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-            Spacer(Modifier.height(10.dp))
+    Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
             Group(Modifier, {
                 ThinkLine(
                     source = s.think,
@@ -128,7 +126,6 @@ fun IntelligenceScreen(nav: Nav) {
                 SectionLabel(t(R.string.ai_api))
                 OwnSetup(showModels = false)
             }
-            Spacer(Modifier.height(40.dp))
         }
     }
 

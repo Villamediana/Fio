@@ -39,7 +39,7 @@ import com.villamediana.fio.ui.home.Orb
 import com.villamediana.fio.ui.home.OrbMode
 import com.villamediana.fio.ui.library.LibraryScreen
 import com.villamediana.fio.ui.settings.SettingsScreen
-import com.villamediana.fio.ui.settings.ThemeScreen
+import com.villamediana.fio.ui.settings.ThemeSection
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.theme.FioTheme
 import kotlinx.coroutines.flow.first
@@ -53,6 +53,9 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.dp
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -475,7 +478,10 @@ class ScreensTest {
         val look = androidx.compose.runtime.mutableStateOf(Triple(ThemeMode.LIGHT, "", false))
         compose.setContent {
             val (mode, accent, home) = look.value
-            FioTheme(mode, accent = accent) { if (home) HomeScreen(nav, talkAbout = null, onTalkHandled = {}) else ThemeScreen(nav) }
+            FioTheme(mode, accent = accent) {
+                if (home) HomeScreen(nav, talkAbout = null, onTalkHandled = {})
+                else Box(Modifier.fillMaxSize().background(FioColors.Background).padding(16.dp)) { ThemeSection() }
+            }
         }
         shot("14-theme")
         runBlocking { graph.settings.setAccent("green"); graph.settings.setTheme(ThemeMode.DARK) }
@@ -488,27 +494,33 @@ class ScreensTest {
     }
 
     @Test
-    fun settingsAreThreeDoors() {
+    fun settingsIsOnePageThatOpensInPlace() {
         val nav = Nav()
         compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
-        // Ajustes is three ways in; the details live behind them.
-        compose.onNodeWithText("Inteligência").assertExists()
-        compose.onNodeWithText("Tema").assertExists()
-        compose.onNodeWithText("Backup").assertExists()
-        // No language to choose (it is automatic), nothing about the API on the first page.
-        assertTrue(compose.onAllNodesWithText("Idioma da fala").fetchSemanticsNodes().isEmpty())
-        assertTrue(compose.onAllNodesWithText("Endereço").fetchSemanticsNodes().isEmpty())
-        // No folder yet: the door says so.
+        // One page: each part a line, closed, saying how it is.
+        for (part in listOf("Inteligência", "Atalho", "Tema", "Backup", "Idioma")) compose.onNodeWithText(part).assertExists()
+        assertTrue(compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isEmpty())
+        // No folder yet: its line says so.
         compose.onNodeWithText("escolher onde guardar").assertExists()
+        shot("12-settings")
+        // A part opens right there (no other page), one at a time.
         compose.onNodeWithText("Inteligência").performClick()
-        assertEquals(Screen.Intelligence, nav.top)
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("Quem pensa").assertExists()
+        assertEquals(1, nav.stack.size) // nothing was opened on top of it
+        shot("12b-settings-intelligence-open")
+        compose.onNodeWithText("Atalho").performScrollTo().performClick()
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("Gravar com um gesto").assertExists()
+        assertTrue(compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isEmpty())
+        shot("12c-settings-shortcut-open")
     }
 
     @Test
     fun theIntelligencePageShowsOnlyWhatTheChoiceNeeds() {
         val nav = Nav()
         runBlocking { graph.settings.setThink(Source.API) }
-        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.settings.IntelligenceScreen(nav) } }
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { Box(Modifier.fillMaxSize().background(FioColors.Background).padding(16.dp)) { com.villamediana.fio.ui.settings.IntelligenceSection() } } }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isNotEmpty() }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(500)
@@ -527,7 +539,13 @@ class ScreensTest {
     @Test
     fun backupInSettings() {
         val nav = Nav()
-        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.settings.BackupScreen(nav) } }
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(FioColors.Background).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp)) {
+                    com.villamediana.fio.ui.settings.BackupSection()
+                }
+            }
+        }
         // No folder yet: one line to choose it, and the import.
         compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
         runBlocking {

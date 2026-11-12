@@ -142,6 +142,12 @@
     <string name="ai_novelo_summary">Novelo\'s intelligence · hears on the phone</string>
     <string name="need_novelo_not_in_version">Novelo\'s intelligence isn\'t in this version — use your own in Settings</string>
     <string name="need_download_ears">download Novelo\'s ears in Settings › Intelligence</string>
+    <string name="gesture_label">Novelo · Record</string>
+    <string name="shortcut">Shortcut</string>
+    <string name="shortcut_gesture">Record with a gesture</string>
+    <string name="shortcut_how">In the phone\'s gesture (side key twice, back tap), choose “Novelo · Record”.</string>
+    <string name="shortcut_on">on</string>
+    <string name="shortcut_off">off</string>
     <string name="ai_on_phone">On the phone</string>
     <string name="ai_choose_model">choose a model</string>
     <string name="ai_model_thinks">Model that thinks</string>
