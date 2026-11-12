@@ -7,10 +7,10 @@
 - `icon.html` / `header.html`: de onde saíram, renderizados no Chrome headless
   (`--force-device-scale-factor=2 --window-size=2048,1152` pro cabeçalho; a fonte é `app/src/main/res/font/fraunces.ttf`).
 
-Texto promocional (até 140 caracteres):
+Nome de desenvolvedor: Novelo. Texto promocional (até 140 caracteres), sobre quem faz:
 
-- en-US: Novelo is a notebook you talk to. Say what's on your mind and it keeps it as tasks, notes and a diary, so your head can rest.
-- pt-BR: Novelo é um caderno que te escuta. Fale o que vem à cabeça e ele guarda em tarefas, notas e diário, pra sua cabeça descansar.
-- es-419: Novelo es un cuaderno que te escucha. Di lo que tienes en mente y lo guarda en tareas, notas y diario, para que tu cabeza descanse.
+- en-US: I'm Miguel, an independent developer in Brazil. I make simple, calm apps that help you get things off your mind.
+- pt-BR: Sou o Miguel, desenvolvedor independente no Brasil. Faço apps simples e tranquilos que ajudam a tirar as coisas da cabeça.
+- es-419: Soy Miguel, desarrollador independiente en Brasil. Hago apps simples y tranquilas que ayudan a sacarte las cosas de la cabeza.
 
 Site do desenvolvedor: https://villamediana.github.io/novelo-site/
