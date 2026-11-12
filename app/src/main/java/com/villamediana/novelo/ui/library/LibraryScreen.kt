@@ -17,6 +17,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -176,6 +177,16 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
     }
     val dayPhotos = remember(entries, photos) { DayPhotosIndex.of(entries.orEmpty(), photos, ZoneId.systemDefault()) }
+    // The files: their tab, and the search (by name and what each one is) — none inside something sensitive.
+    val files by remember { graph.library.files(withSensitive = false) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val fileIndex = remember(files) { com.villamediana.novelo.mind.FileRecall(files) }
+    val fileHits = remember(fileIndex, debounced, more) {
+        if (debounced.isBlank()) emptyList() else {
+            val own = fileIndex.search(debounced, limit = 20)
+            val near = if (more.isEmpty()) emptyList() else fileIndex.search(more.joinToString(" "), limit = 20).filter { f -> own.none { it.id == f.id } }
+            (own + near).take(20)
+        }
+    }
 
     LaunchedEffect(searching) { if (searching) runCatching { focus.requestFocus() } }
 
@@ -259,9 +270,9 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
         val list = entries
         if (hits != null) {
-            val nothing = hits.isEmpty() && photoHits.isEmpty()
+            val nothing = hits.isEmpty() && photoHits.isEmpty() && fileHits.isEmpty()
             val found = listOf((if (nothing) t(if (looking) R.string.search_by_meaning else R.string.search_nothing) else null) to hits.map { it.entry })
-            Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle, photos = photoHits)
+            Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle, photos = photoHits, files = fileHits)
             return@Column
         }
         Box(Modifier.fillMaxSize().nestedScroll(edge)) {
@@ -271,6 +282,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
                         f == Filter.GALLERY -> Gallery(photos, empty = { Empty(Filter.GALLERY) })
+                        f == Filter.FILES -> FilesTab(files, empty = { Empty(Filter.FILES) })
                         list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle, dayPhotos = dayPhotos)
                     }
                 }
@@ -292,6 +304,8 @@ private fun Entries(
     toggle: (Long) -> Unit,
     /** The search's photos, above what it found. */
     photos: List<Photo> = emptyList(),
+    /** The search's files, after its photos. */
+    files: List<com.villamediana.novelo.data.KeptFile> = emptyList(),
     /** The day's photos on the day's diary card. */
     dayPhotos: DayPhotosIndex = DayPhotosIndex.EMPTY,
 ) {
@@ -307,6 +321,16 @@ private fun Entries(
             item(key = "label-photos") { SectionLabel(t(R.string.photos), Modifier.animateItem()) }
             item(key = "photos") { PhotoRow(photos, side = 16.dp, height = 150.dp, tag = "found-photo") }
             item(key = "photos-gap") { Spacer(Modifier.height(14.dp)) }
+        }
+        if (files.isNotEmpty()) {
+            item(key = "label-files") { SectionLabel(t(R.string.tab_files), Modifier.animateItem()) }
+            itemsIndexed(files, key = { _, f -> "file-${f.id}" }) { i, f ->
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Box(Modifier.animateItem().padding(bottom = 8.dp)) {
+                    com.villamediana.novelo.ui.entry.FileRow(f, onClick = { com.villamediana.novelo.ui.entry.openFile(context, f) }, where = where(f), modifier = Modifier.testTag("found-file-$i"))
+                }
+            }
+            item(key = "files-gap") { Spacer(Modifier.height(6.dp)) }
         }
         sections.forEach { (label, items) ->
             if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
@@ -352,6 +376,7 @@ private fun title(f: Filter) = when (f) {
     Filter.NOTES -> t(R.string.tab_notes)
     Filter.DIARY -> t(R.string.tab_diary)
     Filter.GALLERY -> t(R.string.gallery)
+    Filter.FILES -> t(R.string.tab_files)
     Filter.ALL -> t(R.string.tab_all)
     Filter.LINKS -> t(R.string.tab_links)
 }
@@ -528,7 +553,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
         Filter.ALL -> byDay(all, zone, today)
-        Filter.GALLERY, Filter.LINKS -> emptyList()
+        Filter.GALLERY, Filter.FILES, Filter.LINKS -> emptyList()
     }
 }
 
@@ -600,6 +625,7 @@ private fun Empty(filter: Filter) {
                 Filter.NOTES -> t(R.string.empty_notes)
                 Filter.DIARY -> t(R.string.empty_diary)
                 Filter.GALLERY -> t(R.string.empty_gallery)
+                Filter.FILES -> t(R.string.empty_files)
                 Filter.ALL -> t(R.string.empty_all)
                 Filter.LINKS -> t(R.string.empty_links)
             },
@@ -611,6 +637,7 @@ private fun Empty(filter: Filter) {
             when (filter) {
                 Filter.LINKS -> t(R.string.empty_links_line)
                 Filter.GALLERY -> t(R.string.empty_gallery_line)
+                Filter.FILES -> t(R.string.empty_files_line)
                 else -> t(R.string.empty_line)
             },
             style = MaterialTheme.typography.bodyMedium,

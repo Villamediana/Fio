@@ -126,6 +126,8 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     // The phone's gallery: as many photos as she wants, each going the way of one taken here.
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris -> graph.fromGallery(uris) }
+    // Files of any type: they wait with the photos, and go alone or with what she says.
+    val documents = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> graph.fromFiles(uris) }
     fun hasMic() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     // "Falar" from a check-in: the microphone opens right away, about that task.
@@ -246,6 +248,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                 entries = entries,
                 onCamera = { nav.go(Screen.Camera) },
                 onGallery = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onFile = { runCatching { documents.launch(arrayOf("*/*")) } },
                 onToday = { nav.go(Screen.Library(Filter.TODAY)) },
                 onSearch = { nav.go(Screen.Library(Filter.ALL, search = true)) },
             )
@@ -265,8 +268,14 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 @Composable
 private fun StagedTray(photos: List<com.villamediana.novelo.mind.Staged>, onRemove: (com.villamediana.novelo.mind.Staged) -> Unit, onSend: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
+        val onlyFiles = photos.all { it.isFile }
         Text(
-            if (photos.size == 1) t(R.string.staged_one) else t(R.string.staged_many),
+            when {
+                photos.size == 1 && onlyFiles -> t(R.string.staged_file_one)
+                photos.size == 1 -> t(R.string.staged_one)
+                onlyFiles -> t(R.string.staged_file_many)
+                else -> t(R.string.staged_many)
+            },
             style = MaterialTheme.typography.labelMedium,
             color = NoveloColors.TextMuted,
             modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
@@ -279,7 +288,8 @@ private fun StagedTray(photos: List<com.villamediana.novelo.mind.Staged>, onRemo
                 items(photos.size, key = { photos[it].file.name }) { i ->
                     val p = photos[i]
                     Box(Modifier.size(62.dp)) {
-                        com.villamediana.novelo.ui.components.PhotoTile(
+                        if (p.isFile) StagedFile(p, Modifier.fillMaxSize().testTag("staged-$i"))
+                        else com.villamediana.novelo.ui.components.PhotoTile(
                             p.file.path,
                             maxPx = 200,
                             modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).testTag("staged-$i"),
@@ -291,8 +301,8 @@ private fun StagedTray(photos: List<com.villamediana.novelo.mind.Staged>, onRemo
                                 .size(22.dp)
                                 .clip(CircleShape)
                                 .background(NoveloColors.Background.copy(alpha = 0.86f))
-                                .clickable(onClickLabel = t(R.string.photo_take_out)) { onRemove(p) }
-                                .semantics { contentDescription = t(R.string.photo_take_out) },
+                                .clickable(onClickLabel = t(if (p.isFile) R.string.file_take_out else R.string.photo_take_out)) { onRemove(p) }
+                                .semantics { contentDescription = t(if (p.isFile) R.string.file_take_out else R.string.photo_take_out) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(NoveloIcons.Close, null, tint = NoveloColors.Text, modifier = Modifier.size(13.dp))
@@ -301,8 +311,38 @@ private fun StagedTray(photos: List<com.villamediana.novelo.mind.Staged>, onRemo
                 }
             }
             Spacer(Modifier.width(10.dp))
-            com.villamediana.novelo.ui.components.IconAction(NoveloIcons.Send, if (photos.size == 1) t(R.string.send_photo) else t(R.string.send_photos), onSend, primary = true, size = 48.dp)
+            com.villamediana.novelo.ui.components.IconAction(
+                NoveloIcons.Send,
+                when {
+                    onlyFiles -> if (photos.size == 1) t(R.string.send_file) else t(R.string.send_files)
+                    else -> if (photos.size == 1) t(R.string.send_photo) else t(R.string.send_photos)
+                },
+                onSend,
+                primary = true,
+                size = 48.dp,
+            )
         }
+    }
+}
+
+/** A file waiting: its kind ("PDF") over the start of its name, on a small sheet. */
+@Composable
+private fun StagedFile(p: com.villamediana.novelo.mind.Staged, modifier: Modifier = Modifier) {
+    val name = p.name.orEmpty()
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(NoveloColors.Surface2).padding(horizontal = 6.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(NoveloIcons.File, null, tint = NoveloColors.Accent, modifier = Modifier.size(20.dp))
+        Text(
+            com.villamediana.novelo.mind.FileKind.label(name, null) ?: name,
+            style = MaterialTheme.typography.labelSmall,
+            color = NoveloColors.TextMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 
@@ -590,7 +630,7 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
 
 /** The camera and the gallery, what is for today (the way into everything kept), the search. */
 @Composable
-private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
+private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () -> Unit, onFile: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
     val today = remember(entries) { todayCount(entries) }
     Row(
         Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
@@ -621,6 +661,7 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () 
             }
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            QuietIcon(NoveloIcons.File, t(R.string.attach_file), onFile)
             QuietIcon(NoveloIcons.Search, t(R.string.search), onSearch)
         }
     }

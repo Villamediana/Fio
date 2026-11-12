@@ -45,3 +45,34 @@ class PhotoRecall(photos: List<Photo>) {
     fun during(days: LongRange, limit: Int = 12): List<Photo> =
         all.filter { it.takenAt in days }.sortedByDescending { it.takenAt }.take(limit)
 }
+
+/**
+ * Finding files by their name and what the model said each one is, scored like [PhotoRecall]
+ * (rarer words weigh more, a word's start finds the rest of it). The newest first on a tie.
+ */
+class FileRecall(files: List<com.villamediana.novelo.data.KeptFile>) {
+    private val all = files
+    private val words: Map<Long, Set<String>> = files.associate { f -> f.id to Words.of("${f.name} ${f.description.orEmpty()}").toSet() }
+    private val df: Map<String, Int> = buildMap {
+        words.values.forEach { set -> set.forEach { w -> put(w, (get(w) ?: 0) + 1) } }
+    }
+
+    fun search(query: String, limit: Int = 12): List<com.villamediana.novelo.data.KeptFile> {
+        val terms = Words.of(query).filter { it.length >= 3 || it.any(Char::isDigit) }.distinct()
+        if (terms.isEmpty() || all.isEmpty()) return emptyList()
+        val n = all.size.toDouble()
+        return all.mapNotNull { f ->
+            val set = words[f.id].orEmpty()
+            var score = 0.0
+            for (t in terms) {
+                val exact = t in set
+                val prefix = !exact && t.length >= 4 && set.any { it.length >= 4 && (it.startsWith(t) || t.startsWith(it)) }
+                if (exact || prefix) score += ln(1.0 + n / ((df[t] ?: 1).toDouble())) * (if (exact) 1.0 else 0.6)
+            }
+            if (score > 0) f to score else null
+        }
+            .sortedWith(compareByDescending<Pair<com.villamediana.novelo.data.KeptFile, Double>> { it.second }.thenByDescending { it.first.at })
+            .take(limit)
+            .map { it.first }
+    }
+}

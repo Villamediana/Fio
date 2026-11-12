@@ -3,7 +3,7 @@ package com.villamediana.novelo.ui
 import androidx.compose.runtime.mutableStateListOf
 
 /** The tabs of the library; LINKS is the drawing of what connects to what. */
-enum class Filter { TODAY, TASKS, NOTES, DIARY, GALLERY, ALL, LINKS }
+enum class Filter { TODAY, TASKS, NOTES, DIARY, GALLERY, FILES, ALL, LINKS }
 
 sealed interface Screen {
     data object Home : Screen

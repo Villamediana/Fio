@@ -243,10 +243,10 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}) = Mind(
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}, peek: FilePeek = NoPeek) = Mind(
         scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline,
+        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline, peek = peek,
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->
@@ -345,6 +345,124 @@ class KeeperAndMindTest {
         assertEquals(sent.map { it.id }, lib.photosOf(task.id).first().map { it.id })
         val day = DayDiary.bounds(now, zone)
         assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
+    }
+
+    /** A file picked on the phone, its bytes anything. */
+    private fun picked(name: String): File = File(tmp.root, "incoming-$name").apply { writeBytes(ByteArray(2048) { it.toByte() }) }
+
+    /** Reads "the first page" of every file as [start]. */
+    private class FirstPage(val start: String) : FilePeek {
+        val peeked = mutableListOf<String>()
+        override suspend fun peek(file: File, name: String, mime: String?): String { peeked += name; return start }
+    }
+
+    @Test
+    fun aFileSentAloneGoesToTheNoteTheModelMakesForIt() = runBlocking {
+        val made = """{"reply":"Guardei seu currículo.","create":[{"kind":"note","title":"Meu currículo","files":true}],"file_descriptions":["currículo do Miguel, desenvolvedor"]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made)))
+        val peek = FirstPage("Miguel Villamediana · Desenvolvedor de software · São Paulo")
+        val m = mind(FakeEars(""), thinker, peek = peek)
+        m.stageFiles(listOf(picked("a") to "CV Miguel 2026.pdf"))
+        assertEquals(listOf("CV Miguel 2026.pdf"), m.staged.value.map { it.name })
+        m.sendStaged()
+        answered(m)
+        // The model saw the name, the type and the start of the first page — never more.
+        val prompt = thinker.prompts.single()
+        assertTrue(prompt, prompt.contains("O ARQUIVO QUE ELA MANDOU (sem dizer nada):"))
+        assertTrue(prompt, prompt.contains("\"CV Miguel 2026.pdf\" · PDF · 2 KB"))
+        assertTrue(prompt, prompt.contains("começo da primeira página: \"Miguel Villamediana · Desenvolvedor de software · São Paulo\""))
+        assertEquals(listOf("CV Miguel 2026.pdf"), peek.peeked)
+        // Kept under its own name, with what it is; in the note only (not in the day's diary).
+        val file = db.backup().captures().single { it.source == Capture.FILE }
+        assertEquals("CV Miguel 2026.pdf", File(file.filePath!!).name)
+        assertEquals("currículo do Miguel, desenvolvedor", file.description)
+        val note = db.entries().all().single { it.kindEnum == com.villamediana.novelo.data.Kind.NOTE }
+        val lib = com.villamediana.novelo.data.Library(db, Synced())
+        assertEquals(listOf(file.id), lib.filesOf(note.id).first().map { it.id })
+        val day = DayDiary.bounds(now, zone)
+        assertTrue(lib.dayFiles(day).first().isEmpty())
+        assertTrue(db.entries().diariesBetween(day.first, day.last).isEmpty())
+    }
+
+    @Test
+    fun aFileInNoItemLivesInTheDaysDiary() = runBlocking {
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Guardei no seu dia.","file_descriptions":["foto da planta da casa"]}""")))
+        val m = mind(FakeEars(""), thinker)
+        m.stageFiles(listOf(picked("b") to "planta.dwg"))
+        m.sendStaged()
+        answered(m)
+        val file = db.backup().captures().single { it.source == Capture.FILE }
+        val day = DayDiary.bounds(now, zone)
+        assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
+        val lib = com.villamediana.novelo.data.Library(db, Synced())
+        assertEquals(listOf(file.id), lib.dayFiles(day).first().map { it.id })
+        assertNull(lib.files().first().single().home)
+    }
+
+    @Test
+    fun filesSentWithWhatSheSaysGoWhereSheSays() = runBlocking {
+        val task = db.entries().insert(Entry(kind = "task", title = "Mandar o contrato pro Pedro", status = "todo", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
+        val made = """{"reply":"Juntei à tarefa.","update":[{"id":$task,"files":true}],"file_descriptions":["contrato de aluguel do apartamento","planilha de gastos de novembro"]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made)))
+        val m = mind(FakeEars(""), thinker, peek = FirstPage("CONTRATO DE LOCAÇÃO"))
+        m.stageFiles(listOf(picked("c") to "contrato.docx", picked("d") to "gastos.xlsx"))
+        m.write("esse é o contrato que tenho que mandar pro Pedro")
+        answered(m)
+        assertTrue(m.staged.value.isEmpty())
+        val prompt = thinker.prompts.single()
+        assertTrue(prompt, prompt.contains("OS ARQUIVOS QUE ELA MANDOU JUNTO (2, em ordem):"))
+        assertTrue(prompt, prompt.contains("1. \"contrato.docx\" · DOCX"))
+        assertTrue(prompt, prompt.contains("2. \"gastos.xlsx\" · XLSX"))
+        val said = db.backup().captures().single { it.source == Capture.TEXT }
+        val sent = db.captures().filesWith(said.id)
+        assertEquals(listOf("contrato de aluguel do apartamento", "planilha de gastos de novembro"), sent.map { it.description })
+        val lib = com.villamediana.novelo.data.Library(db, Synced())
+        assertEquals(sent.map { it.id }, lib.filesOf(task).first().map { it.id })
+        // In the task, so not in the day's diary.
+        assertTrue(lib.dayFiles(DayDiary.bounds(now, zone)).first().isEmpty())
+    }
+
+    @Test
+    fun aFileLetGoOrInsideSomethingSensitive() = runBlocking {
+        val lib = com.villamediana.novelo.data.Library(db, Synced())
+        val note = db.entries().insert(Entry(kind = "note", title = "RG", sensitive = true, createdAt = now, updatedAt = now))
+        val f = File(tmp.root, "rg.pdf").apply { writeBytes(ByteArray(10)) }
+        val id = db.captures().insert(Capture(createdAt = now, source = Capture.FILE, filePath = f.path, fileName = "rg.pdf", state = Capture.DONE, outcomes = """[{"entryId":$note,"action":"created","files":true}]"""))
+        // In its item (hidden there like the rest), out of the Arquivos tab and its search.
+        assertEquals(listOf(id), lib.filesOf(note).first().map { it.id })
+        assertTrue(lib.files(withSensitive = false).first().isEmpty())
+        // Its item deleted: the file isn't lost, it goes back to its day's diary.
+        lib.delete(note)
+        assertEquals(listOf(id), lib.dayFiles(DayDiary.bounds(now, zone)).first().map { it.id })
+    }
+
+    @Test
+    fun filesAreFoundByNameAndByWhatTheyAre() {
+        val a = com.villamediana.novelo.data.KeptFile(1, "/x/CV_Miguel_2026.pdf", "CV_Miguel_2026.pdf", "application/pdf", 10, now, "currículo do Miguel", null)
+        val b = com.villamediana.novelo.data.KeptFile(2, "/x/boleto.pdf", "boleto.pdf", "application/pdf", 10, now, "conta de luz de novembro", null)
+        val r = FileRecall(listOf(a, b))
+        assertEquals(listOf(1L), r.search("curriculo").map { it.id })
+        assertEquals(listOf(1L), r.search("miguel").map { it.id })
+        assertEquals(listOf(2L), r.search("conta de luz").map { it.id })
+        assertEquals(listOf(2L), r.search("boleto").map { it.id })
+    }
+
+    @Test
+    fun theStartOfAFileOnlyNeverTheWhole() {
+        fun zip(name: String, vararg parts: Pair<String, String>): File = File(tmp.root, name).also { f ->
+            java.util.zip.ZipOutputStream(f.outputStream()).use { z -> parts.forEach { (n, t) -> z.putNextEntry(java.util.zip.ZipEntry(n)); z.write(t.toByteArray()); z.closeEntry() } }
+        }
+        val docx = zip("cv.docx", "word/document.xml" to """<w:document><w:body><w:p><w:r><w:t>Miguel Villamediana</w:t></w:r></w:p><w:p><w:r><w:t>Desenvolvedor &amp; analista</w:t></w:r></w:p></w:body></w:document>""")
+        assertEquals("Miguel Villamediana\nDesenvolvedor & analista", Peek.of(docx, "cv.docx", null))
+        val xlsx = zip("gastos.xlsx", "xl/sharedStrings.xml" to """<sst><si><t>Mercado</t></si><si><t>Aluguel</t></si></sst>""")
+        assertEquals("Mercado\nAluguel", Peek.of(xlsx, "gastos.xlsx", null))
+        val pptx = zip("aula.pptx", "ppt/slides/slide1.xml" to """<p:sld><a:p><a:r><a:t>Aula 1</a:t></a:r></a:p></p:sld>""", "ppt/slides/slide2.xml" to """<a:t>Aula 2</a:t>""")
+        assertEquals("Aula 1", Peek.of(pptx, "aula.pptx", null))
+        val long = File(tmp.root, "notas.txt").apply { writeText("a".repeat(5000)) }
+        assertEquals(Brain.PEEK, Peek.of(long, "notas.txt", "text/plain").length)
+        // Anything else: nothing peeked (the name and type are enough).
+        assertEquals("", Peek.of(File(tmp.root, "x.bin").apply { writeBytes(ByteArray(100)) }, "x.bin", "application/octet-stream"))
+        assertEquals("", Peek.of(File(tmp.root, "broken.docx").apply { writeText("not a zip") }, "broken.docx", null))
     }
 
     @Test

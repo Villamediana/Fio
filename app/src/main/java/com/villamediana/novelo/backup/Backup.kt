@@ -99,7 +99,8 @@ class Backup(
             put(INSIDE, json.encodeToString(Snapshot.serializer(), snap).toByteArray(Charsets.UTF_8))
             Readable.files(snap, zone()).toSortedMap().forEach { (path, text) -> put(path, text.toByteArray(Charsets.UTF_8)) }
             val files = snap.photos.mapNotNull { (id, rel) -> byId[id]?.imagePath?.let { it to rel } } +
-                snap.sounds.mapNotNull { (id, rel) -> byId[id]?.audioPath?.let { it to rel } }
+                snap.sounds.mapNotNull { (id, rel) -> byId[id]?.audioPath?.let { it to rel } } +
+                snap.files.mapNotNull { (id, rel) -> byId[id]?.filePath?.let { it to rel } }
             for ((path, rel) in files) {
                 val local = File(path).takeIf { it.isFile } ?: continue
                 z.putNextEntry(ZipEntry(rel))
@@ -196,10 +197,14 @@ class Backup(
         val made = ArrayList<File>()
         val restored = HashMap<Long, String>()
         val sounds = HashMap<Long, String>()
+        val files = HashMap<Long, String>()
+        val names = snap.captures.associate { it.id to it.fileName }
         fun bring(id: Long, rel: String, kind: String, into: HashMap<Long, String>) {
             val (folder, n) = home.at(rel, create = false) ?: return
             val input = folder.open(n) ?: return
-            val f = File(dir.apply { mkdirs() }, "$kind-$id-${clock()}." + n.substringAfterLast('.', if (kind == "photo") "jpg" else "wav"))
+            // A file comes back under its own name, in a folder of its own (as when it was attached).
+            val f = if (kind == "file") File(File(dir, "files/$id-${clock()}").apply { mkdirs() }, names[id]?.replace('/', '-')?.ifBlank { null } ?: n)
+            else File(dir.apply { mkdirs() }, "$kind-$id-${clock()}." + n.substringAfterLast('.', if (kind == "photo") "jpg" else "wav"))
             input.use { i -> f.outputStream().use { i.copyTo(it) } }
             made += f
             into[id] = f.path
@@ -207,6 +212,7 @@ class Backup(
         try {
             for ((id, rel) in snap.photos) bring(id, rel, "photo", restored)
             for ((id, rel) in snap.sounds) bring(id, rel, "voice", sounds)
+            for ((id, rel) in snap.files) bring(id, rel, "file", files)
         } catch (e: Throwable) {
             made.forEach(File::delete)
             throw e
@@ -214,6 +220,8 @@ class Backup(
         val captures = snap.captures.mapNotNull { c ->
             val image = restored[c.id]
             when {
+                // A file comes back with its copy; one whose copy isn't in the backup has nothing left to open.
+                c.source == Capture.FILE -> files[c.id]?.let { p -> c.copy(filePath = p, tries = 0) }
                 // A photo whose file isn't in the backup, still to be read: nothing to read.
                 c.source == "photo" && image == null && c.state != Capture.DONE -> null
                 // Something said, never heard: back with its sound, to be heard (an older backup didn't have it).
@@ -224,7 +232,7 @@ class Backup(
         }
         val b = db.backup()
         val before = b.entries().map { it.id }
-        val oldFiles = b.captures().flatMap { listOfNotNull(it.imagePath, it.audioPath) }.toSet()
+        val oldFiles = b.captures().flatMap { listOfNotNull(it.imagePath, it.audioPath, it.filePath) }.toSet()
         val entryIds = snap.entries.map { it.id }.toSet()
         val topicIds = snap.topics.map { it.id }.toSet()
         db.withTransaction {
@@ -238,8 +246,10 @@ class Backup(
             b.putCaptures(captures)
         }
         // What was replaced leaves the app with its files.
-        val now = captures.flatMap { listOfNotNull(it.imagePath, it.audioPath) }.toSet()
+        val now = captures.flatMap { listOfNotNull(it.imagePath, it.audioPath, it.filePath) }.toSet()
         (oldFiles - now).forEach { File(it).delete() }
+        // A file's own folder goes with it.
+        File(dir, "files").listFiles()?.forEach { if (it.isDirectory && it.list().isNullOrEmpty()) it.delete() }
         runCatching { reminders.sync((before + entryIds).distinct()) }
         return Restored(snap.entries.size, restored.size, sounds.size)
     }
@@ -303,7 +313,10 @@ class Backup(
             // Something said and not yet heard goes too, with its sound (heard after an import):
             // only one whose sound is already gone stays out.
             fun hasAudio(c: Capture) = c.audioPath?.let { p -> File(p).isFile } == true
-            val captures = b.captures().filterNot { it.source != "photo" && it.transcript == null && !hasAudio(it) }
+            fun hasFile(c: Capture) = c.filePath?.let { p -> File(p).isFile } == true
+            val captures = b.captures().filterNot {
+                if (it.source == Capture.FILE) !hasFile(it) else it.source != "photo" && it.transcript == null && !hasAudio(it)
+            }
             Snapshot(
                 app = version,
                 madeAt = clock(),
@@ -317,6 +330,7 @@ class Backup(
                     .associate { it.id to Readable.photoPath(it, zone()) },
                 sounds = captures.filter { (it.sound || (it.source != "photo" && it.transcript == null)) && hasAudio(it) }
                     .associate { it.id to Readable.soundPath(it, zone()) },
+                files = captures.filter { it.source == Capture.FILE && hasFile(it) }.associate { it.id to Readable.filePath(it, zone()) },
             )
         }
     }

@@ -104,6 +104,18 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE source = 'photo' AND imagePath IS NOT NULL AND createdAt BETWEEN :from AND :to ORDER BY createdAt, id")
     fun observePhotos(from: Long, to: Long): Flow<List<Capture>>
 
+    /** Everything sent together with capture [id] (photos and files). */
+    @Query("SELECT * FROM captures WHERE partOf = :id ORDER BY createdAt, id")
+    suspend fun partsOf(id: Long): List<Capture>
+
+    /** The files sent together with capture [id], in the order she picked them. */
+    @Query("SELECT * FROM captures WHERE partOf = :id AND filePath IS NOT NULL ORDER BY createdAt, id")
+    suspend fun filesWith(id: Long): List<Capture>
+
+    /** Every file kept and the captures they went with (what says where each one lives), the newest first. */
+    @Query("SELECT * FROM captures WHERE filePath IS NOT NULL OR id IN (SELECT partOf FROM captures WHERE partOf IS NOT NULL AND filePath IS NOT NULL) ORDER BY createdAt DESC, id DESC")
+    fun observeFiles(): Flow<List<Capture>>
+
     @Query("DELETE FROM captures WHERE id = :id")
     suspend fun delete(id: Long)
 }
@@ -228,9 +240,9 @@ interface BackupDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7)],
 )
 abstract class NoveloDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao

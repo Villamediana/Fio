@@ -323,4 +323,17 @@
     <string name="privacy_off">Biometrics off</string>
     <string name="privacy_lock">Biometrics for sensitive data</string>
     <string name="privacy_no_lock">The phone has no lock: set a PIN or fingerprint in Android\'s settings</string>
+    <!-- Arquivos -->
+    <string name="attach_file">Attach a file</string>
+    <string name="staged_file_one">Say or write what this file is, or send it as it is</string>
+    <string name="staged_file_many">Say or write what these files are, or send them as they are</string>
+    <string name="file_take_out">Remove the file</string>
+    <string name="send_file">Send the file</string>
+    <string name="send_files">Send the files</string>
+    <string name="tab_files">Files</string>
+    <string name="empty_files">No files yet.</string>
+    <string name="empty_files_line">The files you attach live here and where they belong.</string>
+    <string name="file_in_diary">in the day\'s diary</string>
+    <string name="file_gone">This file is no longer on the phone</string>
+    <string name="file_no_app">No app on the phone opens this file</string>
 </resources>

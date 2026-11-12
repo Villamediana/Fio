@@ -39,6 +39,28 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
             .map { list -> list.filter { Sounds.goesWith(it, entry) && java.io.File(it.audioPath!!).isFile } }
             .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
+    /**
+     * Every file kept, the newest first, with where it lives ([KeptFile.home]: its item, or null —
+     * the day's diary). [withSensitive] false: those living in something sensitive are left out.
+     */
+    fun files(withSensitive: Boolean = true): Flow<List<KeptFile>> =
+        kotlinx.coroutines.flow.combine(db.captures().observeFiles(), db.entries().observeAll()) { list, entries ->
+            val byId = entries.associateBy { it.id }
+            val homes = Attached.fileHomes(list, byId.keys)
+            list.filter { it.filePath != null }.mapNotNull { c ->
+                val home = homes[c.id]?.let(byId::get)
+                if (!withSensitive && home?.sensitive == true) null else KeptFile.of(c, home)
+            }
+        }.flowOn(kotlinx.coroutines.Dispatchers.Default)
+
+    /** The files [entryId] holds, in the order they came. */
+    fun filesOf(entryId: Long): Flow<List<KeptFile>> =
+        files().map { list -> list.filter { it.home?.id == entryId }.sortedWith(compareBy<KeptFile>({ it.at }, { it.id })) }
+
+    /** The loose files of [day] (in no item): they live in the day's diary, in the order they came. */
+    fun dayFiles(day: LongRange): Flow<List<KeptFile>> =
+        files().map { list -> list.filter { it.home == null && it.at in day }.sortedWith(compareBy<KeptFile>({ it.at }, { it.id })) }
+
     /** Every photo kept, the newest first. */
     fun allPhotos(): Flow<List<com.villamediana.novelo.mind.Photo>> =
         db.captures().observeAllPhotos().map { list -> list.mapNotNull(com.villamediana.novelo.mind.Photo::of) }
@@ -202,4 +224,22 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
     fun topicPairs(): Flow<List<TopicPair>> = db.graph().observePairs()
     suspend fun entriesOfTopic(topicId: Long): List<Entry> = db.entries().getAll(db.graph().entriesOfTopic(topicId))
     suspend fun topic(id: Long): Topic? = db.graph().topic(id)
+}
+
+/** A file kept: its copy in the app, its own name, type, size, what it is (the model's words) and the item it lives in (null: the day's diary). */
+data class KeptFile(
+    val id: Long,
+    val path: String,
+    val name: String,
+    val mime: String?,
+    val size: Long,
+    val at: Long,
+    val description: String?,
+    val home: Entry?,
+) {
+    companion object {
+        fun of(c: Capture, home: Entry?): KeptFile? = c.filePath?.let {
+            KeptFile(c.id, it, c.fileName.orEmpty().ifBlank { java.io.File(it).name }, c.fileMime, c.fileSize, c.createdAt, c.description?.takeIf(String::isNotBlank), home)
+        }
+    }
 }

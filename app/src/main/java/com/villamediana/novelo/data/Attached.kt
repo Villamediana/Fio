@@ -36,6 +36,25 @@ object Attached {
             .sortedWith(compareBy<Capture> { it.createdAt }.thenBy { it.id })
     }
 
+    /** The entries that took the files of [c] (sent with it, or [c] itself a file sent alone): "files": true. */
+    fun fileHolders(c: Capture): Set<Long> =
+        runCatching { json.decodeFromString(ListSerializer(Outcome.serializer()), c.outcomes) }.getOrDefault(emptyList())
+            .filter { it.files && it.action != Outcome.DELETED }
+            .map { it.entryId }
+            .toSet()
+
+    /**
+     * Where each file lives (file capture id → entry id): the first item the model put it in that
+     * is still there; a file with none (or whose item is gone) is loose — it lives in its day's diary.
+     */
+    fun fileHomes(captures: List<Capture>, entries: Set<Long>): Map<Long, Long?> {
+        val byId = captures.associateBy { it.id }
+        return captures.filter { it.filePath != null }.associate { f ->
+            val from = if (f.partOf != null) byId[f.partOf] else f
+            f.id to from?.let(::fileHolders)?.firstOrNull { it in entries }
+        }
+    }
+
     /**
      * The photos that live inside an item and not loose: those that belong to a note, or to anything
      * sensitive. They stay out of the gallery, the day's diary and the photo search (a note's paper,

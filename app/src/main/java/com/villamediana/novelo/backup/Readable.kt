@@ -14,6 +14,7 @@ import com.villamediana.novelo.mind.DayDiary
 import com.villamediana.novelo.mind.Steps
 import com.villamediana.novelo.mind.Tags
 import kotlinx.serialization.Serializable
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -34,6 +35,8 @@ data class Snapshot(
     val photos: Map<Long, String> = emptyMap(),
     /** Each sound kept (capture id) → its file in the backup ("Áudios/2026/…wav"). */
     val sounds: Map<Long, String> = emptyMap(),
+    /** Each file kept (capture id) → its copy in the backup ("Arquivos/2026/… (id) name.pdf"). */
+    val files: Map<Long, String> = emptyMap(),
 ) {
     val photoCount: Int get() = photos.size
     val soundCount: Int get() = sounds.size
@@ -57,6 +60,7 @@ object Readable {
     const val DONE = "Feitas"
     const val PHOTOS = "Fotos"
     const val SOUNDS = "Áudios"
+    const val FILES = "Arquivos"
     const val BACKUPS = "Backups"
 
     private val WHEN = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
@@ -77,6 +81,13 @@ object Readable {
         val at = Instant.ofEpochMilli(c.createdAt).atZone(zone)
         val ext = c.audioPath?.substringAfterLast('.', "wav")?.lowercase()?.takeIf { it.length in 2..5 } ?: "wav"
         return "$SOUNDS/${at.year}/${at.format(PHOTO)} (${c.id}).$ext"
+    }
+
+    /** Where a file kept goes in the backup: Arquivos/<ano>/<data hora> (<id>) <its own name>. */
+    fun filePath(c: Capture, zone: ZoneId): String {
+        val at = Instant.ofEpochMilli(c.createdAt).atZone(zone)
+        val name = c.fileName.orEmpty().ifBlank { c.filePath?.let { File(it).name } ?: "arquivo" }.replace('/', '-').replace('\\', '-')
+        return "$FILES/${at.year}/${at.format(PHOTO)} (${c.id}) $name"
     }
 
     /** An old folder's snapshot: Backups/fio 2026-11-11 14.32.05.json. */
@@ -120,8 +131,14 @@ object Readable {
             if (path in paths) path = "$folder/$base (#${e.id}).md"
             paths[path] = e
         }
+        // Each file in the one place it lives: its item, or (in none) its day's diary.
+        val homes = Attached.fileHomes(s.captures, s.entries.map { it.id }.toSet())
+        val kept = s.captures.filter { it.id in s.files }.sortedBy { it.createdAt }
         return paths.mapValues { (path, e) ->
             val depth = path.count { it == '/' }
+            val files = kept.filter { c ->
+                homes[c.id] == e.id || (homes[c.id] == null && e.kindEnum == Kind.DIARY && diaryOfDay[DayDiary.bounds(c.createdAt, zone).first] == e.id)
+            }.map { c -> c.fileName.orEmpty().ifBlank { "arquivo" } to "../".repeat(depth) + s.files.getValue(c.id) }
             val photos = if (e.kindEnum == Kind.DIARY) {
                 val day = DayDiary.bounds(e.createdAt, zone).first
                 if (diaryOfDay[day] == e.id) dayOfPhotos[day].orEmpty().sortedBy { it.createdAt }.mapNotNull { s.photos[it.id] } else emptyList()
@@ -130,11 +147,11 @@ object Readable {
                 Attached.photosOf(e.id, s.captures).mapNotNull { s.photos[it.id] }
             }
             val sounds = soundCaptures.filter { Sounds.goesWith(it, e) }.mapNotNull { s.sounds[it.id] }
-            markdown(e, topicsOf[e.id].orEmpty(), photos.map { "../".repeat(depth) + it }, zone, sounds.map { "../".repeat(depth) + it })
+            markdown(e, topicsOf[e.id].orEmpty(), photos.map { "../".repeat(depth) + it }, zone, sounds.map { "../".repeat(depth) + it }, files)
         }
     }
 
-    fun markdown(e: Entry, topics: List<String>, photos: List<String>, zone: ZoneId, sounds: List<String> = emptyList()): String = buildString {
+    fun markdown(e: Entry, topics: List<String>, photos: List<String>, zone: ZoneId, sounds: List<String> = emptyList(), files: List<Pair<String, String>> = emptyList()): String = buildString {
         append("# ").append(e.title.ifBlank { "Sem título" }.trim()).append("\n\n")
         val about = buildList {
             if (e.kindEnum == Kind.TASK) {
@@ -159,6 +176,8 @@ object Readable {
         if (photos.isNotEmpty()) append('\n')
         sounds.forEach { append("[Áudio](").append(link(it)).append(")\n") }
         if (sounds.isNotEmpty()) append('\n')
+        files.forEach { (name, path) -> append("[").append(name.replace("[", "(").replace("]", ")")).append("](").append(link(path)).append(")\n") }
+        if (files.isNotEmpty()) append('\n')
         append("---\n")
         val tags = Tags.read(e.tags)
         if (topics.isNotEmpty()) append("Tópicos: ").append(topics.joinToString(" · ")).append('\n')
