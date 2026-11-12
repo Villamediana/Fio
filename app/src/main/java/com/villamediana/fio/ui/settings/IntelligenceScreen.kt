@@ -82,9 +82,8 @@ import com.villamediana.fio.settings.t
 import com.villamediana.fio.ui.setup.OwnSetup
 
 /**
- * Ajustes › Inteligência: who thinks (the Novelo on the phone, or her API) and only what that
- * choice needs. Hearing is always on the phone (LFM3-Omni), so the download is always here: the
- * whole of the Novelo's intelligence, or just its ears when her API thinks.
+ * Ajustes › Inteligência: who thinks (the Novelo's own intelligence, or her API) and only what that
+ * choice needs. Hearing is always on the phone (LFM3-Omni), so its download is always here.
  */
 @Composable
 fun IntelligenceScreen(nav: Nav) {
@@ -114,8 +113,6 @@ fun IntelligenceScreen(nav: Nav) {
                 ThinkLine(
                     source = s.think,
                     model = s.thinkModel,
-                    local = local,
-                    localName = packName(s),
                     onSource = { src ->
                         scope.launch { st.setThink(src) }
                         if (src == Source.API && s.thinkModel.isBlank()) picking = true
@@ -125,7 +122,7 @@ fun IntelligenceScreen(nav: Nav) {
             })
 
             SectionLabel(t(R.string.ai_on_phone))
-            Group(Modifier, { LocalModelLine(graph.localModel, local, packName(s)) })
+            Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear)) })
 
             if (s.think == Source.API) {
                 SectionLabel(t(R.string.ai_api))
@@ -154,9 +151,6 @@ fun IntelligenceScreen(nav: Nav) {
     }
 }
 
-/** What is on the phone, by name: the Novelo's whole intelligence, or only its ears (her API thinks). */
-internal fun packName(s: FioSettings): String = t(if (s.think == Source.LOCAL) R.string.local_pack_think else R.string.local_pack_hear)
-
 /** A provider's name as she reads it ("Outro" / "Other" / "Otro" for an address of her own). */
 internal fun providerName(p: Provider): String = if (p == Providers.OTHER) t(R.string.provider_other) else p.name
 
@@ -170,13 +164,11 @@ internal fun localShort(state: LocalModel.State): String = when {
     else -> t(R.string.local_needs_download)
 }
 
-/** Who thinks: the phone or her API, on the right; under it, what is doing it (her API's model opens the list). */
+/** Who thinks: the Novelo's own intelligence or her API, on the right; under it, what is doing it (her API's model opens the list). */
 @Composable
 private fun ThinkLine(
     source: Source,
     model: String,
-    local: LocalModel.State,
-    localName: String,
     onSource: (Source) -> Unit,
     onPick: () -> Unit,
 ) {
@@ -187,9 +179,10 @@ private fun ThinkLine(
     ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
             Text(t(R.string.ai_who_thinks), style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+            // The Novelo's needs no words under it (the choice says it); her API shows its model.
+            if (api) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
-                    if (api) model.ifBlank { t(R.string.ai_choose_model) } else "$localName · ${localShort(local)}",
+                    model.ifBlank { t(R.string.ai_choose_model) },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (api && model.isBlank()) FioColors.Accent else FioColors.TextMuted,
                     maxLines = 2,
@@ -200,18 +193,22 @@ private fun ThinkLine(
             }
         }
         Segmented(
-            listOf(t(R.string.ai_phone), t(R.string.ai_api)),
+            listOf(t(R.string.ai_novelo), t(R.string.ai_api)),
             selected = if (api) 1 else 0,
-            onSelect = { i -> onSource(if (i == 1) Source.API else Source.LOCAL) },
+            onSelect = { i -> onSource(if (i == 1) Source.API else Source.NOVELO) },
         )
     }
 }
 
-/** What lives on the phone, as one thing ([name]): its state, and the one thing to do about it. */
+/**
+ * What lives on the phone, as one thing ([name]): its state, and the one thing to do about it.
+ * Off Wi-Fi, the download asks first: wait for it, or download anyway.
+ */
 @Composable
 private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: String) {
     val total = model.totalBytes
     val percent = NumberFormat.getPercentInstance(Lang.locale)
+    var askWifi by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().animateContentSize()) {
         Line(
             title = name,
@@ -226,15 +223,29 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: Str
             subtitleColor = if (state is LocalModel.State.Failed) FioColors.Danger else FioColors.TextMuted,
         ) {
             if (LocalEngine.available) when (state) {
-                LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(FioIcons.Download, t(R.string.local_download), { model.download() }, primary = true, size = 40.dp)
+                LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(FioIcons.Download, t(R.string.local_download), {
+                    if (model.onWifi()) model.download() else askWifi = true
+                }, primary = true, size = 40.dp)
                 is LocalModel.State.Downloading -> IconAction(FioIcons.Stop, t(R.string.local_stop_download), { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
                 LocalModel.State.Ready -> IconAction(FioIcons.Trash, t(R.string.local_delete), { model.delete() }, size = 40.dp)
             }
         }
+        if (askWifi && (state == LocalModel.State.Missing || state is LocalModel.State.Failed)) {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Text(t(R.string.setup_local_no_wifi, formatBytes(total)), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted)
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    Pill(t(R.string.setup_local_wait_wifi), selected = true, onClick = { askWifi = false; model.download(wifiOnly = true) })
+                    Pill(t(R.string.setup_local_download_anyway), selected = false, onClick = { askWifi = false; model.download() })
+                }
+            }
+        }
         if (state is LocalModel.State.Downloading) {
             Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(FioColors.Surface2)) {
                 Box(Modifier.fillMaxWidth(state.fraction.coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(FioColors.Accent))
+            }
+            if (state.bytes == 0L && !model.onWifi()) {
+                Text(t(R.string.setup_local_waiting_wifi), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp))
             }
         }
     }

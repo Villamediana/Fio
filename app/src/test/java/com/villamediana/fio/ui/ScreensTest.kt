@@ -518,9 +518,8 @@ class ScreensTest {
         // Her API thinks: its address and key, no button to test (it tests by itself).
         assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
         // The Novelo thinks: the download is its whole intelligence, and no API to fill.
-        runBlocking { graph.settings.setThink(Source.LOCAL) }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Inteligência do Novelo").fetchSemanticsNodes().isNotEmpty() }
-        assertTrue(compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty())
+        runBlocking { graph.settings.setThink(Source.NOVELO) }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty() }
         compose.mainClock.advanceTimeBy(500)
         shot("30b-settings-intelligence-local")
     }
@@ -583,7 +582,7 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Anthropic").performClick()
         // Hearing stays on the phone, whoever thinks: its ears come down.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Pra ouvir você, o Novelo usa o ouvido dele", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("35-setup-own")
         runBlocking {

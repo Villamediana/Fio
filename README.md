@@ -20,12 +20,14 @@ Na primeira vez o app pede as permissões, a pasta do backup e quem vai pensar: 
 
 ## Onde roda
 
-Ouvir é sempre no celular: o LFM3-Omni 2B (Liquid AI, via llama.cpp) transcreve, e o idioma da fala é reconhecido sozinho. Em Ajustes › Inteligência você escolhe só quem **pensa** (organiza):
+Ouvir é sempre no celular: o LFM3-Omni 2B (Liquid AI, via llama.cpp) transcreve sem internet, e o idioma da fala é reconhecido sozinho. O "Ouvido do Novelo" tem 1,5 GB e é baixado uma vez.
 
-- **Inteligência do Novelo** (no celular, sem internet): o d1-2B decide o que há na fala (dia, tarefa, nota, pergunta, tarefa feita ou com novidade), o LFM3-1.7B escreve só isso, e o Omni vê as fotos. São 3,7 GB baixados uma vez, numa barra só.
-- **Sua própria inteligência** (OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter ou outro endereço): você informa a chave (a conexão é testada sozinha) e escolhe o modelo; o celular baixa só o ouvido (1,56 GB). A chave fica cifrada no aparelho (AndroidKeyStore).
+Quem **pensa** (organiza) é escolhido em Ajustes › Inteligência:
 
-Tudo o que você guarda fica no celular. Sai dele só o que vai pra API escolhida.
+- **Inteligência do Novelo** (padrão): pronta pra usar, sem chave e sem custo. Usa modelos grátis da OpenRouter, escolhidos e trocados sozinhos. A foto vai como o que o Omni viu nela.
+- **Sua própria inteligência** (OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter ou outro endereço): você informa a chave (a conexão é testada sozinha) e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
+
+Pensar é pela internet. Sem ela, o que você disser fica guardado e vai sozinho quando a rede voltar. Tudo o que você guarda fica no celular; sai dele só o que vai pra organizar (a fala, as tarefas abertas e o que tem a ver), para a OpenRouter ou para a API escolhida.
 
 ## Atualização
 
@@ -33,7 +35,7 @@ O app procura versões novas nas [releases](../../releases) deste repositório e
 
 ## Build
 
-JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular).
+JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular). A chave da Inteligência do Novelo não fica no repositório: o build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env` (sem ela, o app sai só com a inteligência própria).
 
 ```bash
 ./gradlew :app:testDebugUnitTest             # testes (FIO_SHOTS: prints das telas em app/build/fio-shots)

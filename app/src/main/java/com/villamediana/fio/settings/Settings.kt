@@ -28,11 +28,16 @@ import com.villamediana.fio.ai.Provider
 import com.villamediana.fio.ai.Providers
 
 /** Where hearing (speech → text) or thinking (organizing) happens. */
+/**
+ * Who thinks: the Novelo's own intelligence (free models online, nothing to set up) or hers (her
+ * API). Hearing is always on the phone. The Novelo's keeps the key "local" it had when it thought
+ * on the phone (until 1.19): whoever chose the Novelo stays with it.
+ */
 enum class Source(val key: String) {
-    LOCAL("local"), API("api");
+    NOVELO("local"), API("api");
 
     companion object {
-        fun of(key: String?): Source = entries.firstOrNull { it.key == key } ?: LOCAL
+        fun of(key: String?): Source = entries.firstOrNull { it.key == key } ?: NOVELO
     }
 }
 
@@ -45,9 +50,9 @@ enum class ThemeMode(val key: String) {
 }
 
 data class FioSettings(
-    val hear: Source = Source.LOCAL,
+    val hear: Source = Source.NOVELO,
     val hearModel: String = "",
-    val think: Source = Source.LOCAL,
+    val think: Source = Source.NOVELO,
     val thinkModel: String = "",
     val apiBase: String = "",
     /** Whose API (see [Providers]); empty: set up before providers existed, the address she typed. */

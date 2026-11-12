@@ -69,7 +69,7 @@ fun SettingsScreen(nav: Nav) {
         PageTop(t(R.string.settings)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
-            val ai = intelligenceSummary(s, local, packName(s))
+            val ai = intelligenceSummary(s, local, graph.novelo.available)
             val backup = backupSummary(s, busy)
             Group(
                 Modifier,
@@ -115,12 +115,13 @@ fun SettingsScreen(nav: Nav) {
 }
 
 /** Who thinks, in a few words (hearing is always on the phone); true when something is missing. */
-internal fun intelligenceSummary(s: FioSettings, local: LocalModel.State, localName: String): Pair<String, Boolean> = when {
-    !(LocalEngine.available && local is LocalModel.State.Ready) -> "$localName · " + localShort(local) to true
+internal fun intelligenceSummary(s: FioSettings, local: LocalModel.State, novelo: Boolean): Pair<String, Boolean> = when {
+    !(LocalEngine.available && local is LocalModel.State.Ready) -> t(R.string.local_pack_hear) + " · " + localShort(local) to true
+    s.think == Source.NOVELO && !novelo -> t(R.string.need_novelo_not_in_version) to true
     s.think == Source.API && !s.apiReady -> t(R.string.ai_missing_api) to true
     s.think == Source.API && s.thinkModel.isBlank() -> t(R.string.ai_missing_model) to true
     s.think == Source.API -> t(R.string.ai_mixed_phone_hears, s.thinkModel) to false
-    else -> t(R.string.ai_on_phone_offline) to false
+    else -> t(R.string.ai_novelo_summary) to false
 }
 
 /** The backup in a few words; true when it needs her. */

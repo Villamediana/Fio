@@ -12,6 +12,8 @@ import com.villamediana.fio.local.LocalModel
 import com.villamediana.fio.settings.FioSettings
 import com.villamediana.fio.settings.Settings
 import com.villamediana.fio.settings.Source
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.ai.NoveloModels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -39,28 +41,8 @@ interface Ears {
     fun stop() {}
 }
 
-/**
- * What organizing on the phone gets, as things (the API gets them written out by [Brain.context]):
- * [said] (for a [photo], what is written in it), the open tasks, the item she answers about,
- * what may be related, the photo(s) to look at and whether photos were sent with what she said.
- */
-data class Talk(
-    val said: String,
-    val now: Long,
-    val zone: java.time.ZoneId,
-    val openTasks: List<com.villamediana.fio.data.Entry>,
-    val focus: com.villamediana.fio.data.Entry?,
-    val related: List<com.villamediana.fio.data.Entry>,
-    val photo: Boolean,
-    val image: ByteArray?,
-    val photos: Boolean,
-)
-
 /** Text (and maybe a photo) → the model's raw answer. */
 interface Thinker {
-    /** On the phone the plan is made there, whole ([LocalOrganizer]); null when the API thinks ([answer]). */
-    suspend fun organize(talk: Talk): Plan? = null
-
     /** True when the model that thinks can look at the photo itself (otherwise it gets the text read from it). */
     suspend fun seesImages(): Boolean
 
@@ -83,7 +65,7 @@ class Hearing(
 ) : Ears {
     fun readiness(): String? = when {
         !LocalEngine.available -> t(R.string.need_phone_not_in_version)
-        !model.hearReady -> t(R.string.need_download_pack)
+        !model.ready -> t(R.string.need_download_ears)
         else -> null
     }
 
@@ -123,21 +105,19 @@ class Hearing(
     }
 }
 
-/** Text (and maybe a photo) → the model's raw answer, on the phone or through the API. */
+/**
+ * Text (and maybe a photo) → the model's raw answer, always online: the Novelo's own intelligence
+ * (free models, [NoveloModels]) or her API. The same prompt either way.
+ */
 class Thinking(
     private val settings: Settings,
     private val api: Api,
     private val engine: LocalEngine,
     private val model: LocalModel,
+    private val novelo: NoveloModels,
 ) : Thinker {
-    private val organizer = LocalOrganizer(engine, model)
-
     fun readiness(s: FioSettings): String? = when (s.think) {
-        Source.LOCAL -> when {
-            !LocalEngine.available -> t(R.string.need_phone_not_in_version)
-            !model.ready -> t(R.string.need_download_pack)
-            else -> null
-        }
+        Source.NOVELO -> if (novelo.available) null else t(R.string.need_novelo_not_in_version)
         Source.API -> when {
             !s.apiReady -> t(R.string.need_api)
             s.thinkModel.isBlank() -> t(R.string.need_think_model)
@@ -145,11 +125,8 @@ class Thinking(
         }
     }
 
-    /** The API model, and the one on the phone when its projector (eyes and ears) is there. */
-    override suspend fun seesImages(): Boolean = when (settings.current().think) {
-        Source.API -> true
-        Source.LOCAL -> LocalEngine.available
-    }
+    /** Her API looks at the photo itself; for the Novelo's, Omni looks at it on the phone and says what it sees. */
+    override suspend fun seesImages(): Boolean = true
 
     /** The photo is looked at lightly (its text comes read by the phone): no need to send more than this. */
     override suspend fun imageSide(): Int = 768
@@ -157,27 +134,35 @@ class Thinking(
     /** What each API server took and refused, so a refusal is paid once. */
     private val asks = ApiAsks()
 
-    /** On the phone hearing comes first (Omni is loaded for it); the API needs nothing ahead. */
-    override suspend fun warm() {}
-
-    override suspend fun organize(talk: Talk): Plan? {
-        val s = settings.current()
-        if (s.think != Source.LOCAL) return null
-        readiness(s)?.let { throw NotReady(Need.THINK, it) }
-        return withContext(Dispatchers.IO) { organizer.plan(talk) }
-    }
-
     override fun stop() {
         engine.cancel()
         api.cancelAll()
+        novelo.cancel()
+    }
+
+    /**
+     * What Omni sees in the photo, in a sentence or two (and the writing in it), in the app's
+     * language; null when it can't look (not downloaded, or it couldn't read the photo).
+     */
+    private suspend fun seen(image: ByteArray): String? {
+        if (!LocalEngine.available || !model.ready) return null
+        val ask = "Describe this photo in one or two sentences, in ${Lang.current.label}: the place, the people, animals and things, " +
+            "the colours, the moment, and any writing you can read. Only what can be seen, nothing made up. Plain text."
+        return runCatching {
+            LocalEngine.clean(engine.generate(model.files, Brain.chatml(ask, LocalEngine.MEDIA), grammar = null, image = image, maxTokens = 200))
+        }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     override suspend fun answer(system: String, user: String, image: ByteArray?): String = withContext(Dispatchers.IO) {
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
-            // On the phone the plan is made by [organize]; nothing asks this.
-            Source.LOCAL -> throw IllegalStateException(t(R.string.local_no_answer))
+            Source.NOVELO -> {
+                // The photo goes as what Omni saw in it (free models may not look at photos).
+                val look = image?.let { seen(it) }
+                val words = if (look == null) user else user.trimEnd() + "\n\nO QUE SE VÊ NA FOTO (o celular olhou):\n" + look + "\n"
+                novelo.answer(system, words) { Brain.parse(it) != null }
+            }
             Source.API -> {
                 val ep = s.endpoint(settings.apiKey().orEmpty())
                 // Asked with little reasoning (organizing doesn't need more, and it answers much
