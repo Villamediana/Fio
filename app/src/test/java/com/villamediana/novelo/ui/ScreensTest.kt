@@ -519,6 +519,43 @@ class ScreensTest {
     }
 
     @Test
+    fun aSensitiveItemHidesItsPhotosToo() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val id = runBlocking {
+            val e = graph.db.entries().insert(Entry(kind = "note", title = "RG e CPF", body = "RG 12.345.678-9", sensitive = true, createdAt = now, updatedAt = now))
+            val said = graph.db.captures().insert(Capture(createdAt = now, source = "text", transcript = "meus documentos", state = Capture.DONE, outcomes = """[{"entryId":$e,"action":"created","photos":true}]"""))
+            val f = File(context.filesDir, "rg.jpg")
+            Bitmap.createBitmap(300, 200, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF7CA8E8.toInt()) }.let { b -> f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+            graph.db.captures().insert(Capture(createdAt = now, source = "photo", imagePath = f.path, state = Capture.DONE, partOf = said))
+            e
+        }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        // Hidden: the text and its photo (a tap on the photo asks like the text's).
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-photo-hidden-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Toque pra ver").assertExists()
+        compose.mainClock.advanceTimeBy(600)
+        shot("50-sensitive-hidden")
+        compose.onNodeWithTag("entry-photo-hidden-0").performClick()
+        // (No lock asked here: she didn't turn it on.) Shown: the photo opens.
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-photo-0").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Toque pra ver").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun privacyInSettings() {
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
+        compose.onNodeWithText("Privacidade").performScrollTo().performClick()
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("Pedir a digital pra ver o que é sensível").assertExists()
+        // With a lock it says which; a phone with none says so (and can't turn it on).
+        assertTrue(
+            compose.onAllNodesWithText("Digital, rosto ou a senha do celular").fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithText("O celular não tem bloqueio", substring = true).fetchSemanticsNodes().isNotEmpty(),
+        )
+        shot("51-settings-privacy")
+    }
+
+    @Test
     fun theme() {
         val nav = Nav()
         // (mode, accent, the main screen instead of Tema)

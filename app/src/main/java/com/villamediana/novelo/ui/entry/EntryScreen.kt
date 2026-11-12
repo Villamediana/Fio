@@ -1,5 +1,9 @@
 package com.villamediana.novelo.ui.entry
 
+import com.villamediana.novelo.ui.lock.screen
+
+import com.villamediana.novelo.ui.lock.Unlock
+
 import com.villamediana.novelo.R
 import com.villamediana.novelo.settings.t
 import com.villamediana.novelo.ui.components.StitchColor
@@ -122,6 +126,14 @@ fun EntryScreen(nav: Nav, id: Long) {
         seenBody = e.body
     }
     var revealed by remember(e.id) { mutableStateOf(!e.sensitive) }
+    val here = androidx.compose.ui.platform.LocalContext.current
+    val prefs by graph.settings.now.collectAsStateWithLifecycle()
+    // Toque para ver: with the phone's lock first, when she asked for it (Ajustes › Privacidade).
+    val reveal: () -> Unit = {
+        val activity = here.screen()
+        if (!prefs.lockSensitive || activity == null || !Unlock.available(here)) revealed = true
+        else scope.launch { if (Unlock.ask(activity)) revealed = true }
+    }
     var menu by remember { mutableStateOf(false) }
     // Steps only take room when there are some (or one is being written); what was said, folded.
     var addingStep by remember(e.id) { mutableStateOf(false) }
@@ -207,13 +219,14 @@ fun EntryScreen(nav: Nav, id: Long) {
                         t(R.string.tap_to_see),
                         style = MaterialTheme.typography.labelLarge,
                         color = NoveloColors.Text,
-                        modifier = Modifier.align(Alignment.Center).clip(CircleShape).background(NoveloColors.Surface2).clickable { revealed = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.align(Alignment.Center).clip(CircleShape).background(NoveloColors.Surface2).clickable(onClick = reveal).padding(horizontal = 16.dp, vertical = 10.dp),
                     )
                 }
             }
 
             // The day's photos live in the day's diary (above its text); an item's, under its text.
-            if (!diary) EntryPhotos(e, side = 24.dp)
+            // Hidden with the text while something sensitive isn't shown (a tap asks like the text's).
+            if (!diary) EntryPhotos(e, side = 24.dp, hidden = !revealed, onReveal = reveal)
             // A sound kept with it (a melody she sang): to hear again.
             EntrySounds(e)
 

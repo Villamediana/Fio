@@ -36,7 +36,8 @@ sealed interface Ask {
     data class TalkAbout(val id: Long) : Ask
 }
 
-class NoveloActivity : ComponentActivity() {
+/** A FragmentActivity (the system's lock prompt, for what is sensitive, needs one); Compose all the same. */
+class NoveloActivity : androidx.fragment.app.FragmentActivity() {
     private var ask by mutableStateOf<Ask?>(null)
 
     /** Her settings, once read: the splash stays until then (no frame in another theme). */

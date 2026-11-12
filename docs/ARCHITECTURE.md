@@ -216,6 +216,15 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
 ## Primeiros passos, provedores e idioma (1.18.0)
 
+- **1.30.0 — sensível e separação das fotos**: Ajustes › **Privacidade** (`PrivacySection`): "Pedir a digital pra
+  ver o que é sensível" (`lockSensitive`) — o "Toque pra ver" passa pelo bloqueio do celular (`ui/lock/Unlock`,
+  androidx.biometric: digital/rosto ou o PIN do aparelho; ligar e desligar também pedem); a `NoveloActivity` é
+  `FragmentActivity` por isso. Num item sensível as fotos ficam borradas (cobertas antes do Android 12) com um
+  cadeado até ver; tocar nelas pede como o texto. **De quem é cada foto** (`Attached`): mandada junto com algo
+  dito e marcada pro item (`photos: true`), ou mandada sozinha e que virou/mudou o item (`madeFrom`). As que são de
+  uma **nota** ou de algo **sensível** (`keptInside`) vivem só dentro do item: fora da Galeria, do diário do dia e
+  da busca de fotos (`Library.loosePhotos`, `photos(day)`); as de momentos e de tarefas seguem soltas.
+
 - **1.29.1**: ordem permissões → **ouvido** → backup → quem pensa. O ouvido **nunca baixa sozinho**: ela concorda
   (Baixar no Wi-Fi; fora dele, esperar o Wi-Fi ou usar dados móveis); com o download andando ela segue, e o
   "Começar" do último passo espera o ouvido no celular ("Esperando o ouvido · 63%"). A pasta do backup é

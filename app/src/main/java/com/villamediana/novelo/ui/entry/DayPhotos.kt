@@ -1,5 +1,29 @@
 package com.villamediana.novelo.ui.entry
 
+import com.villamediana.novelo.settings.t
+
+import com.villamediana.novelo.R
+
+import com.villamediana.novelo.ui.theme.NoveloColors
+
+import com.villamediana.novelo.ui.components.NoveloIcons
+
+import androidx.compose.ui.Alignment
+
+import androidx.compose.material3.Icon
+
+import androidx.compose.foundation.shape.CircleShape
+
+import androidx.compose.foundation.background
+
+import androidx.compose.foundation.layout.size
+
+import androidx.compose.foundation.layout.fillMaxSize
+
+import androidx.compose.foundation.layout.Box
+
+import androidx.compose.ui.draw.blur
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,11 +79,11 @@ internal fun DayPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
 
 /** The photos an item holds (a task, a note: sent with what she said), under its text. */
 @Composable
-internal fun EntryPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
+internal fun EntryPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier, hidden: Boolean = false, onReveal: () -> Unit = {}) {
     val lib = NoveloApplication.graph.library
     val photos by remember(entry.id) { lib.photosOf(entry.id) }.collectAsStateWithLifecycle(initialValue = emptyList())
     if (photos.isEmpty()) return
-    PhotoRow(photos, side, modifier.padding(top = 22.dp), tag = "entry-photo")
+    PhotoRow(photos, side, modifier.padding(top = 22.dp), tag = "entry-photo", hidden = hidden, onReveal = onReveal)
 }
 
 /** The seam on a photo: light, like thread on fabric. */
@@ -67,7 +91,11 @@ private val StitchOnPhoto = androidx.compose.ui.graphics.Color(0xCCFBF6EC)
 
 /** A sideways row of [photos] at [height], of different widths (see [Mosaic]); [side] = the page's own margin. */
 @Composable
-internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {
+/**
+ * [hidden]: something sensitive not shown yet — the photos are blurred (or, where blur isn't there,
+ * covered), with a lock; a tap asks to see ([onReveal]) instead of opening them.
+ */
+internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo", hidden: Boolean = false, onReveal: () -> Unit = {}) {
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
     val aspects = rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
     LazyRow(
@@ -78,17 +106,32 @@ internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifi
         itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
             // Different widths, even for photos all of one shape.
             val ratio = Mosaic.shape(i, aspects[p.id] ?: 1f)
-            PhotoTile(
-                p.path,
-                turn = p.turn,
-                modifier = Modifier
+            Box(
+                Modifier
                     .height(height)
                     .width(height * ratio)
                     .clip(RoundedCornerShape(20.dp))
                     .stitched(RoundedCornerShape(20.dp), StitchOnPhoto)
-                    .clickable { opened = i }
-                    .testTag("$tag-$i"),
-            )
+                    .clickable { if (hidden) onReveal() else opened = i }
+                    .testTag(if (hidden) "$tag-hidden-$i" else "$tag-$i"),
+            ) {
+                PhotoTile(
+                    p.path,
+                    turn = p.turn,
+                    maxPx = if (hidden) 96 else 480,
+                    modifier = Modifier.fillMaxSize().then(if (hidden && android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp) else Modifier),
+                )
+                if (hidden) {
+                    // Where blur isn't there (before Android 12), a cover instead.
+                    if (android.os.Build.VERSION.SDK_INT < 31) Box(Modifier.fillMaxSize().background(NoveloColors.Surface2))
+                    Box(
+                        Modifier.align(Alignment.Center).size(42.dp).clip(CircleShape).background(NoveloColors.Background.copy(alpha = 0.85f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(NoveloIcons.Lock, t(R.string.sensitive), tint = NoveloColors.Text, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
         }
     }
     opened?.let { start -> PhotoViewer(photos, start, onClose = { opened = null }) }
