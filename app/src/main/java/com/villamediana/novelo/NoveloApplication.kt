@@ -27,6 +27,8 @@ class NoveloApplication : Application() {
         graph.scope.launch { runCatching { BackupWorker.schedule(this@NoveloApplication, graph.settings.current(), replace = false) } }
         if (graph.updates.enabled) runCatching { UpdateCheckWorker.schedule(this) }
         runCatching { UpdateIdleWorker.watch(this, graph.updates) }
+        // Done while she was away (the app minimized or closed): a notification says so.
+        runCatching { WorkDone.watch(this, graph.scope, graph.mind.state) }
     }
 
     companion object {

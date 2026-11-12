@@ -154,6 +154,9 @@ class AndroidMicHolder(private val context: Context) : MicHolder {
      */
     override fun working(on: Boolean) {
         MicService.working = on
+        // A safety net: if Android closes the app in the middle anyway (some phones do, even with
+        // the work notification up), WorkManager opens it again later and what was left goes on.
+        if (on) runCatching { com.villamediana.novelo.mind.WhenOnline.schedule(context) }
         main.post {
             val s = MicService.instance
             if (s != null && MicService.running) s.refresh() else if (on) start()

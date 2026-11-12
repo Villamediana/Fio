@@ -55,7 +55,6 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -202,26 +201,27 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .pointerInput(p.id) {
-                                    // Two taps: in (where she tapped) or back to whole.
-                                    detectTapGestures(onDoubleTap = { at ->
-                                        if (zoom > 1f) {
-                                            zoom = 1f
-                                            pan = androidx.compose.ui.geometry.Offset.Zero
-                                        } else {
-                                            zoom = DOUBLE_TAP_ZOOM
-                                            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-                                            pan = clampPan((center - at) * (DOUBLE_TAP_ZOOM - 1f), zoom, size.width.toFloat(), size.height.toFloat())
-                                        }
-                                    })
-                                }
-                                .pointerInput(p.id) {
-                                    // Two fingers pinch; zoomed in, one finger moves around. Not zoomed, one
-                                    // finger is left to the pager (the next photo).
+                                    // One place for all of it, so nothing else takes the touches: two
+                                    // fingers pinch; zoomed in, one finger moves around; two quick taps
+                                    // zoom in where she tapped, or back to whole. Not zoomed, one finger
+                                    // moving is left to the pager (the next photo).
+                                    var lastTap = 0L
+                                    var lastAt = androidx.compose.ui.geometry.Offset.Zero
+                                    val slop = viewConfiguration.touchSlop
+                                    val window = viewConfiguration.doubleTapTimeoutMillis
                                     awaitEachGesture {
-                                        awaitFirstDown(requireUnconsumed = false)
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        var many = false
+                                        var moved = false
+                                        var upAt = down.uptimeMillis
                                         do {
                                             val event = awaitPointerEvent()
                                             val fingers = event.changes.count { it.pressed }
+                                            if (fingers >= 2) many = true
+                                            event.changes.firstOrNull { it.id == down.id }?.let { c ->
+                                                if ((c.position - down.position).getDistance() > slop) moved = true
+                                                if (!c.pressed) upAt = c.uptimeMillis
+                                            }
                                             if (fingers >= 2 || zoom > 1f) {
                                                 zoom = (zoom * event.calculateZoom()).coerceIn(1f, MAX_ZOOM)
                                                 pan = if (zoom <= 1f) androidx.compose.ui.geometry.Offset.Zero
@@ -229,6 +229,23 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                                                 event.changes.forEach { if (it.positionChanged()) it.consume() }
                                             }
                                         } while (event.changes.any { it.pressed })
+                                        // A tap (one finger, still): the second one close in time and place is a double tap.
+                                        if (many || moved) {
+                                            lastTap = 0L
+                                        } else if (lastTap != 0L && down.uptimeMillis - lastTap <= window && (down.position - lastAt).getDistance() <= slop * 4) {
+                                            lastTap = 0L
+                                            if (zoom > 1f) {
+                                                zoom = 1f
+                                                pan = androidx.compose.ui.geometry.Offset.Zero
+                                            } else {
+                                                zoom = DOUBLE_TAP_ZOOM
+                                                val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                                pan = clampPan((center - down.position) * (DOUBLE_TAP_ZOOM - 1f), zoom, size.width.toFloat(), size.height.toFloat())
+                                            }
+                                        } else {
+                                            lastTap = upAt
+                                            lastAt = down.position
+                                        }
                                     }
                                 }
                                 .graphicsLayer {

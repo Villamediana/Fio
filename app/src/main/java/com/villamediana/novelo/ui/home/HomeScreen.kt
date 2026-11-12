@@ -487,7 +487,7 @@ internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCanc
 }
 
 @Composable
-private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
+internal fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     Text(stageText(s), style = MaterialTheme.typography.labelLarge, color = NoveloColors.Accent)
     // Where it is in it (a piece of the recording, a photo, a file): a stitch each, the done ones filled.
     if (s.of in 2..MAX_STEP_DOTS) {
@@ -505,15 +505,25 @@ private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
             }
         }
     }
-    if (s.text.isNotBlank()) {
+    // The words only while they are being heard (the newest ones: the start is known, the end shows
+    // it is going); once it organizes, the screen is only what it is doing.
+    if (s.stage == Stage.HEARING && s.text.isNotBlank()) {
         Spacer(Modifier.height(12.dp))
-        // While it comes, the newest words: the beginning is already known, the end shows it is going.
         Said(tail(s.text), maxLines = 8)
     }
     // Taking too long: a stop. What was said stays, to try again or discard.
     if (s.captureId != 0L) {
         Spacer(Modifier.height(14.dp))
         IconAction(NoveloIcons.Stop, t(R.string.stop), onStop, size = 40.dp)
+        // It goes on with the app minimized or closed (and says when it is done).
+        Spacer(Modifier.height(12.dp))
+        Text(
+            t(R.string.work_away),
+            style = MaterialTheme.typography.bodySmall,
+            color = NoveloColors.TextFaint,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
     }
 }
 

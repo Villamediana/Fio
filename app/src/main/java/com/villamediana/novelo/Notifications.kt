@@ -10,8 +10,10 @@ object Notifications {
     const val CHANNEL_CHECKIN = "checkin"
     const val CHANNEL_MIC = "mic"
     const val CHANNEL_UPDATES = "updates"
+    const val CHANNEL_DONE = "done"
 
     const val ID_MIC = 1001
+    const val ID_DONE = 1002
     const val ID_UPDATE_AVAILABLE = 3001
     const val ID_UPDATED = 3002
     const val ID_UPDATE_DOWNLOAD = 3003
@@ -24,6 +26,7 @@ object Notifications {
                 NotificationChannel(CHANNEL_CHECKIN, t(R.string.channel_checkin), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_MIC, t(R.string.channel_mic), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
                 NotificationChannel(CHANNEL_UPDATES, t(R.string.channel_updates), NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_DONE, t(R.string.channel_done), NotificationManager.IMPORTANCE_DEFAULT),
             ),
         )
     }

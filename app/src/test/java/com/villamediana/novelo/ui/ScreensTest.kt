@@ -647,6 +647,28 @@ class ScreensTest {
     }
 
     @Test
+    fun theWordsShowWhileHeardNotWhileOrganizing() {
+        val state = androidx.compose.runtime.mutableStateOf(MindState.Working(7, com.villamediana.novelo.mind.Stage.HEARING, "fui correr de manhã", step = 2, of = 3))
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    com.villamediana.novelo.ui.home.WorkingText(state.value) {}
+                }
+            }
+        }
+        compose.onNodeWithText("Transcrevendo… parte 2 de 3").assertExists()
+        compose.onNodeWithText("fui correr de manhã", substring = true).assertExists()
+        // It can be minimized or closed: it says so.
+        compose.onNodeWithText("Pode minimizar ou fechar o app", substring = true).assertExists()
+        compose.mainClock.advanceTimeBy(400)
+        shot("57-working-hearing")
+        state.value = MindState.Working(7, com.villamediana.novelo.mind.Stage.THINKING, "fui correr de manhã")
+        compose.waitForIdle()
+        compose.onNodeWithText("Organizando…").assertExists()
+        assertTrue(compose.onAllNodesWithText("fui correr de manhã", substring = true).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()
