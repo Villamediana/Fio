@@ -34,7 +34,13 @@ import com.villamediana.fio.FioApplication
 import com.villamediana.fio.backup.Backup
 import com.villamediana.fio.backup.Backups
 import com.villamediana.fio.backup.Snapshot
-import com.villamediana.fio.settings.BackupEvery
+import com.villamediana.fio.ui.Nav
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.villamediana.fio.ui.components.paper
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.villamediana.fio.ui.components.FioIcons
 import com.villamediana.fio.ui.components.Group
 import com.villamediana.fio.ui.components.IconAction
@@ -51,11 +57,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Ajustes › Backup: the folder (chosen in the phone's picker), how often it goes by itself, the
- * last one (or a backup now), and the import back from that folder.
+ * Ajustes › Backup: the folder (chosen in the phone's picker), the last one (it goes by itself every
+ * day; a backup now is one touch away), and the import back from that folder.
  */
 @Composable
-internal fun BackupBlock() {
+fun BackupScreen(nav: Nav) {
     val graph = FioApplication.graph
     val backups = graph.backups
     val s by graph.settings.now.collectAsStateWithLifecycle()
@@ -73,9 +79,12 @@ internal fun BackupBlock() {
     val hasFolder = s.backupFolder.isNotBlank()
     fun choose() = pick.launch(s.backupFolder.takeIf { it.isNotBlank() }?.let(Uri::parse))
 
-    SectionLabel("Backup")
+    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
+    PageTop("Backup") { nav.back() }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Spacer(Modifier.height(10.dp))
     Group(
-        Modifier,
+        Modifier.padding(horizontal = 16.dp),
         {
             Line(
                 title = "Pasta",
@@ -87,22 +96,13 @@ internal fun BackupBlock() {
             }
         },
         if (!hasFolder) null else ({
-            Line(title = "Automático") {
-                Segmented(
-                    listOf("Não", "Diário", "Semanal"),
-                    selected = BackupEvery.entries.indexOf(s.backupEvery),
-                    onSelect = { i -> backups.every(BackupEvery.entries[i]) },
-                )
-            }
-        }),
-        if (!hasFolder) null else ({
             Line(
                 title = "Fazer agora",
                 subtitle = when {
                     busy == Backups.SAVING -> "fazendo…"
                     s.backupFailed -> s.backupNote
                     s.backupAt > 0 -> "último: " + moment(s.backupAt) + (if (s.backupNote.isNotBlank()) " · " + s.backupNote else "")
-                    else -> null
+                    else -> "vai sozinho todo dia"
                 },
                 subtitleColor = if (s.backupFailed && busy == null) FioColors.Danger else FioColors.TextMuted,
                 onClick = { if (busy == null) backups.now() },
@@ -120,6 +120,9 @@ internal fun BackupBlock() {
             }
         },
     )
+
+    }
+    }
 
     if (importing) ImportSheet(waitFor = choosing, onDismiss = { importing = false })
 }

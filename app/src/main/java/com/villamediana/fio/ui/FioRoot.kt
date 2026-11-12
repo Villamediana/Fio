@@ -85,6 +85,8 @@ fun FioRoot(ask: Ask?, onAskHandled: () -> Unit) {
                 is Screen.Entry -> EntryScreen(nav, screen.id)
                 Screen.Settings -> SettingsScreen(nav)
                 Screen.Theme -> ThemeScreen(nav)
+                Screen.Intelligence -> com.villamediana.fio.ui.settings.IntelligenceScreen(nav)
+                Screen.Backup -> com.villamediana.fio.ui.settings.BackupScreen(nav)
                 Screen.Camera -> CameraScreen(nav)
             }
         }

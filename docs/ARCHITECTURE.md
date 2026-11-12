@@ -60,8 +60,11 @@ contraste (`onAccentFor`). A Home tem o botão e, embaixo, câmera · Hoje · bu
 a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria, Tudo) com uma
 costura sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por enquanto: `TABS`
 em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos
-redondos só nas pontas), e os Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`)
-em vez de texto explicando. No diário, as fotos do dia vêm antes do texto, que fica numa página
+redondos só nas pontas). Ajustes (1.17.2) são três portas e o "Sobre": Inteligência, Tema e Backup,
+cada uma dizendo em poucas palavras como está (no acento quando falta algo) e com os detalhes atrás.
+Inteligência mostra Ouvir/Pensar (Celular ou API) e só o que a escolha pede — o modelo do celular ou o
+endereço e a chave da API, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
+sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
 costurada.
 
 O nome mudou de Fio pra Novelo na 1.17.0: muda o que aparece (nome, ícone, textos, a pasta do
@@ -195,7 +198,7 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
 com `takePersistableUriPermission`) e o backup é **um arquivo só**, `Novelo backup.zip`, direto nessa
 pasta, trocado a cada backup (só existe o último). Ao escolher, faz um na hora; depois sozinho
-(`BackupWorker`, WorkManager, Diário ou Semanal, com bateria e espaço; "Não" desliga). "Fazer agora" e o
+(`BackupWorker`, WorkManager, todo dia, com bateria e espaço; sem pasta, nada). "Fazer agora" e o
 resultado do último ficam na mesma linha.
 
 ```
@@ -250,7 +253,7 @@ Novelo backup.zip
 
 `fio_engine.cpp` usa só as APIs C de `llama.h`, `mtmd.h` e `mtmd-helper.h` (llama.cpp v0.9.0):
 
-- `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR [in <idioma>].`,
+- `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR.` (idioma automático),
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
 - `generate`: o mesmo modelo como texto, com a gramática JSON.
 

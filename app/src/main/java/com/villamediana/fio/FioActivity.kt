@@ -3,6 +3,8 @@ package com.villamediana.fio
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.animation.DecelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -35,7 +37,19 @@ class FioActivity : ComponentActivity() {
     private var first: FioSettings? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen().setKeepOnScreenCondition { first == null }
+        // The logo stays long enough to be seen, then the app shows through it as it fades.
+        val shownAt = SystemClock.uptimeMillis()
+        installSplashScreen().apply {
+            setKeepOnScreenCondition { first == null || SystemClock.uptimeMillis() - shownAt < SPLASH_MIN_MS }
+            setOnExitAnimationListener { splash ->
+                splash.view.animate()
+                    .alpha(0f)
+                    .setDuration(SPLASH_FADE_MS)
+                    .setInterpolator(DecelerateInterpolator())
+                    .withEndAction { splash.remove() }
+                    .start()
+            }
+        }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
@@ -91,6 +105,12 @@ class FioActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_OPEN_ENTRY = "com.villamediana.fio.OPEN_ENTRY"
         private const val EXTRA_TALK_ABOUT = "com.villamediana.fio.TALK_ABOUT"
+
+        /** The logo on screen at least this long, so it is seen. */
+        private const val SPLASH_MIN_MS = 700L
+
+        /** Then it fades into the app. */
+        private const val SPLASH_FADE_MS = 450L
 
         fun openEntry(context: Context, id: Long): Intent = Intent(context, FioActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)

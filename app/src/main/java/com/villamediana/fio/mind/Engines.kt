@@ -90,7 +90,7 @@ class Hearing(
                 for ((i, p) in parts.withIndex()) {
                     if (i < start.pieces) continue
                     val before = done
-                    val text = engine.transcribe(model.files, p, s.lang.asr) { partial -> onPartial(join(before, partial)) }
+                    val text = engine.transcribe(model.files, p, null) { partial -> onPartial(join(before, partial)) }
                     done = join(before, text)
                     onPartial(done)
                     onPiece(Heard(done, i + 1, by))
@@ -99,13 +99,12 @@ class Hearing(
             }
             Source.API -> {
                 val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
-                val lang = s.lang.key.takeIf { it != "auto" }
                 val parts = if (wav.length() <= 20L * 1024 * 1024) listOf(null) else Pieces.cut(samples, maxSeconds = API_PIECE)
                 for ((i, p) in parts.withIndex()) {
                     if (i < start.pieces) continue
                     val file = if (p == null) wav else File(tmp, "piece-${System.nanoTime()}.wav").also { Wav.write(it, p) }
                     try {
-                        done = join(done, api.transcribe(ep, s.hearModel, file, lang))
+                        done = join(done, api.transcribe(ep, s.hearModel, file, null))
                         onPartial(done)
                         onPiece(Heard(done, i + 1, by))
                     } finally {
