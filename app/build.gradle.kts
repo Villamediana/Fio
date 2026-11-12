@@ -55,7 +55,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.villamediana.fio"
+        applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
         versionCode = 35

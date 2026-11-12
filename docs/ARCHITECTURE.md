@@ -78,7 +78,11 @@ sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequênci
 costurada.
 
 O nome mudou de Fio pra Novelo na 1.17.0: muda o que aparece (nome, ícone, textos, a pasta do
-backup e a da galeria), o pacote e o repositório seguem `fio`.
+backup e a da galeria). Depois da 1.23.1, rumo à Play Store, o app passou a ser `com.villamediana.novelo`
+(`applicationId`; o nome do pacote na Play não muda nunca mais). O código por dentro (`namespace`, pastas,
+`R`/`BuildConfig`, as funções JNI do motor) e o repositório seguem `fio`: quem vê é só o `applicationId`.
+Com o id novo o celular trata como outro app — o de antes (`com.villamediana.fio`) continua instalado, e os
+dados passam pelo backup (exportar no antigo, importar no novo).
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
 Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje

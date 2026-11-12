@@ -1,6 +1,6 @@
 # Novelo
 
-Um botão pra tirar as coisas da cabeça. (Antes se chamava Fio; o repositório e o pacote `com.villamediana.fio` seguem com o nome antigo.)
+Um botão pra tirar as coisas da cabeça. (Antes se chamava Fio. O app é `com.villamediana.novelo`; o repositório e o código por dentro seguem com o nome antigo.)
 
 Segure e fale (ou toque pra deixar ouvindo). O Novelo transcreve, entende o que é e guarda no lugar certo:
 
