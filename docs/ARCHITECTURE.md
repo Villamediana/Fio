@@ -83,11 +83,14 @@ backup e a da galeria), o pacote e o repositório seguem `fio`.
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
 Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
 (`swipeNav`); na biblioteca as abas são um `HorizontalPager`, e na Hoje deslizar pra direita volta
-(o `NestedScrollConnection` pega o que sobra da primeira página). O botão e o grafo ficam com o
+(o `NestedScrollConnection` pega o que sobra da primeira página; a inclinação volta a zero sempre, mesmo
+indo pra tela principal ou com um toque rápido no meio — senão, voltando logo, a Hoje ficava torta). O botão e o grafo ficam com o
 próprio toque, então ali não há deslize de tela. As transições seguem o mesmo lado.
 
 Escrever em vez de falar: o lápis leve no canto da tela principal abre um campo; o texto vira uma captura
 `source = "text"` com `transcript` já preenchido e vai direto pro organizar (o modelo lê "O QUE ELA ESCREVEU").
+O que ela escreve fica guardado enquanto escreve (`data/Draft`, SharedPreferences "draft", 24 h depois da última
+mudança): um toque fora que fecha o campo, ou o app fechado, não perde nada; some quando ela manda.
 
 Ações que se entendem pelo desenho são ícones (`IconAction`, com o nome pro leitor de tela): cancelar a
 gravação (× solto, sem círculo, bem discreto, no modo toque), parar o organizar (■), tentar de novo (↻), descartar (lixeira), baixar/parar/apagar o
@@ -107,7 +110,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `audio/` | `Recorder`, `Wav` (ler/escrever, `Pieces.cut` no silêncio), `MicService` (um serviço em primeiro plano só: microfone enquanto grava, dataSync + wake lock enquanto transcreve e organiza, pra minimizar não parar nada) |
 | `ai/Api` | OpenAI-compatível: `models`, `transcribe`, `chat`; chave em `Authorization: Bearer` e `api-key` |
 | `local/` | `LocalEngine` (JNI → `app/src/main/cpp/fio_engine.cpp`), `LocalModel` (DownloadManager + SHA-256) |
-| `mind/` | `Mind` (orquestra), `Brain` (prompt, contexto, parse, datas, GBNF), `Keeper` (grava o Plan), `Recall` (busca + grafo), `Engines` (Hearing/Thinking por Ajustes), `PhotoText` (ML Kit OCR + JPEG) |
+| `mind/` | `Mind` (orquestra), `Brain` (prompt, contexto, parse, datas, GBNF), `Keeper` (grava o Plan), `Recall` (busca + grafo), `Meaning` (busca por sentido com o Omni), `Engines` (Hearing/Thinking por Ajustes), `PhotoText` (ML Kit OCR + JPEG) |
 | `data/` | Room: `entries`, `captures`, `entities`, `entry_topics`, `links`, `progress`; `Library` (ações da UI) |
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
@@ -151,8 +154,10 @@ Mais na 1.14.0:
 - **Mosaico** (`ui/components/Mosaic`): fotos da mesma câmera têm todas o mesmo formato, então cada uma
   ganha um formato pelo lugar (`Mosaic.shape`, recorte) e as linhas vão de ponta a ponta com larguras
   diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
-- **Descrição só pra busca**: `Capture.description` nunca aparece na tela; o prompt diz que o que se vê na
-  foto não vai pro diário nem pra item (a foto já está no diário do dia).
+- **Descrição da foto**: `photo_description` vem na mesma chamada que organiza (uma resposta só, no idioma
+  dela, sem uma por idioma do app) e aparece no visualizador, embaixo da foto (desde a 1.23.0; antes era
+  só pra busca). O prompt segue dizendo que o que se vê na foto não vai pro diário nem pra item (a foto já
+  está no diário do dia).
 - **Girar**: no visualizador, um menu leve embaixo gira a foto um quarto pra direita, com animação e escala
   que acompanha; o giro fica em `captures.turn` (banco v5) e o arquivo não é mexido (`uprightBitmap(turn)`).
 - **Câmera da frente**: botão ao lado do disparador quando o celular tem as duas; sem flash na da frente.
@@ -173,8 +178,9 @@ Na 1.15.0:
 - **Contexto enxuto**: o que já está escrito acima é só apontado (`#id (acima)`); lembranças de 12 pra 8;
   a `Recall` com tudo e o índice das fotos só são montados quando precisam.
 - **Foto**: a miniatura segue o giro na hora (`rememberPhoto` decodifica de novo quando o giro muda e mostra
-  a de antes até a nova ficar pronta). No visualizador, **Baixar** (`data/ToGallery`: MediaStore em
-  Imagens/Fio, giro no EXIF da cópia, data em que foi tirada) e **Remover** (pede um toque a mais;
+  a de antes até a nova ficar pronta). Foto tirada na câmera do app vai sozinha pra galeria do celular na hora
+  (`AppGraph.taken` → `ToGallery.save`, depois `Mind.stage`). No visualizador, **Baixar** (`data/ToGallery`: MediaStore em
+  Imagens/Novelo, giro no EXIF da cópia, data em que foi tirada) e **Remover** (pede um toque a mais;
   `Library.removePhoto` tira a captura e o arquivo, o que foi guardado dela fica).
 - **Conexões escondida**: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora; o grafo fica em `ui/graph`.
 - **Áudio que vale guardar**: a gravação continua sumindo depois de ouvida, a não ser que o modelo marque
@@ -331,6 +337,18 @@ O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
   por falta de rede agenda `mind/WhenOnline` (WorkManager, `NetworkType.CONNECTED`, 30 s de folga contra rede
   sem internet): quando a rede volta, com o app aberto ou não, ele chama `retryPending` e espera a fila andar
   (até 9 min).
+
+## Busca por sentido
+
+A busca da biblioteca acha pelas palavras dela (`Recall`/`PhotoRecall`, na hora) e, quando ela para de
+digitar (180 ms + 500 ms), pelo sentido: `mind/Meaning` pede ao Omni (o mesmo do ouvido, no celular, sem
+rede e sem baixar mais nada) as palavras que as anotações dela podem ter usado pra aquilo — a mesma coisa
+dita de outro jeito e nas outras línguas, e o que anda junto (quem faz, o lugar, o objeto). Lista JSON presa
+por gramática (até 16 palavras), sem as da busca; o que essas palavras acham vem depois do que as dela acharam,
+e elas também ficam marcadas nos cartões. As instruções rodam uma vez e ficam guardadas (`fixed`, o retrato
+do motor); abrir a busca já carrega o Omni (`warm`). Mudou a busca, o pedido anterior para na hora
+(`LocalEngine.cancel(tag)` só para o trabalho daquele pedido, nunca uma transcrição). Respostas ficam numa
+memória de 50 buscas. Sem o ouvido baixado, só palavras.
 
 ## Lançar versão
 

@@ -103,7 +103,8 @@
     <string name="checkin_will_ask">Novelo te preguntará cómo va %1$s.</string>
     <string name="fmt_weekday_day_month">EEEE, d \'de\' MMMM</string>
     <string name="fmt_weekday_day_month_year">EEEE, d \'de\' MMMM \'de\' yyyy</string>
-    <string name="search_nothing">Nada con esas palabras</string>
+    <string name="search_nothing">No se encontró nada</string>
+    <string name="search_by_meaning">Buscando por el sentido…</string>
     <string name="photos">Fotos</string>
     <string name="done_hide">Ocultar hechas</string>
     <string name="done_show">Ver hechas (%1$d)</string>

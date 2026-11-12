@@ -10,11 +10,14 @@ import com.villamediana.fio.ai.Api
 import com.villamediana.fio.audio.AndroidMicHolder
 import com.villamediana.fio.audio.Recorder
 import com.villamediana.fio.data.FioDatabase
+import com.villamediana.fio.data.Draft
 import com.villamediana.fio.data.Library
+import com.villamediana.fio.data.ToGallery
 import com.villamediana.fio.local.LocalEngine
 import com.villamediana.fio.local.LocalModel
 import com.villamediana.fio.mind.Hearing
 import com.villamediana.fio.mind.Keeper
+import com.villamediana.fio.mind.Meaning
 import com.villamediana.fio.mind.Mind
 import com.villamediana.fio.mind.MlKitPhotoReader
 import com.villamediana.fio.mind.Thinking
@@ -64,6 +67,10 @@ class AppGraph(context: Context) {
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
+    /** The search by meaning: Omni gives the words her notes may use for what she looks for. */
+    val meaning: Meaning by lazy { Meaning(engine, localModel) }
+    /** What she was writing and didn't send (kept a day). */
+    val draft: Draft by lazy { Draft(appContext.getSharedPreferences("draft", Context.MODE_PRIVATE)) }
 
     private val captures: File by lazy { File(appContext.filesDir, "captures").apply { mkdirs() } }
 
@@ -87,6 +94,17 @@ class AppGraph(context: Context) {
 
     /** Where the camera (or the gallery) puts a photo before it goes to [mind]. */
     fun newPhotoFile(ext: String = "jpg"): File = File(captures, "photo-${System.currentTimeMillis()}-${photoCount.incrementAndGet()}.$ext")
+
+    /**
+     * A photo just taken in the app's camera: in the phone's gallery too from the start
+     * (Pictures/Novelo, whatever happens to the app), then waiting on the main screen.
+     */
+    fun taken(file: File, at: Long) {
+        scope.launch(Dispatchers.IO) {
+            ToGallery.save(appContext, file.path, at, 0)
+            mind.stage(listOf(file to at))
+        }
+    }
 
     /**
      * Photos picked in the phone's gallery, as many as she chose: copied in (the gallery keeps its

@@ -255,7 +255,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     if (writing) {
         WriteSheet(
             about = focus,
-            onSend = { text -> writing = false; mind.write(text) },
+            onSend = { text -> writing = false; graph.draft.clear(); mind.write(text) },
             onDismiss = { writing = false },
         )
     }
@@ -306,10 +306,15 @@ private fun StagedTray(photos: List<com.villamediana.fio.mind.Staged>, onRemove:
     }
 }
 
-/** Writing instead of talking: the text goes straight to organizing, nothing to transcribe. */
+/**
+ * Writing instead of talking: the text goes straight to organizing, nothing to transcribe. What
+ * she writes is kept as she goes (a day): closed by a stray touch, it is all there when she opens it again.
+ */
 @Composable
 private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("") }
+    val draft = FioApplication.graph.draft
+    var value by remember { mutableStateOf(draft.read().let { androidx.compose.ui.text.input.TextFieldValue(it, androidx.compose.ui.text.TextRange(it.length)) }) }
+    val text = value.text
     val field = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
     FioSheet(onDismissRequest = onDismiss) {
@@ -317,8 +322,8 @@ private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () ->
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
                 if (text.isEmpty()) Text(t(R.string.invite), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
                 androidx.compose.foundation.text.BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
+                    value = value,
+                    onValueChange = { v -> if (v.text != value.text) draft.write(v.text); value = v },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(FioColors.Accent),
                     minLines = 3,
