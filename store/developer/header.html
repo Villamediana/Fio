@@ -1,0 +1,23 @@
+<!doctype html><html><head><style>
+@font-face { font-family: Fraunces; src: url('../../app/src/main/res/font/fraunces.ttf'); }
+html,body { margin:0; width:2048px; height:1152px; overflow:hidden; background:#F3EBDD; }
+svg { display:block; }
+</style></head><body>
+<svg width="2048" height="1152" viewBox="0 0 2048 1152" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.23  0 0 0 0 0.16  0 0 0 0 0.12  0 0 0 0.05 0"/>
+    </filter>
+  </defs>
+  <rect width="2048" height="1152" fill="#F3EBDD"/>
+  <rect width="2048" height="1152" filter="url(#grain)"/>
+  <!-- o novelo -->
+  <g transform="translate(-100,0) translate(354.74,94.74) scale(8.9474)" fill="none" stroke="#C2593A" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"><path d="M33,52 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0"/><path d="M36,44 C44,38 58,37 68,45"/><path d="M33.5,53 C43,46 60,46 70.5,55"/><path d="M36,62 C45,56 58,57 67,63"/><path d="M45,34.5 C39,43 39,58 47,69.5"/><path d="M55,33.2 C49,43 50,59 57.5,70"/></g>
+  <!-- a ponta solta, que vira costura -->
+  <path d="M840,680 C890,735 960,772 1070,772" fill="none" stroke="#C2593A" stroke-width="24" stroke-linecap="round"/>
+  <path d="M1130,772 L2120,772" fill="none" stroke="#C2593A" stroke-opacity="0.55" stroke-width="12" stroke-linecap="round" stroke-dasharray="34 30"/>
+  <path d="M-80,772 L460,772" fill="none" stroke="#C2593A" stroke-opacity="0.55" stroke-width="12" stroke-linecap="round" stroke-dasharray="34 30"/>
+  <!-- o nome -->
+  <text x="965" y="612" font-family="Fraunces" font-size="200" fill="#3A2A1F" style="font-variation-settings: 'opsz' 144; letter-spacing:-2px">Novelo<tspan fill="#C2593A">.</tspan></text>
+</svg></body></html>
