@@ -1,10 +1,7 @@
 package com.villamediana.novelo.ui.entry
 
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.layout.onSizeChanged
 import com.villamediana.novelo.ui.lock.screen
 
 import com.villamediana.novelo.ui.lock.Unlock
@@ -264,6 +261,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                     onAdd = { t -> scope.launch { lib.addStep(e.id, t) } },
                     onRemove = { i -> scope.launch { lib.removeStep(e.id, i) } },
                     onMove = { from, to -> scope.launch { lib.moveStep(e.id, from, to) } },
+                    onEdit = { i, text -> scope.launch { lib.editStep(e.id, i, text) } },
                 )
             }
 
@@ -305,7 +303,7 @@ fun EntryScreen(nav: Nav, id: Long) {
 }
 
 @Composable
-private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit, onMove: (Int, Int) -> Unit = { _, _ -> }) {
+private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit, onMove: (Int, Int) -> Unit = { _, _ -> }, onEdit: (Int, String) -> Unit = { _, _ -> }) {
     val steps = remember(e.steps) { Steps.read(e.steps) }
     var adding by remember { mutableStateOf("") }
     val newStep = remember { FocusRequester() }
@@ -319,57 +317,43 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
         }
         Spacer(Modifier.height(6.dp))
     }
-    // Dragged by its handle: the step follows the finger and lands where it is let go.
-    var dragging by remember { mutableStateOf<Int?>(null) }
-    var dragY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val heights = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
-    fun target(from: Int): Int {
-        var to = from
-        var left = dragY
-        while (left > 0 && to < steps.lastIndex) { val h = heights[to + 1] ?: break; if (left < h / 2f) break; left -= h; to++ }
-        while (left < 0 && to > 0) { val h = heights[to - 1] ?: break; if (-left < h / 2f) break; left += h; to-- }
-        return to
-    }
-    steps.forEachIndexed { i, s ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .onSizeChanged { heights[i] = it.height }
-                .zIndex(if (dragging == i) 1f else 0f)
-                .graphicsLayer { if (dragging == i) { translationY = dragY; scaleX = 1.02f; scaleY = 1.02f } }
-                .then(if (dragging == i) Modifier.clip(RoundedCornerShape(12.dp)).background(NoveloColors.Surface) else Modifier),
-        ) {
-            CheckCircle(s.done, NoveloColors.Accent, onClick = { onToggle(i) }, size = 20.dp)
-            // Tap ticks it; holding takes the step away.
-            Text(
-                s.text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (s.done) NoveloColors.TextMuted else NoveloColors.Text,
-                textDecoration = if (s.done) TextDecoration.LineThrough else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .combinedClickable(
-                        onClick = { onToggle(i) },
-                        onLongClickLabel = t(R.string.step_remove),
-                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onRemove(i) },
-                    )
-                    .padding(vertical = 8.dp),
-            )
-            if (steps.size > 1) Box(
-                Modifier
-                    .size(36.dp)
-                    .semantics { contentDescription = t(R.string.step_move) }
-                    .pointerInput(i, steps.size) {
-                        detectDragGestures(
-                            onDragStart = { dragging = i; dragY = 0f; haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
-                            onDragEnd = { val to = target(i); dragging = null; dragY = 0f; if (to != i) onMove(i, to) },
-                            onDragCancel = { dragging = null; dragY = 0f },
-                        ) { change, amount -> change.consume(); dragY += amount.y }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(NoveloIcons.Drag, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
+    // The circle ticks it; holding it drags it to another place; a tap on the words writes them again
+    // (left empty, the step goes).
+    var editing by remember(e.id) { mutableStateOf<Int?>(null) }
+    val indexed = remember(steps) { steps.mapIndexed { i, s -> i to s } }
+    sh.calvin.reorderable.ReorderableColumn(
+        list = indexed,
+        onSettle = { from, to -> if (from != to) onMove(from, to) },
+        onMove = { haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick) },
+    ) { _, (i, s), dragging ->
+        androidx.compose.runtime.key(i, s.text) {
+            ReorderableItem {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .graphicsLayer { if (dragging) { scaleX = 1.02f; scaleY = 1.02f } }
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (dragging) NoveloColors.Surface else androidx.compose.ui.graphics.Color.Transparent)
+                        .longPressDraggableHandle(onDragStarted = { haptics.performHapticFeedback(HapticFeedbackType.LongPress) })
+                        .testTag("step-$i"),
+                ) {
+                    CheckCircle(s.done, NoveloColors.Accent, onClick = { onToggle(i) }, size = 20.dp)
+                    if (editing == i) {
+                        StepEditor(s.text, onDone = { text -> editing = null; if (text.isBlank()) onRemove(i) else if (text.trim() != s.text) onEdit(i, text.trim()) })
+                    } else {
+                        Text(
+                            s.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (s.done) NoveloColors.TextMuted else NoveloColors.Text,
+                            textDecoration = if (s.done) TextDecoration.LineThrough else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable(onClickLabel = t(R.string.step_edit)) { editing = i }
+                                .semantics { contentDescription = s.text + " · " + t(R.string.step_move) }
+                                .padding(start = 10.dp, top = 8.dp, bottom = 8.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -392,6 +376,33 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
             IconAction(NoveloIcons.Check, t(R.string.step_add), { onAdd(adding); adding = "" }, primary = true, size = 36.dp)
         }
     }
+}
+
+/** A step's words, written again in place: done with the keyboard's action or when it loses the focus. */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.StepEditor(text: String, onDone: (String) -> Unit) {
+    var value by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))) }
+    val focus = remember { FocusRequester() }
+    var had by remember { mutableStateOf(false) }
+    // Once: the keyboard's action closes it, and the focus it then loses must not say it again.
+    var finished by remember { mutableStateOf(false) }
+    val finish: (String) -> Unit = { text -> if (!finished) { finished = true; onDone(text) } }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    BasicTextField(
+        value = value,
+        onValueChange = { v -> if (v.text.endsWith("\n")) finish(v.text.trim()) else value = v },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = NoveloColors.Text),
+        cursorBrush = SolidColor(NoveloColors.Accent),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { finish(value.text) }),
+        singleLine = true,
+        modifier = Modifier
+            .weight(1f)
+            .padding(start = 10.dp, top = 8.dp, bottom = 8.dp)
+            .focusRequester(focus)
+            .onFocusChanged { f -> if (f.isFocused) had = true else if (had) finish(value.text) }
+            .testTag("step-editor"),
+    )
 }
 
 @Composable

@@ -135,4 +135,21 @@ class PhotosInsideTest {
         lib.dropIfEmpty(empty)
         assertEquals(null, db.entries().get(empty))
     }
+
+    @Test
+    fun stepsWrittenAgainAndTasksPutInOrderByHand() = runBlocking {
+        val id = lib.create(Kind.TASK)
+        lib.addStep(id, "comprar"); lib.addStep(id, "pagar")
+        lib.editStep(id, 0, "comprar pão")
+        assertEquals(listOf("comprar pão", "pagar"), com.villamediana.novelo.mind.Steps.read(db.entries().get(id)!!.steps).map { it.text })
+        // Three tasks; she moves the last to the top of its group; a new one comes on top of the moved ones.
+        val a = db.entries().insert(Entry(kind = "task", title = "A", status = "todo", createdAt = now - 3, updatedAt = now))
+        val b = db.entries().insert(Entry(kind = "task", title = "B", status = "todo", createdAt = now - 2, updatedAt = now))
+        val c = db.entries().insert(Entry(kind = "task", title = "C", status = "todo", createdAt = now - 1, updatedAt = now))
+        lib.reorder(listOf(a, c, b))
+        val d = db.entries().insert(Entry(kind = "task", title = "D", status = "todo", createdAt = now, updatedAt = now))
+        val todo = com.villamediana.novelo.ui.library.sectionsFor(com.villamediana.novelo.ui.Filter.TASKS, db.entries().all().filter { it.id in setOf(a, b, c, d) }, showDone = false)
+            .first { (_, list) -> list.any { it.id == a } }.second
+        assertEquals(listOf(d, a, c, b), todo.map { it.id })
+    }
 }

@@ -443,6 +443,14 @@ num dia, sempre com hora. O modelo diz `"repeat": {"every": "day" | "week" | "mo
 Uma tarefa que repete, concluída (no app, na notificação ou falando), fica registrada como feita
 (`Progress`) e volta aberta pra próxima vez, com as etapas zeradas e o prazo junto (`Repeat.done`).
 
+## Arrastar à mão (1.35.0)
+
+Etapas: o círculo marca; segurar a linha arrasta pra outra posição (`ReorderableColumn`, biblioteca
+`sh.calvin.reorderable`); um toque no texto escreve de novo (vazio = apaga a etapa; o editor confirma uma vez
+só). Aba Tarefas: segurar e arrastar muda a ordem dentro do grupo (fazendo, a fazer, esperando) —
+`Entry.position` (Room v9), salvo ao soltar (`Library.reorder`); tarefa sem posição (nova) vem antes, pelo
+prazo, a mais nova primeiro.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

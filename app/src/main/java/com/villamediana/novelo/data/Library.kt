@@ -142,6 +142,11 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         if (e.title.isBlank() && e.body.isBlank() && Steps.read(e.steps).isEmpty()) db.entries().delete(id)
     }
 
+    /** Tasks put in this order by hand (held and dragged in the list): each keeps its place. */
+    suspend fun reorder(ids: List<Long>) = db.withTransaction {
+        ids.forEachIndexed { i, id -> db.entries().get(id)?.let { e -> if (e.position != i.toLong()) db.entries().update(e.copy(position = i.toLong())) } }
+    }
+
     /** A step moved by hand from [from] to [to]. */
     suspend fun moveStep(id: Long, from: Int, to: Int) {
         val e = db.entries().get(id) ?: return
@@ -183,6 +188,16 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         val e = db.entries().get(id) ?: return
         val t = text.trim().takeIf { it.isNotEmpty() } ?: return
         db.entries().update(e.copy(steps = Steps.write(Steps.read(e.steps) + Step(t)), updatedAt = clock()))
+    }
+
+    /** A step's words written again (by hand). */
+    suspend fun editStep(id: Long, index: Int, text: String) {
+        val e = db.entries().get(id) ?: return
+        val steps = Steps.read(e.steps).toMutableList()
+        val t = text.trim()
+        if (index !in steps.indices || t.isEmpty() || steps[index].text == t) return
+        steps[index] = steps[index].copy(text = t)
+        db.entries().update(e.copy(steps = Steps.write(steps), updatedAt = clock()))
     }
 
     suspend fun removeStep(id: Long, index: Int) {

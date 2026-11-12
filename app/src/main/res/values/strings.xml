@@ -371,4 +371,5 @@
     <string name="reminder_time">Hora</string>
     <string name="reminder_save">Salvar</string>
     <string name="reminder_remove">Tirar lembrete</string>
+    <string name="step_edit">Escrever de novo</string>
 </resources>

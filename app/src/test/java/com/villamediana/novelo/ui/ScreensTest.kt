@@ -18,6 +18,8 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -701,6 +703,66 @@ class ScreensTest {
         assertEquals(com.villamediana.novelo.remind.Repeat.WEEK, rule.every)
         assertTrue("${rule.days}", 1 in rule.days && 3 in rule.days)
         assertTrue(runBlocking { graph.db.entries().get(id)!!.remindAt!! } > System.currentTimeMillis())
+    }
+
+    /** A finger held on [node] (as long as a long press) and then moved down, [steps] times by [by] of its height. */
+    private fun holdAndDrag(node: androidx.compose.ui.test.SemanticsNodeInteraction, steps: Int, by: Float) {
+        compose.mainClock.autoAdvance = false
+        node.performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(1_000)
+        repeat(steps) {
+            node.performTouchInput { moveBy(Offset(0f, height * by)) }
+            compose.mainClock.advanceTimeBy(48)
+        }
+        node.performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun stepsTickByTheCircleHoldToMoveTapToWrite() {
+        val id = runBlocking {
+            graph.db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", steps = com.villamediana.novelo.mind.Steps.write(listOf(com.villamediana.novelo.data.Step("caixas"), com.villamediana.novelo.data.Step("fita"), com.villamediana.novelo.data.Step("caminhão"))), createdAt = now, updatedAt = now))
+        }
+        fun steps() = runBlocking { com.villamediana.novelo.mind.Steps.read(graph.db.entries().get(id)!!.steps) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("caixas").fetchSemanticsNodes().isNotEmpty() }
+        // Held: it neither ticks nor goes; dragged down, it moves.
+        holdAndDrag(compose.onNodeWithText("caixas"), steps = 12, by = 0.25f)
+        compose.waitUntil(5_000) { steps().map { it.text } != listOf("caixas", "fita", "caminhão") }
+        assertEquals(listOf("fita", "caminhão", "caixas"), steps().map { it.text })
+        assertTrue(steps().none { it.done })
+        // A tap on the words writes them again; emptied, the step goes.
+        compose.onNodeWithText("fita").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithTag("step-editor").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("step-editor").performTextReplacement("")
+        compose.onNodeWithTag("step-editor").performImeAction()
+        compose.waitUntil(5_000) { steps().size == 2 }
+        assertEquals(listOf("caminhão", "caixas"), steps().map { it.text })
+    }
+
+    @Test
+    fun aTaskHeldAndDraggedMovesInItsGroup() {
+        val ids = runBlocking {
+            listOf("Primeira", "Segunda", "Terceira").mapIndexed { i, title -> graph.db.entries().insert(Entry(kind = "task", title = title, status = "todo", position = i.toLong(), createdAt = now, updatedAt = now)) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.TASKS)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { LibraryScreen(nav, Screen.Library(Filter.TASKS)) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Primeira").fetchSemanticsNodes().isNotEmpty() }
+        holdAndDrag(compose.onNodeWithText("Primeira"), steps = 16, by = 0.3f)
+        val order = runBlocking {
+            withTimeout(5_000) {
+                var o: List<Long>
+                while (true) {
+                    val pos = ids.associateWith { graph.db.entries().get(it)!!.position }
+                    o = ids.sortedBy { pos[it] }
+                    if (o.first() != ids[0]) break
+                    kotlinx.coroutines.delay(20)
+                }
+                o
+            }
+        }
+        assertEquals(ids[1], order.first())
     }
 
     @Test
