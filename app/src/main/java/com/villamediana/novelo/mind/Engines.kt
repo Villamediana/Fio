@@ -50,17 +50,11 @@ interface Ears {
 
 /** Text (and maybe a photo) → the model's raw answer. */
 interface Thinker {
-    /** True when the model that thinks can look at the photo itself (otherwise it gets the text read from it). */
+    /** True when a photo can be looked at (Omni, on the phone, says what it shows); otherwise only its text read counts. */
     suspend fun seesImages(): Boolean
 
     /** The long side of the photo it gets, in px (a small model on the phone wants a smaller one). */
     suspend fun imageSide(): Int = 1600
-
-    /**
-     * It looks at the photo itself (her model); false: it gets only what the phone saw in it (the
-     * Novelo's intelligence — the phone's look is enough, and nothing more goes out).
-     */
-    suspend fun looksItself(): Boolean = true
 
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
 
@@ -155,10 +149,8 @@ class Thinking(
         }
     }
 
-    /** Her API looks at the photo itself; for the Novelo's, Omni looks at it on the phone and says what it sees. */
+    /** Omni looks at the photo on the phone and says what it sees; the model that thinks, whichever, gets those words (never the photo). */
     override suspend fun seesImages(): Boolean = true
-
-    override suspend fun looksItself(): Boolean = settings.current().think == Source.API
 
     /** The photo is looked at lightly (its text comes read by the phone): no need to send more than this. */
     override suspend fun imageSide(): Int = 768
