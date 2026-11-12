@@ -14,9 +14,9 @@ fun interface TokenSink {
 }
 
 /**
- * The models on the phone (llama.cpp, app/src/main/cpp), one in memory at a time: LFM3-Omni hears
- * and looks at photos, d1 decides, LFM3-1.7B writes. Each is loaded when it is needed (the one
- * before is let go) and kept for a few minutes after.
+ * LFM3-Omni on the phone (llama.cpp, app/src/main/cpp): it hears, and says what it sees in a photo
+ * (for the Novelo's intelligence, which thinks with text only). Loaded on first use and kept for a
+ * few minutes, then let go (~1.6 GB of RAM).
  * [cacheDir]: where the instructions' snapshot is kept, so they run once per model and version.
  */
 class LocalEngine(private val cacheDir: java.io.File? = null) {
@@ -54,39 +54,6 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
             String(out, Charsets.UTF_8)
         }
 
-    /**
-     * One question to the decision model: [prompt] made by [render] with the model's control
-     * tokens (what she says can't spell them), [labels] the spellings of each answer's label. Each
-     * answer's probability, at the model's own temperature for the question's [type].
-     */
-    suspend fun decide(files: LocalModel.Files, type: String, options: Int, labels: List<List<String>>, render: (List<String>) -> String): DoubleArray =
-        use(files, DECIDE) { h ->
-            val spell = spellings.getOrPut(files.model.path) {
-                String(nativeSpellings(h) ?: ByteArray(0), Charsets.UTF_8).split('\u0000').filter { it.isNotEmpty() }
-            }
-            val temp = temperatures.getOrPut(files.model.path + "|" + type + "|" + options) { temperature(h, type, options) }
-            val scores = nativeDecide(h, render(spell).toByteArray(), labels.map { it.joinToString("\u0001") }.toTypedArray())
-                ?: throw IllegalStateException(t(R.string.local_no_answer))
-            com.villamediana.fio.mind.LocalBrain.probabilities(scores, temp)
-        }
-
-    /** The model's temperature for a question (per number of options when it has one, as llama.cpp reads it); 1 without one. */
-    private fun temperature(h: Long, type: String, options: Int): Double {
-        val bucket = when {
-            options <= 2 -> "2"
-            options <= 5 -> "3_5"
-            options <= 10 -> "6_10"
-            else -> "11"
-        }
-        for (key in listOf("$type.$bucket", type)) {
-            for (arch in listOf("lfm3", "lfm2")) nativeMeta(h, "$arch.decision.temperature.$key")?.toDoubleOrNull()?.let { return it }
-        }
-        return 1.0
-    }
-
-    private val spellings = HashMap<String, List<String>>()
-    private val temperatures = HashMap<String, Double>()
-
     fun cancel() {
         val h = handle
         if (h != 0L) nativeCancel(h)
@@ -107,16 +74,13 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         }
     }
 
-    /** How a model is held: its context, the batch it reads in, and whether its instructions' snapshot is kept. */
-    private data class Fit(val ctx: Int, val batch: Int, val snapshot: Boolean)
-
-    private suspend fun <T> use(files: LocalModel.Files, fit: Fit = TALK, block: (Long) -> T): T = lock.withLock {
+    private suspend fun <T> use(files: LocalModel.Files, block: (Long) -> T): T = lock.withLock {
         withContext(Dispatchers.Default) {
             check(available) { t(R.string.local_no_engine) }
             if (handle == 0L || loadedFrom != files.model.path) {
                 freeLocked()
                 val threads = threads()
-                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, fit.ctx, fit.batch, if (fit.snapshot) snapshotFile(files)?.path.orEmpty() else "")
+                handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192, snapshotFile(files)?.path.orEmpty())
                 check(handle != 0L) { t(R.string.local_cant_load) }
                 loadedFrom = files.model.path
             }
@@ -143,10 +107,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         loadedFrom = null
     }
 
-    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int, nBatch: Int, cache: String): Long
-    private external fun nativeDecide(handle: Long, prompt: ByteArray, labels: Array<String>): FloatArray?
-    private external fun nativeSpellings(handle: Long): ByteArray?
-    private external fun nativeMeta(handle: Long, key: String): String?
+    private external fun nativeLoad(model: String, mmproj: String, threads: Int, nCtx: Int, cache: String): Long
     private external fun nativePrime(handle: Long, prefix: ByteArray): Boolean
     private external fun nativeFree(handle: Long)
     private external fun nativeCancel(handle: Long)
@@ -154,12 +115,6 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
     private external fun nativeGenerate(handle: Long, prompt: ByteArray, keep: Int, grammar: String?, image: ByteArray?, maxTokens: Int, sink: TokenSink?): ByteArray?
 
     companion object {
-        /** Omni and the writer: room for a long talk, read 1,024 tokens at a time. */
-        private val TALK = Fit(8192, 1024, snapshot = true)
-
-        /** d1 isn't causal: each question is read whole in one pass, so its batch is its context. */
-        private val DECIDE = Fit(8192, 8192, snapshot = false)
-
         /** Where a photo goes in the prompt (llama.cpp's media marker). */
         const val MEDIA = "<__media__>"
 

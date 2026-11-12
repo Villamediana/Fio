@@ -135,6 +135,30 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun offlineItWaitsAndAsksToGoWhenTheNetworkIsBack() = runBlocking {
+        val ears = object : Ears {
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = ""
+        }
+        var online = false
+        val thinker = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String =
+                if (online) """{"reply":"ok","create":[{"kind":"note","title":"Senha do wifi","body":"girassol"}]}""" else throw java.io.IOException("no network")
+        }
+        var asked = 0
+        val m = mind(ears, thinker, offline = { asked++ })
+        m.write("anota a senha do wifi: girassol")
+        val problem = withTimeout(10_000) { m.state.first { it is MindState.Problem } as MindState.Problem }
+        assertTrue(problem.message, problem.message.contains("internet"))
+        assertEquals(1, asked)
+        // Kept: when the network is back (what the scheduled work does), it goes through.
+        online = true
+        m.retryPending()
+        withTimeout(10_000) { m.state.first { it is MindState.Answer } }
+        assertEquals(listOf("Senha do wifi"), db.entries().all().map { it.title })
+    }
+
+    @Test
     fun oldAndamentoJoinsTheText() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma", body = "Voy al aeropuerto a pasar un tiempo con Alma.", status = "doing", createdAt = now, updatedAt = now))
         val bare = db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", createdAt = now, updatedAt = now))
@@ -192,10 +216,10 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos) = Mind(
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.fio.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}) = Mind(
         scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now },
+        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline,
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->

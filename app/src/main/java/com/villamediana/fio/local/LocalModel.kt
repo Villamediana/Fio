@@ -9,25 +9,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.security.MessageDigest
 
 /**
- * The models that live on the phone (Liquid AI's, from Hugging Face), as one thing to download:
- *  - always LFM3-Omni-2B, which hears (and looks at photos): its text model in 4 bits and its
- *    vision/audio projector in 8 bits;
- *  - when the phone thinks too ([thinksHere]), d1-2B (decides what is in what she said) and
- *    LFM3-1.7B (writes it).
- * One bar for all of it: the parts come one after the other through Android's DownloadManager
- * (it resumes by itself), each checked against the SHA-256 Hugging Face publishes.
+ * The Novelo's ears, on the phone: LFM3-Omni-2B (Liquid AI), which hears and looks at photos —
+ * its text model in 4 bits and its vision/audio projector in 8 bits. One thing to download (one
+ * bar): the parts come one after the other through Android's DownloadManager (it resumes by
+ * itself), each checked against the SHA-256 Hugging Face publishes.
  */
-class LocalModel(private val context: Context, private val scope: CoroutineScope, thinksHere: Flow<Boolean>) {
+class LocalModel(private val context: Context, private val scope: CoroutineScope) {
     data class Part(val name: String, val url: String, val size: Long, val sha256: String)
     data class Files(val model: File, val projector: File?)
 
@@ -35,17 +30,18 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
         private const val OMNI_REPO = "https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/"
         val OMNI = Part("LFM3-Omni-2B-Q4_0.gguf", OMNI_REPO + "LFM3-Omni-2B-Q4_0.gguf", 1_049_617_920, "6d2273a383b92dd7c5db0eb4c8dfeae13e805b485a6621c4b391ae179c2b5f28")
         val OMNI_PROJECTOR = Part("mmproj-LFM3-Omni-2B-Q8_0.gguf", OMNI_REPO + "mmproj-LFM3-Omni-2B-Q8_0.gguf", 506_842_528, "8a25f9d1931244429de404fccacfb7fb933970a36aa5688d2f5069f29c6b27b1")
-        val DECIDER = Part("d1-2B-Q4_0.gguf", "https://huggingface.co/LiquidAI/d1-2B-GGUF/resolve/main/d1-2B-Q4_0.gguf", 1_049_617_728, "ba3f4f437746636dfd51e3b68d5a7858b56de44b54299a189f91c246db0a08ea")
-        val WRITER = Part("LFM3-1.7B-QAD-Q4_0.gguf", "https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/main/LFM3-1.7B-QAD-Q4_0.gguf", 1_049_615_680, "43a7d09a0e9cba91b63eb7052488b9564569bddfd65754d2e426465e572a7452")
 
-        /** What hearing needs. */
-        val HEAR = listOf(OMNI, OMNI_PROJECTOR)
+        val PARTS = listOf(OMNI, OMNI_PROJECTOR)
 
-        /** Hearing and thinking on the phone. */
-        val ALL = HEAR + DECIDER + WRITER
-
-        /** What the phone kept from before (LFM3-Audio until 1.6; the one memo for Omni until 1.18): it goes. */
-        val LEFTOVERS = listOf("LFM3-Audio-2B-Q4_0.gguf", "mmproj-LFM3-Audio-2B-Q8_0.gguf", "ready.txt")
+        /**
+         * What the phone kept from before and isn't used any more: LFM3-Audio (until 1.6), the one
+         * memo Omni had (until 1.18), and the models that thought on the phone (1.19: d1-2B and
+         * LFM3-1.7B — thinking is online since 1.20). Each goes with its download, if one is running.
+         */
+        val LEFTOVERS = listOf(
+            "LFM3-Audio-2B-Q4_0.gguf", "mmproj-LFM3-Audio-2B-Q8_0.gguf", "ready.txt",
+            "d1-2B-Q4_0.gguf", "LFM3-1.7B-QAD-Q4_0.gguf",
+        )
         private const val OLD_MEMO = "ready-omni.txt"
     }
 
@@ -63,11 +59,6 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     /** Asked to come (and whether only on Wi-Fi): the next part starts when one ends, after the app closed too. */
     private val wanted get() = File(dir, "wanted.txt")
 
-    @Volatile private var thinks = false
-
-    /** What has to be on the phone now. */
-    val parts: List<Part> get() = if (thinks) ALL else HEAR
-
     private val _state = MutableStateFlow<State>(State.Missing)
     val state: StateFlow<State> = _state
     private var watch: Job? = null
@@ -75,7 +66,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     init {
         scope.launch(Dispatchers.IO) {
             leftovers()
-            thinksHere.distinctUntilChanged().collect { thinks = it; refresh() }
+            refresh()
         }
     }
 
@@ -86,10 +77,11 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 id.delete()
             }
             File(dir, name).delete()
+            File(dir, "$name.ok").delete()
         }
         // The one memo Omni had: each part has its own now.
         File(dir, OLD_MEMO).takeIf { it.isFile }?.let { old ->
-            HEAR.filter { File(dir, it.name).length() == it.size }.forEach { ok(it).writeText(it.sha256) }
+            PARTS.filter { File(dir, it.name).length() == it.size }.forEach { ok(it).writeText(it.sha256) }
             old.delete()
         }
     }
@@ -97,19 +89,10 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     /** LFM3-Omni: hears and looks. */
     val files: Files get() = Files(File(dir, OMNI.name), File(dir, OMNI_PROJECTOR.name))
 
-    /** d1: decides. */
-    val decider: Files get() = Files(File(dir, DECIDER.name), null)
+    /** All of it here and checked (the files themselves: true as soon as they are, whatever the state says yet). */
+    val ready: Boolean get() = PARTS.all(::checked)
 
-    /** LFM3-1.7B: writes. */
-    val writer: Files get() = Files(File(dir, WRITER.name), null)
-
-    /** Everything needed now is here and checked. */
-    val ready: Boolean get() = _state.value == State.Ready
-
-    /** Hearing can go on (it needs less than thinking on the phone). */
-    val hearReady: Boolean get() = HEAR.all(::checked)
-
-    val totalBytes: Long get() = parts.sumOf { it.size }
+    val totalBytes: Long get() = PARTS.sumOf { it.size }
 
     /** Whether the phone is on a network that doesn't count data (Wi-Fi, usually). */
     fun onWifi(): Boolean = runCatching {
@@ -117,7 +100,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
         cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
     }.getOrDefault(false)
 
-    /** Everything needed to the phone; [wifiOnly]: it waits for Wi-Fi (Android's download goes by itself when it comes). */
+    /** To the phone; [wifiOnly]: it waits for Wi-Fi (Android's download goes by itself when it comes). */
     fun download(wifiOnly: Boolean = false) {
         if (_state.value is State.Downloading || _state.value == State.Ready || _state.value == State.Checking) return
         scope.launch(Dispatchers.IO) {
@@ -128,31 +111,41 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     }
 
     fun cancel() {
-        wanted.delete()
-        ALL.forEach { part ->
-            activeId(part)?.let { runCatching { manager.remove(it) } }
-            File(dir, part.name + ".id").delete()
-        }
         watch?.cancel()
-        scope.launch(Dispatchers.IO) { refresh() }
+        scope.launch(Dispatchers.IO) {
+            wanted.delete()
+            PARTS.forEach { part ->
+                activeId(part)?.let { runCatching { manager.remove(it) } }
+                File(dir, part.name + ".id").delete()
+            }
+            refresh()
+        }
     }
 
-    /** Off the phone: all of it (what thinking used too). */
+    /** Off the phone. Gone first, then looked at again: it never says "ready" with nothing there. */
     fun delete() {
-        cancel()
-        ALL.forEach { File(dir, it.name).delete(); ok(it).delete() }
-        _state.value = State.Missing
+        watch?.cancel()
+        scope.launch(Dispatchers.IO) {
+            wanted.delete()
+            PARTS.forEach { part ->
+                activeId(part)?.let { runCatching { manager.remove(it) } }
+                File(dir, part.name + ".id").delete()
+                File(dir, part.name).delete()
+                ok(part).delete()
+            }
+            refresh()
+        }
     }
 
     /** The next part that isn't here yet starts coming; false when there is none left. */
     private fun next(): Boolean {
-        if (parts.any { activeId(it) != null }) return true
-        val part = parts.firstOrNull { File(dir, it.name).length() != it.size } ?: return false
+        if (PARTS.any { activeId(it) != null }) return true
+        val part = PARTS.firstOrNull { File(dir, it.name).length() != it.size } ?: return false
         val file = File(dir, part.name)
         file.delete()
         val request = DownloadManager.Request(Uri.parse(part.url))
             .setTitle("Novelo")
-            .setDescription(t(if (thinks) R.string.local_pack_think else R.string.local_pack_hear))
+            .setDescription(t(R.string.local_pack_hear))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
             .setDestinationUri(Uri.fromFile(file))
             .setAllowedOverMetered(wanted.takeIf { it.isFile }?.readText()?.trim() != "wifi")
@@ -162,11 +155,10 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     }
 
     private fun refresh() {
-        val need = parts
         when {
-            need.all(::checked) -> { wanted.delete(); _state.value = State.Ready }
-            need.any { activeId(it) != null } || wanted.isFile -> follow()
-            need.all { File(dir, it.name).length() == it.size } -> verify()
+            PARTS.all(::checked) -> { wanted.delete(); _state.value = State.Ready }
+            PARTS.any { activeId(it) != null } || wanted.isFile -> follow()
+            PARTS.all { File(dir, it.name).length() == it.size } -> verify()
             else -> _state.value = State.Missing
         }
     }
@@ -178,7 +170,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 var done = 0L
                 var failed: String? = null
                 var running = false
-                parts.forEach { part ->
+                PARTS.forEach { part ->
                     val file = File(dir, part.name)
                     val id = activeId(part)
                     if (id == null) {
@@ -216,13 +208,12 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
     }
 
     private fun verify() {
-        val need = parts
-        if (need.any { File(dir, it.name).length() != it.size }) {
+        if (PARTS.any { File(dir, it.name).length() != it.size }) {
             _state.value = State.Missing
             return
         }
         _state.value = State.Checking
-        val bad = need.firstOrNull { part ->
+        val bad = PARTS.firstOrNull { part ->
             if (checked(part)) return@firstOrNull false
             val good = sha256(File(dir, part.name)) == part.sha256
             if (good) ok(part).writeText(part.sha256)

@@ -234,6 +234,14 @@ private fun Card(modifier: Modifier = Modifier, selected: Boolean = false, onCli
     ) { content() }
 }
 
+/** A choice with nothing under its name: a roomy card, the name in the middle of it. */
+@Composable
+private fun ChoiceTitle(text: String) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 50.dp), contentAlignment = Alignment.CenterStart) {
+        Text(text, style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
+    }
+}
+
 // ——— 1. Permissions (and the language, first of all) ———
 
 private fun granted(context: Context, permission: String): Boolean =
@@ -380,31 +388,21 @@ private fun IntelligenceStep(onDone: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Card(selected = !own, onClick = {
                 own = false
-                scope.launch { st.setThink(Source.LOCAL) }
+                scope.launch { st.setThink(Source.NOVELO) }
             }) {
-                Column {
-                    Text(t(R.string.setup_ai_novelo), style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
-                    Text(t(R.string.setup_ai_novelo_line, formatBytes(LocalModel.ALL.sumOf { it.size })), style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
-                }
+                ChoiceTitle(t(R.string.setup_ai_novelo))
             }
             Card(selected = own, onClick = {
                 own = true
                 scope.launch { st.setThink(Source.API) }
             }) {
-                Column {
-                    Text(t(R.string.setup_ai_own), style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
-                    Text(t(R.string.setup_ai_own_line), style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
-                }
+                ChoiceTitle(t(R.string.setup_ai_own))
             }
             Spacer(Modifier.height(6.dp))
-            if (own) {
-                OwnSetup()
-                // Hearing stays on the phone: its ears come down too.
-                Text(t(R.string.setup_hears_here, formatBytes(LocalModel.HEAR.sumOf { it.size })), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
-                LocalDownload()
-            } else {
-                LocalDownload()
-            }
+            if (own) OwnSetup()
+            // Hearing is on the phone, whoever thinks: its ears come down (just its name and size).
+            Text(t(R.string.local_pack_hear) + " · " + formatBytes(graph.localModel.totalBytes), style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
+            LocalDownload()
         }
     }
 }

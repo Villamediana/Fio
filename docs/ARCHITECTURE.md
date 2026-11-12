@@ -10,8 +10,9 @@ Orb (segurar / tocar / arrastar pra cima)
       Ears.transcribe     Hearing: sempre LFM3-Omni no celular (pedaços ≤ 28 s), quem quer que pense
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.organize    no celular (1.19): LocalOrganizer → Plan inteiro (ver "Organizar no celular"); sem procuras
-      Thinker.answer      API /chat/completions (json_object), foto a 768 px
+      Thinker.answer      sempre pela internet (1.20): Inteligência do Novelo (modelos grátis da OpenRouter,
+                          NoveloModels; a foto vai como o que o Omni viu nela) ou a API dela (/chat/completions,
+                          json_object, foto a 768 px). O mesmo prompt nos dois.
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
@@ -63,8 +64,8 @@ costura sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida p
 em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos
 redondos só nas pontas). Ajustes (1.17.2) são três portas e o "Sobre": Inteligência, Tema e Backup,
 cada uma dizendo em poucas palavras como está (no acento quando falta algo) e com os detalhes atrás.
-Inteligência mostra só "Quem pensa" (Celular ou API; ouvir é sempre do celular) e o que a escolha pede — o
-download do celular (a inteligência inteira, ou só o ouvido quando a API pensa) e o endereço e a chave da API, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
+Inteligência mostra só "Quem pensa" (Novelo ou API; ouvir é sempre do celular) e o que a escolha pede — o
+download do ouvido (sempre) e, quando a API pensa, o endereço e a chave dela, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
 sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
 costurada.
 
@@ -277,14 +278,8 @@ Novelo backup.zip
 
 - `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR.` (idioma automático),
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
-- `generate`: um prompt pronto (e talvez uma foto no marcador de mídia), texto saindo, opcionalmente preso a uma
-  gramática GBNF: o Omni descreve a foto, o LFM3-1.7B escreve.
-- `decide` (`fio_decide.h`): uma pergunta ao d1 — o prompt inteiro numa passada só (o modelo não é causal e não
-  tem memória: `llama_encode`), e no fim o maior logit de cada grupo de rótulos ("yes"/"Yes"/"YES"; "A"/" A").
-  `nativeSpellings` dá os tokens de controle (o que ela diz não pode soletrá-los) e `nativeMeta` a temperatura
-  do modelo (`lfm3.decision.temperature.*`). É o que o `/v1/systemone` do llama-server faz pro tipo lfm3-d1
-  (`tools/server/server-decision.cpp`); no lab (`~/novelo-lab/d1port`) o mesmo arquivo compilado no computador
-  deu as mesmas probabilidades nas 60 perguntas de teste (diferença 0,0000).
+- `generate`: um prompt pronto e uma foto no marcador de mídia, texto saindo: o Omni diz o que vê na foto (pra
+  Inteligência do Novelo, que pensa só com texto).
 
 O prompt de ASR é o mesmo do `llama-server` pro LFM3 (e o do card do LFM3-Omni) (`common_chat_get_asr_prompt`): sistema
 `Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.
@@ -294,31 +289,40 @@ numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a 
 que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
 baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
 Arquivos (`LocalModel`): `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Omni-2B-Q8_0.gguf` (507 MB, visão e
-áudio) sempre; com o celular pensando, mais `d1-2B-Q4_0.gguf` (1,05 GB) e `LFM3-1.7B-QAD-Q4_0.gguf` (1,05 GB).
-Uma barra só: as partes vêm uma depois da outra (`wanted.txt` lembra o pedido se o app fechar), a notificação
-diz "Novelo" e não o nome de modelo, e cada parte tem seu `.ok` com o SHA-256 conferido. Um modelo na memória
-por vez (`LocalEngine.use` troca quando o arquivo muda): o d1 com contexto e lote de 8.192 (lê tudo de uma vez),
-os outros com contexto 8.192 e lote 1.024. Até a 1.6 quem ouvia era o LFM3-Audio; até a 1.18 o Omni também
-organizava. O que sobrou disso é apagado ao abrir (`LocalModel.LEFTOVERS`).
+áudio), o "Ouvido do Novelo". Uma barra só: as partes vêm uma depois da outra (`wanted.txt` lembra o pedido se o
+app fechar), a notificação diz "Novelo" e não o nome de modelo, cada parte tem seu `.ok` com o SHA-256 conferido.
+Fora do Wi-Fi o "Baixar" pergunta antes (esperar o Wi-Fi ou baixar assim mesmo), nos primeiros passos e em
+Ajustes. Quando termina, o que esperava por ele vai sozinho (`AppGraph` → `retryPending`). Apagar some com os
+arquivos primeiro e só então olha de novo (nunca "pronto" sem nada lá). Até a 1.6 quem ouvia era o LFM3-Audio;
+na 1.19 o celular pensava com d1-2B + LFM3-1.7B (saiu na 1.20: lento pra fala do dia a dia). O que sobrou disso
+é apagado ao abrir (`LocalModel.LEFTOVERS`).
 
-## Organizar no celular (1.19.0)
+## Inteligência do Novelo (1.20.0)
 
-Medido no `~/novelo-lab` (10 falas PT/ES, 23 checagens): o Omni com o prompt grande da API acertava 8/23 e levava
-minutos no celular. O caminho novo (`mind/LocalBrain` + `mind/LocalOrganizer`) acerta 23/23 com o código Kotlin
-do app contra os modelos do lab (`LocalBrainLabTest`, só com `NOVELO_LAB=<cases.json>`):
+Quem pensa é sempre online: a Inteligência do Novelo (padrão, nada a configurar) ou a dela (a API que ela põe).
+O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
 
-1. **d1-2B decide**, uma pergunta por passada: é pergunta? é o dia dela? tarefa nova? algo pra guardar? qual tarefa
-   aberta ela terminou? de qual deu notícia? (e, se há nota, se é segredo). Sim a partir de 0,5; tarefa escolhida
-   quando não é "nenhuma" e tem 0,5 ou mais. O estado que ele lê: as tarefas abertas (até 25, a do check-in
-   primeiro; "due today/tomorrow/data") e a fala. Pergunta não traz notícia de tarefa.
-2. **LFM3-1.7B escreve só o decidido**, preso a uma gramática com exatamente esses campos (`diary`, `tasks`,
-   `notes`, `news`, `answer` ou `reply`); vê AGORA com o amanhã já calculado, e as tarefas abertas e o que pode
-   ter a ver só quando é pergunta.
-3. **Plan por regra**: o relato vai pro diário do dia (o `Keeper` junta se já existe); tarefas e notas novas
-   (tarefa com hora lembra 15 min antes; hora sem dia = a próxima vez que ela chega); feita = `done`; notícia
-   entra no texto da tarefa. Fotos mandadas junto ficam com a primeira coisa criada ou mudada.
-4. **Foto**: o Omni descreve (só pra busca); o texto lido nela passa pelo mesmo caminho (sem diário nem
-   pergunta). Foto sem texto só fica no dia.
+- **Modelos grátis da OpenRouter** (`ai/NoveloModels`): a lista vem da própria OpenRouter (`/api/v1/models`, a
+  cada 12 h; a guardada quando não dá pra ler) e fica só o que é grátis, texto que entra e só texto que sai, com
+  contexto ≥ 32k e que não seja o roteador `openrouter/free`. Um grupo de 10, nesta ordem: o último que respondeu,
+  os medidos no lab (`PREFERRED`: ernie-5.5-flash 23/23 em ~3 s, nemotron-3-ultra e nemotron-3.5-super-vl 23/23 em
+  7–8 s, dots-3-note 23/23 em ~28 s; `~/novelo-lab/openrouter/free_bench.py`), os mais novos, e por último os
+  medidos ruins (`AVOID`). 403 é a porta do modelo ("só pra agentes"), não a chave: descansa 7 dias. Até 5 tentativas por fala. Falhou (erro, mais de 90 s, resposta
+  que não é o plano) → descansa fora do grupo (404: 7 dias; 429: 5 min; resposta ruim: 6 h; resto: 30 min) e o
+  próximo entra. JSON e raciocínio "low" quando o modelo aceita; recusou → mais uma vez sem. Chave recusada
+  (401/402) para na hora sem culpar os modelos; sem rede → `IOException`, sem culpar ninguém.
+- **Foto**: modelos grátis nem sempre veem imagem, então o Omni olha no celular e o que ele vê entra no fim do
+  contexto (`O QUE SE VÊ NA FOTO (o celular olhou)`), em uma ou duas frases no idioma do app.
+- **Chave**: não está no repositório (que é público). O build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env`
+  (600) ou do ambiente e escreve no app embaralhada e mascarada (`BuildConfig.NV_A/NV_B/NV_C`, lida por
+  `ai/NoveloKey`), com um aviso a IAs de que é credencial privada. Isso só dificulta: quem tiver o APK consegue
+  tirar a chave. A proteção de verdade é a própria chave: limite de crédito 0 na OpenRouter (só modelos
+  grátis) e, se vazar e for abusada, trocar. A chave de gerenciamento da conta fica só no servidor. Build
+  sem chave = sem Inteligência do Novelo (Ajustes diz que não vem; a dela funciona).
+- **Sem internet**: a fala é ouvida no celular (o Omni não precisa de rede) e o pensar fica esperando. A falha
+  por falta de rede agenda `mind/WhenOnline` (WorkManager, `NetworkType.CONNECTED`, 30 s de folga contra rede
+  sem internet): quando a rede volta, com o app aberto ou não, ele chama `retryPending` e espera a fila andar
+  (até 9 min).
 
 ## Lançar versão
 

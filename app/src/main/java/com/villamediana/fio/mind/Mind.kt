@@ -107,6 +107,8 @@ class Mind(
     private val dir: File,
     private val zone: () -> ZoneId = { ZoneId.systemDefault() },
     private val clock: () -> Long = System::currentTimeMillis,
+    /** A capture stopped for lack of network: what was waiting goes by itself when it comes back. */
+    private val offline: () -> Unit = {},
 ) {
     private val _state = MutableStateFlow<MindState>(MindState.Idle)
     val state: StateFlow<MindState> = _state
@@ -136,6 +138,9 @@ class Mind(
     private val stagedSeq = java.util.concurrent.atomic.AtomicLong(0)
 
     private fun begin() { if (work.getAndIncrement() == 0) mic.working(true) }
+
+    /** Something is on its way (being saved, in line, or going through). */
+    val working: Boolean get() = work.get() > 0
 
     private fun end() { if (work.decrementAndGet() == 0) mic.working(false) }
 
@@ -512,7 +517,7 @@ class Mind(
             // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
                 is com.villamediana.fio.ai.ApiException -> t(R.string.api_answered, e.code, e.message.orEmpty())
-                is IOException -> t(R.string.offline_kept)
+                is IOException -> t(R.string.offline_kept).also { offline() }
                 else -> e.message ?: e.javaClass.simpleName
             }
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
@@ -547,8 +552,6 @@ class Mind(
         }
         val sentPhotos = sent.take(MAX_SENT_SEEN).mapNotNull(Photo::of)
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
-        // On the phone the plan is made there, whole: no lookups (what may be related goes with it).
-        thinking.organize(Talk(said, now, z, open, focus, hits, photo, image, photos = sent.isNotEmpty()))?.let { return it }
 
         val recent = live.take(RECENT) // all() comes newest first
         val diary = Brain.todaysDiary(all, now, z)
