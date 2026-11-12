@@ -89,6 +89,63 @@ class BackupTest {
     }
 
     @Test
+    fun aBackupAlreadyInTheFolderIsNeverWrittenOver() = runBlocking {
+        // Another phone (or this app before it was reinstalled) left its backup in the folder…
+        aDay()
+        backup().save(root, key = "another")
+        val theirs = zip.readBytes()
+        val theirEntries = db.entries().all().size
+        // …and this app, with a state of its own, links the same folder with something else in it.
+        File(tmp.root, "state.json").delete()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+        db.entries().insert(Entry(kind = "note", title = "Só uma coisa nova", createdAt = now, updatedAt = now))
+        now += 60_000
+        val r = backup().save(root, key = "k")
+        // Theirs is kept beside, whole, with its date; the new one is the file.
+        val aside = r.aside!!
+        assertTrue(aside, aside.startsWith(Backup.ASIDE))
+        assertTrue(File(chosen, aside).readBytes().contentEquals(theirs))
+        assertTrue(text(Backup.INSIDE).contains("Só uma coisa nova"))
+        // It is in the list to bring back, and comes back whole.
+        assertTrue(backup().kept(root).any { it.name == aside })
+        assertEquals(theirEntries, backup().restore(root, aside).entries)
+        // The app's own next backup writes over its own file only: nothing more is kept aside.
+        db.entries().insert(Entry(kind = "note", title = "Mais uma", createdAt = now, updatedAt = now))
+        assertEquals(null, backup().save(root, key = "k").aside)
+    }
+
+    @Test
+    fun somethingSaidAndNotYetHeardTravelsWithItsSound() = runBlocking {
+        aDay()
+        val wav = File(app, "voice-77.wav").apply { writeBytes(ByteArray(3200) { (it % 7).toByte() }) }
+        val id = db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = wav.path, state = Capture.RECORDED))
+        backup().save(root, key = "k")
+        // A new phone: it comes back, with its sound, waiting to be heard.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+        wav.delete()
+        backup().restore(root, Backup.FILE, key = "k")
+        val back = db.captures().get(id)!!
+        assertEquals(Capture.RECORDED, back.state)
+        assertEquals(null, back.transcript)
+        assertEquals(3200L, File(back.audioPath!!).length())
+    }
+
+    @Test
+    fun afterBringingABackupBackItIsntWrittenAgainNorKeptAside() = runBlocking {
+        aDay()
+        backup().save(root, key = "old")
+        val before = zip.lastModified()
+        File(tmp.root, "state.json").delete()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+        backup().restore(root, Backup.FILE, key = "new")
+        val r = backup().save(root, key = "new")
+        assertEquals(null, r.snapshot)
+        assertEquals(null, r.aside)
+        assertEquals(before, zip.lastModified())
+        assertTrue(chosen.list()!!.none { it.startsWith(Backup.ASIDE) })
+    }
+
+    @Test
     fun aFirstStartIsEmptyAndABackupThereComesBackWhole() = runBlocking {
         // A phone with things in it makes a backup in a folder…
         aDay()

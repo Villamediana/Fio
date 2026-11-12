@@ -74,7 +74,9 @@ fun BackupSection() {
     var choosing by remember { mutableStateOf<Job?>(null) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            choosing = backups.choose(uri)
+            // Like the first steps: a backup already in the folder comes back when the app has nothing
+            // yet; otherwise it is kept beside (never written over) and the new one goes next to it.
+            choosing = graph.scope.launch { backups.chooseAndBringBack(uri) }
             if (importAfterPick) importing = true
         }
         importAfterPick = false

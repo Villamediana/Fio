@@ -301,4 +301,5 @@
     <string name="setup_ears_title">O ouvido do Novelo</string>
     <string name="setup_ears_line">Ele ouve você aqui no celular, sem internet. Baixa uma vez só (%1$s).</string>
     <string name="setup_ears_wait">Esperando o ouvido…</string>
+    <string name="backup_kept_aside">o backup que já estava na pasta ficou guardado como “%1$s”</string>
 </resources>

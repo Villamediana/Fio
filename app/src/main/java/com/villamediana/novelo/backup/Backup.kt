@@ -49,7 +49,7 @@ class Backup(
     private val lock = Mutex()
 
     /** What went: how many items and photos, the file written (null: nothing changed); [empty]: nothing in the app to keep. */
-    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false, val sounds: Int = 0)
+    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false, val sounds: Int = 0, val aside: String? = null)
 
     data class Kept(val name: String, val at: Long)
 
@@ -66,10 +66,15 @@ class Backup(
             val state = readState(key)
             val same = sha(json.encodeToString(Snapshot.serializer(), snap.copy(madeAt = 0)).toByteArray(Charsets.UTF_8))
             val counted = Saved(snap.entries.size, snap.photoCount, null, sounds = snap.soundCount)
-            if (same == state.last && FILE in root.files()) return@withContext counted
+            val there = FILE in root.files()
+            if (same == state.last && there) return@withContext counted
             // Made whole on the phone first, then it goes over the one in the folder.
             val work = work()
+            var aside: String? = null
             try {
+                // A backup already in the folder that this app didn't write (another phone, the app
+                // before it was reinstalled): never written over — it stays beside, with its date.
+                if (there && state.last.isEmpty()) aside = keepAside(root, work)
                 val zip = File(work, "backup.zip")
                 writeZip(zip, snap)
                 root.copyIn(FILE, zip)
@@ -77,7 +82,7 @@ class Backup(
                 work.deleteRecursively()
             }
             writeState(State(key, last = same))
-            counted.copy(snapshot = FILE)
+            counted.copy(snapshot = FILE, aside = aside)
         }
     }
 
@@ -110,7 +115,9 @@ class Backup(
     /** The backups in [root], the newest first: the file, and the dated ones of the old folder while it is there. */
     suspend fun kept(root: Shelf): List<Kept> = withContext(Dispatchers.IO) {
         val out = ArrayList<Kept>()
-        if (FILE in root.files()) out += Kept(FILE, runCatching { readZip(root).madeAt }.getOrDefault(0L))
+        val files = root.files()
+        if (FILE in files) out += Kept(FILE, runCatching { readZip(root).madeAt }.getOrDefault(0L))
+        files.keys.filter { it.startsWith(ASIDE) && it.endsWith(".zip") }.forEach { n -> out += Kept(n, runCatching { readZip(root, n).madeAt }.getOrDefault(0L)) }
         oldHome(root)?.folder(Readable.BACKUPS, create = false)?.let { b ->
             b.files().keys.mapNotNullTo(out) { n -> Readable.snapshotTime(n, zone())?.let { Kept(n, it) } }
         }
@@ -125,22 +132,39 @@ class Backup(
     }
 
     /** Puts the backup [name] back in place of what is in the app now. */
-    suspend fun restore(root: Shelf, name: String): Restored = lock.withLock {
+    suspend fun restore(root: Shelf, name: String, key: String? = null): Restored = lock.withLock {
         withContext(Dispatchers.IO) {
             val work = work()
             try {
                 // Where its photos and sounds are: the file opened on the phone, or the old folder.
-                val (snap, home) = if (name == FILE) {
-                    unzip(root, work)
+                val (snap, home) = if (name == FILE || name.startsWith(ASIDE)) {
+                    unzip(root, work, name)
                     decode(File(work, INSIDE).readBytes()) to FileShelf(work)
                 } else {
                     read(root, name) to (oldHome(root) ?: throw IOException(NOT_FOUND))
                 }
-                putBack(snap, home)
+                val r = putBack(snap, home)
+                // The folder's file is now what the app has: the next backup doesn't write it again
+                // (nor keeps it aside as someone else's).
+                if (name == FILE && key != null) {
+                    writeState(State(key, last = sha(json.encodeToString(Snapshot.serializer(), snapshot().copy(madeAt = 0)).toByteArray(Charsets.UTF_8))))
+                }
+                r
             } finally {
                 work.deleteRecursively()
             }
         }
+    }
+
+    /** The folder's file copied beside it ("Novelo backup antes de 2026-11-12 18.30.zip"); its name. */
+    private fun keepAside(root: Shelf, work: File): String {
+        val stamp = java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), zone()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss"))
+        val name = "$ASIDE$stamp.zip"
+        val copy = File(work, "aside.zip")
+        (root.open(FILE) ?: throw IOException(NOT_FOUND)).use { i -> copy.outputStream().use { i.copyTo(it) } }
+        root.copyIn(name, copy)
+        copy.delete()
+        return name
     }
 
     private suspend fun putBack(snap: Snapshot, home: Shelf): Restored {
@@ -168,8 +192,8 @@ class Backup(
             when {
                 // A photo whose file isn't in the backup, still to be read: nothing to read.
                 c.source == "photo" && image == null && c.state != Capture.DONE -> null
-                // Something said, never heard: its sound isn't in the backup.
-                c.source != "photo" && c.transcript == null -> null
+                // Something said, never heard: back with its sound, to be heard (an older backup didn't have it).
+                c.source != "photo" && c.transcript == null -> sounds[c.id]?.let { a -> c.copy(audioPath = a, state = Capture.RECORDED, tries = 0, error = null) }
                 // A sound kept comes back with it; any other recording is long gone.
                 else -> c.copy(audioPath = sounds[c.id], sound = sounds[c.id] != null, imagePath = image, tries = 0)
             }
@@ -202,8 +226,8 @@ class Backup(
         else listOf(HOME, OLD_HOME).firstNotNullOfOrNull { n -> root.folder(n, create = false)?.takeIf { Readable.BACKUPS in it.folders() } }
 
     /** backup.json, straight from the file in the folder. */
-    private fun readZip(root: Shelf): Snapshot {
-        val input = root.open(FILE) ?: throw IOException(NOT_FOUND)
+    private fun readZip(root: Shelf, name: String = FILE): Snapshot {
+        val input = root.open(name) ?: throw IOException(NOT_FOUND)
         val bytes = try {
             ZipInputStream(BufferedInputStream(input)).use { z ->
                 var found: ByteArray? = null
@@ -220,8 +244,8 @@ class Backup(
     }
 
     /** The file opened into [into] (nothing goes outside it, whatever the names inside say). */
-    private fun unzip(root: Shelf, into: File) {
-        val input = root.open(FILE) ?: throw IOException(NOT_FOUND)
+    private fun unzip(root: Shelf, into: File, name: String = FILE) {
+        val input = root.open(name) ?: throw IOException(NOT_FOUND)
         val base = into.canonicalFile
         try {
             ZipInputStream(BufferedInputStream(input)).use { z ->
@@ -252,8 +276,10 @@ class Backup(
     private suspend fun snapshot(): Snapshot {
         val b = db.backup()
         return db.withTransaction {
-            // Something said and not yet heard is only a sound on the phone: it doesn't travel.
-            val captures = b.captures().filterNot { it.source != "photo" && it.transcript == null }
+            // Something said and not yet heard goes too, with its sound (heard after an import):
+            // only one whose sound is already gone stays out.
+            fun hasAudio(c: Capture) = c.audioPath?.let { p -> File(p).isFile } == true
+            val captures = b.captures().filterNot { it.source != "photo" && it.transcript == null && !hasAudio(it) }
             Snapshot(
                 app = version,
                 madeAt = clock(),
@@ -265,7 +291,7 @@ class Backup(
                 progress = b.progress(),
                 photos = captures.filter { it.source == "photo" && it.imagePath?.let { p -> File(p).isFile } == true }
                     .associate { it.id to Readable.photoPath(it, zone()) },
-                sounds = captures.filter { it.sound && it.audioPath?.let { p -> File(p).isFile } == true }
+                sounds = captures.filter { (it.sound || (it.source != "photo" && it.transcript == null)) && hasAudio(it) }
                     .associate { it.id to Readable.soundPath(it, zone()) },
             )
         }
@@ -286,6 +312,9 @@ class Backup(
     companion object {
         /** The backup: one file in the chosen folder. */
         const val FILE = "Novelo backup.zip"
+
+        /** A backup that was in the folder before this app wrote there, kept beside it with its date. */
+        const val ASIDE = "Novelo backup antes de "
 
         /** Inside it, what an import reads. */
         const val INSIDE = "backup.json"
