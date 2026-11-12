@@ -187,7 +187,7 @@
     <string name="setup_camera">Cámara</string>
     <string name="setup_camera_why">para leer y guardar fotos</string>
     <string name="setup_backup_title">¿Dónde guardar tu copia?</string>
-    <string name="setup_backup_line">Un solo archivo, actualizado todos los días, en una carpeta tuya. Si cambias de celular, todo vuelve.</string>
+    <string name="setup_backup_line">Una carpeta tuya, con un archivo actualizado cada día. Si ya tiene una copia de Novelo, todo vuelve al instante.</string>
     <string name="setup_choose_folder">Elegir carpeta</string>
     <string name="setup_ai_title">¿Quién va a pensar contigo?</string>
     <string name="setup_ai_line">Puedes cambiarlo después en Ajustes.</string>
@@ -296,4 +296,9 @@
         <item quantity="one">%d audio</item>
         <item quantity="other">%d audios</item>
     </plurals>
+    <string name="setup_backup_back">Tu copia de %1$s volvió: %2$s.</string>
+    <string name="setup_backup_bringing">Buscando una copia en la carpeta…</string>
+    <string name="setup_ears_title">El oído de Novelo</string>
+    <string name="setup_ears_line">Te escucha aquí en el celular, sin internet. Se descarga una sola vez (%1$s).</string>
+    <string name="setup_ears_wait">Esperando el oído…</string>
 </resources>

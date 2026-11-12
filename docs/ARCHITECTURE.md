@@ -216,6 +216,13 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
 ## Primeiros passos, provedores e idioma (1.18.0)
 
+- **Desde a 1.27.0**: quatro passos — permissões; **backup** (escolher a pasta; se ela já tem um backup do Novelo e o
+  app está vazio, ele volta na hora e a pasta fica ligada a ele: `Backups.chooseAndBringBack`, nunca substitui o que
+  já existe); quem pensa; e o **ouvido** (`EarsStep`): os primeiros passos só terminam com o ouvido no celular
+  ("Começar" espera; o download começa sozinho no Wi-Fi já depois das permissões). Em Ajustes, a linha "No celular ·
+  Ouvido do Novelo" só aparece se o ouvido sumiu (pra baixar de novo): não dá pra apagar, só desinstalando. Tema
+  padrão: **claro** (`ThemeMode.of` sem escolha = LIGHT).
+
 - **Primeiros passos** (`ui/setup/SetupScreen`), uma vez (`setupDone`; quem já usava passa por eles uma vez,
   com o que já tem marcado): 1) idioma no topo + permissões (microfone, notificações, câmera) num pedido
   só; 2) a pasta do backup; 3) quem pensa — "Inteligência do Novelo" (o modelo no celular: no Wi-Fi já

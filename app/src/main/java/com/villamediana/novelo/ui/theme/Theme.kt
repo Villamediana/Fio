@@ -240,7 +240,7 @@ object Motion {
 }
 
 @Composable
-fun NoveloTheme(mode: ThemeMode = ThemeMode.SYSTEM, accent: String? = null, content: @Composable () -> Unit) {
+fun NoveloTheme(mode: ThemeMode = ThemeMode.LIGHT, accent: String? = null, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false

@@ -89,6 +89,22 @@ class BackupTest {
     }
 
     @Test
+    fun aFirstStartIsEmptyAndABackupThereComesBackWhole() = runBlocking {
+        // A phone with things in it makes a backup in a folder…
+        aDay()
+        val root = FileShelf(tmp.newFolder("chosen"))
+        val made = backup().save(root, key = "k")
+        assertFalse(backup().empty())
+        // …a new phone (nothing yet) finds it there and it comes back.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+        assertTrue(backup().empty())
+        val newest = backup().kept(root).first()
+        val back = backup().restore(root, newest.name)
+        assertEquals(made.entries, back.entries)
+        assertFalse(backup().empty())
+    }
+
+    @Test
     fun everythingGoesIntoOneFile() = runBlocking {
         val ids = aDay()
         val saved = backup().save(root, "k")

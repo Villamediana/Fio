@@ -603,7 +603,8 @@ class ScreensTest {
 
     @Test
     fun theFirstStepsGoOneByOne() {
-        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.setup.SetupScreen(onDone = {}) } }
+        var done = false
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.setup.SetupScreen(onDone = { done = true }) } }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Microfone").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(500)
         shot("32-setup-permissions")
@@ -618,10 +619,17 @@ class ScreensTest {
         compose.onNodeWithText("Sua própria inteligência").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Anthropic").performClick()
-        // Hearing stays on the phone, whoever thinks: its ears come down.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("35-setup-own")
+        // Last, the ears: whoever thinks, they have to be on the phone before the app opens. (This
+        // build has no engine, so it can't have them and lets her go; with the engine, "Começar"
+        // waits for them.)
+        compose.onNodeWithText("Continuar").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("O ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("36-setup-ears")
+        compose.onNodeWithText("Começar").performClick()
+        compose.waitUntil(5_000) { done }
         runBlocking {
             graph.settings.setApiProvider("")
             graph.settings.setThink(com.villamediana.novelo.settings.Source.API)

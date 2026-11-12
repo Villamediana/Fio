@@ -56,6 +56,19 @@ class Backups(
         save()
     }
 
+    /**
+     * The first steps' folder: chosen like [choose]; and when it already has a backup and the app has
+     * nothing yet, the newest one comes back right away — the folder stays linked to it. What came
+     * back, or null (no backup there, or the app already has something: nothing is replaced).
+     */
+    suspend fun chooseAndBringBack(uri: Uri): Pair<Backup.Kept, Backup.Restored>? {
+        val empty = core.empty()
+        choose(uri).join()
+        if (!empty) return null
+        val newest = runCatching { kept() }.getOrDefault(emptyList()).firstOrNull() ?: return null
+        return restore(newest.name).getOrNull()?.let { newest to it }
+    }
+
     fun now(): Job = scope.launch { save() }
 
     /** One backup, its result kept for Ajustes. False when there is no folder or it went wrong. */
