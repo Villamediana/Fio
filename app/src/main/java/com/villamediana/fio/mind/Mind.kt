@@ -22,6 +22,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -182,6 +183,31 @@ class Mind(
 
     // ------------------------------------------------------------------ the button
 
+    /**
+     * The recording going on now and what of it was already heard while she talks: each piece is
+     * transcribed as soon as it is whole, so when she stops only the last bit is left to hear.
+     */
+    private class Live(val file: File) {
+        lateinit var job: Job
+        @Volatile var heard = Heard()
+        @Volatile var at = 0
+        @Volatile var talking = true
+        /** After she stopped: the text as it comes, on the screen. */
+        @Volatile var show: ((String) -> Unit)? = null
+    }
+
+    @Volatile private var live: Live? = null
+
+    private suspend fun listenAhead(l: Live) {
+        while (l.talking) {
+            delay(AHEAD_EVERY_MS)
+            val next = runCatching { hearing.ahead(l.file, l.heard, l.at) { partial -> l.show?.invoke(partial) } }.getOrNull() ?: continue
+            l.heard = next.first
+            l.at = next.second
+            l.show?.invoke(l.heard.text)
+        }
+    }
+
     fun startListening(locked: Boolean, focusId: Long? = null): Boolean {
         if (_state.value is MindState.Listening) return true
         val file = File(dir, "voice-${clock()}.wav")
@@ -191,6 +217,7 @@ class Mind(
         }
         mic.hold()
         _state.value = MindState.Listening(clock(), locked, focusId)
+        live = Live(file).also { l -> l.job = scope.launch { listenAhead(l) } }
         // The model on the phone loads while she talks: when she stops, the work starts at once.
         scope.launch {
             runCatching { hearing.warm() }
@@ -207,8 +234,12 @@ class Mind(
 
     fun stopListening() {
         val s = _state.value as? MindState.Listening ?: return
+        val l = live
+        live = null
+        l?.talking = false
         val stopped = recorder.stop()
         if (stopped == null || stopped.second < MIN_MS) {
+            l?.job?.cancel()
             stopped?.first?.delete()
             mic.release()
             _state.value = MindState.Idle
@@ -220,11 +251,22 @@ class Mind(
         // free again and the progress shows (while it said "ouvindo", nothing else could show).
         begin()
         mic.release()
-        _state.value = MindState.Working(0L, Stage.HEARING, "")
+        // What was heard while she talked shows at once.
+        _state.value = MindState.Working(0L, Stage.HEARING, l?.heard?.text.orEmpty())
         scope.launch {
             try {
+                // The piece being heard when she stopped is finished (it isn't heard twice), then the rest goes on from there.
+                if (l != null) {
+                    l.show = { text -> show(MindState.Working(0L, Stage.HEARING, text)) }
+                    l.job.join()
+                    l.show = null
+                }
+                val h = l?.heard ?: Heard()
                 val id = db.captures().insert(
-                    Capture(createdAt = clock(), source = "voice", audioPath = file.path, durationMs = ms, state = Capture.RECORDED, focusEntryId = s.focusId),
+                    Capture(
+                        createdAt = clock(), source = "voice", audioPath = file.path, durationMs = ms, state = Capture.RECORDED, focusEntryId = s.focusId,
+                        heard = h.text.takeIf { it.isNotEmpty() }, heardPieces = h.pieces, heardBy = h.by,
+                    ),
                 )
                 attach(id)
                 show(MindState.Working(id, Stage.HEARING, ""))
@@ -237,6 +279,8 @@ class Mind(
 
     fun cancelListening() {
         if (_state.value !is MindState.Listening) return
+        live?.let { it.talking = false; it.job.cancel() }
+        live = null
         recorder.stop()?.first?.delete()
         mic.release()
         _state.value = MindState.Idle
@@ -614,6 +658,9 @@ class Mind(
     companion object {
         /** Shorter than this is a slip of the finger, not a thought. */
         const val MIN_MS = 700L
+
+        /** How often, while she talks, it looks for a piece that is already whole. */
+        const val AHEAD_EVERY_MS = 1_500L
 
         /** Runs that never ended (the app fell in the middle) before it waits for a hand. */
         const val MAX_TRIES = 3

@@ -135,6 +135,33 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun whatWasHeardWhileTalkingIsntHeardAgain() = runBlocking {
+        var aheadCalls = 0
+        var resumedFrom: Heard? = null
+        val ears = object : Ears {
+            override suspend fun ahead(wav: File, heard: Heard, at: Int, onPartial: (String) -> Unit): Pair<Heard, Int>? {
+                aheadCalls++
+                // One piece already whole while she talks; nothing more until she stops.
+                return if (heard.pieces == 0) Heard("Hoje fui ao mercado", 1, "local:28") to 28 * Wav.RATE else null
+            }
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String {
+                resumedFrom = from
+                return from.text + " e comprei pão."
+            }
+        }
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"ok"}""")))
+        val m = mind(ears, thinker, recorder = FakeRecorder { voiceFile() })
+        assertTrue(m.startListening(locked = true))
+        withTimeout(10_000) { while (aheadCalls == 0) kotlinx.coroutines.delay(50) }
+        kotlinx.coroutines.delay(200)
+        m.stopListening()
+        val done = answered(m)
+        // When she stopped it went on from the piece already heard (pieces cut the same way).
+        assertEquals(Heard("Hoje fui ao mercado", 1, "local:28"), resumedFrom)
+        assertEquals("Hoje fui ao mercado e comprei pão.", db.captures().get(done.captureId)!!.transcript)
+    }
+
+    @Test
     fun offlineItWaitsAndAsksToGoWhenTheNetworkIsBack() = runBlocking {
         val ears = object : Ears {
             override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = ""

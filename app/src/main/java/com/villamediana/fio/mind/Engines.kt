@@ -37,6 +37,13 @@ interface Ears {
     /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
     suspend fun warm() {}
 
+    /**
+     * While she is still talking: the next piece of [wav] that is already whole (from sample [at]),
+     * heard now — [heard] with it, and where the next piece starts. Null when none is whole yet.
+     * When she stops, [transcribe] goes on from there: only what was left is heard then.
+     */
+    suspend fun ahead(wav: File, heard: Heard, at: Int, onPartial: (String) -> Unit = {}): Pair<Heard, Int>? = null
+
     /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
     fun stop() {}
 }
@@ -73,7 +80,7 @@ class Hearing(
         readiness()?.let { throw NotReady(Need.HEAR, it) }
         val samples = Wav.readFloats(wav)
         if (Pieces.isSilent(samples)) return@withContext ""
-        val by = "local:$PIECE"
+        val by = BY
         val start = if (from.by == by) from else Heard(by = by)
         var done = start.text
         if (done.isNotEmpty()) onPartial(done)
@@ -93,6 +100,17 @@ class Hearing(
         if (readiness() == null) engine.warm(model.files)
     }
 
+    override suspend fun ahead(wav: File, heard: Heard, at: Int, onPartial: (String) -> Unit): Pair<Heard, Int>? = withContext(Dispatchers.IO) {
+        if (readiness() != null) return@withContext null
+        val recorded = Wav.samplesSoFar(wav)
+        if (recorded - at <= PIECE * Wav.RATE) return@withContext null
+        val piece = Pieces.nextWhole(Wav.readRange(wav, at, recorded), PIECE) ?: return@withContext null
+        val by = BY
+        val before = if (heard.by == by) heard else Heard(by = by)
+        val text = engine.transcribe(model.files, piece, null) { partial -> onPartial(join(before.text, partial)) }
+        Heard(join(before.text, text), before.pieces + 1, by) to (at + piece.size)
+    }
+
     override fun stop() {
         engine.cancel()
     }
@@ -102,6 +120,12 @@ class Hearing(
     private companion object {
         /** Seconds per piece: what the model on the phone hears at once. */
         const val PIECE = 28
+
+        /**
+         * How the pieces were cut (kept with what was heard): a capture half heard with other cuts
+         * starts over instead of going on from pieces that don't match. "p": cut at the pauses (1.21).
+         */
+        const val BY = "local:${PIECE}p"
     }
 }
 

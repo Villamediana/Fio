@@ -27,7 +27,13 @@ O áudio é apagado depois que a captura vai até o fim.
 
 O modelo do celular recebe a vez dele já com `<think></think>` (é o que o template do LFM3 escreve com o pensar
 desligado; sem isso ele escrevia sozinho no começo de cada trecho) e qualquer bloco de pensar que sobre é tirado
-(`LocalEngine.clean`). Ouvir guarda cada trecho pronto na captura (`heard`, `heardPieces`, `heardBy`): se o app cai,
+(`LocalEngine.clean`). Ouvir começa enquanto ela ainda fala (1.21): a cada 1,5 s o `Mind` vê se já há um trecho
+inteiro gravado (`Pieces.nextWhole`) e o Omni o transcreve na hora (`Ears.ahead`); quando ela para, falta só o
+último trecho (até 28 s), e a tela já mostra o que estava pronto. O corte é sempre o mesmo (`Pieces.cut`): até
+28 s, no meio da pausa mais longa dos últimos 10 s antes do limite (fim de frase, respiração; ≥ 120 ms abaixo de
+~13 dB da voz), senão no instante mais quieto — cada corte só depende dos 28 s depois do começo do trecho, então
+o que foi ouvido durante a fala é exatamente o trecho que a gravação inteira teria. O `heardBy` marca a regra do
+corte (`local:28p`): trecho ouvido com outro corte recomeça. Ouvir guarda cada trecho pronto na captura (`heard`, `heardPieces`, `heardBy`): se o app cai,
 continua do trecho seguinte; `tries` conta execuções que nunca terminaram e, a partir de 3, a captura só volta à mão
 (nada de cair em loop ao abrir). O modelo carrega enquanto ela ainda fala (`warm`), o motor usa só os núcleos rápidos
 (≥ 70 % da frequência máxima do mais rápido) e a API é pedida com `reasoning_effort: low` (sem ele, se o servidor recusar).

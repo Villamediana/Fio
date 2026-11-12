@@ -58,8 +58,8 @@ android {
         applicationId = "com.villamediana.fio"
         minSdk = 29
         targetSdk = 36
-        versionCode = 30
-        versionName = "1.20.1"
+        versionCode = 31
+        versionName = "1.21.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NV_NOTICE", "\"" + listOf(
