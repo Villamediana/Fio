@@ -115,22 +115,14 @@ internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifi
                     .clickable { if (hidden) onReveal() else opened = i }
                     .testTag(if (hidden) "$tag-hidden-$i" else "$tag-$i"),
             ) {
+                // Hidden: the photo itself, blurred (decoded tiny and stretched, which blurs it on any
+                // Android; softer still where blur exists) — it is there, it can't be read.
                 PhotoTile(
                     p.path,
                     turn = p.turn,
-                    maxPx = if (hidden) 96 else 480,
-                    modifier = Modifier.fillMaxSize().then(if (hidden && android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp) else Modifier),
+                    maxPx = if (hidden) 28 else 480,
+                    modifier = Modifier.fillMaxSize().then(if (hidden && android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(12.dp) else Modifier),
                 )
-                if (hidden) {
-                    // Where blur isn't there (before Android 12), a cover instead.
-                    if (android.os.Build.VERSION.SDK_INT < 31) Box(Modifier.fillMaxSize().background(NoveloColors.Surface2))
-                    Box(
-                        Modifier.align(Alignment.Center).size(42.dp).clip(CircleShape).background(NoveloColors.Background.copy(alpha = 0.85f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(NoveloIcons.Lock, t(R.string.sensitive), tint = NoveloColors.Text, modifier = Modifier.size(18.dp))
-                    }
-                }
             }
         }
     }
