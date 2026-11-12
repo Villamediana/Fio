@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import androidx.core.splashscreen.SplashScreenViewProvider
+import com.villamediana.fio.ui.home.OrbSpot
 import android.view.animation.DecelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -41,14 +46,7 @@ class FioActivity : ComponentActivity() {
         val shownAt = SystemClock.uptimeMillis()
         installSplashScreen().apply {
             setKeepOnScreenCondition { first == null || SystemClock.uptimeMillis() - shownAt < SPLASH_MIN_MS }
-            setOnExitAnimationListener { splash ->
-                splash.view.animate()
-                    .alpha(0f)
-                    .setDuration(SPLASH_FADE_MS)
-                    .setInterpolator(DecelerateInterpolator())
-                    .withEndAction { splash.remove() }
-                    .start()
-            }
+            setOnExitAnimationListener { splash -> land(splash) }
         }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -70,6 +68,39 @@ class FioActivity : ComponentActivity() {
             first = s
             // Light or dark and the splash follow what she picks.
             graph.settings.flow.map { it.theme to it.accent }.distinctUntilChanged().collect { Look.screen(this@FioActivity, graph.settings.current()) }
+        }
+    }
+
+    /**
+     * The opening's ball is the button's, at the same size: it glides to where the button is while
+     * the paper around it fades, and when it gets there it is simply the button. Without a ball or
+     * a button on screen (opened on an item), the opening just fades.
+     */
+    private fun land(splash: SplashScreenViewProvider) {
+        val view = splash.view
+        val icon = runCatching { splash.iconView }.getOrNull()
+        val target = OrbSpot.center
+        val background = view.background?.mutate()
+        if (icon == null || target == null || background == null) {
+            view.animate().alpha(0f).setDuration(SPLASH_FADE_MS).setInterpolator(DecelerateInterpolator()).withEndAction { splash.remove() }.start()
+            return
+        }
+        val at = IntArray(2).also { icon.getLocationInWindow(it) }
+        val dx = target.x - (at[0] + icon.width / 2f)
+        val dy = target.y - (at[1] + icon.height / 2f)
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = SPLASH_FADE_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { a ->
+                val f = a.animatedValue as Float
+                background.alpha = ((1f - f) * 255).toInt()
+                icon.translationX = dx * f
+                icon.translationY = dy * f
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) = splash.remove()
+            })
+            start()
         }
     }
 

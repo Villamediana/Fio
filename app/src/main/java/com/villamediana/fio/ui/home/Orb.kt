@@ -253,6 +253,11 @@ fun Orb(
 
 private const val TAP_MS = 320L
 
+/** Where the button's center is on the window right now (null: not on screen), for the opening to land on it. */
+object OrbSpot {
+    @Volatile var center: Offset? = null
+}
+
 /** The yarn's lines across the ball (center [c], radius [r]), as they cross it. */
 fun DrawScope.drawYarn(c: Offset, r: Float, color: Color) {
     val stroke = Stroke(width = r * 0.022f + 0.6.dp.toPx(), cap = StrokeCap.Round)
