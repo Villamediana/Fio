@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -122,13 +121,16 @@ fun Orb(
             val lvl = smooth
             val t = time
 
-            // At rest: a stitch around it, a fine thread further out and the yarn's loose end.
-            // They give way to the ripples and to the running thread.
+            val swell = 1f + listen * (0.04f + 0.12f * lvl)
+
+            // At rest: a stitch around it and a fine thread further out. They give way to the
+            // ripples and to the running thread.
             val rest = (1f - listen).coerceIn(0f, 1f) * (1f - work)
-            if (rest > 0.01f) {
-                drawStitchRing(c, r, ring, rest)
-                drawLooseEnd(c, r, ring.copy(alpha = rest))
-            }
+            if (rest > 0.01f) drawStitchRing(c, r, ring, rest)
+
+            // The yarn's loose end stays: still at rest, it sways with the voice while listening
+            // and gently while working, and goes gray with the ball when it is being thrown away.
+            drawLooseEnd(c, r, fill, time = t, sway = maxOf(listen, work), level = lvl, swell = swell)
 
             // Ripples going out with the voice.
             if (listen > 0.01f) {
@@ -141,7 +143,6 @@ fun Orb(
             }
 
             // The drop: a circle that breathes and wobbles with the voice while listening.
-            val swell = 1f + listen * (0.04f + 0.12f * lvl)
             val amp = listen * r * (0.008f + 0.030f * lvl)
             val path = Path()
             val n = 120
@@ -178,11 +179,6 @@ fun Orb(
                 )
             }
 
-            // Locked: a rounded square says "toque pra parar".
-            if (mode == OrbMode.LOCKED) {
-                val s = r * 0.42f
-                drawRoundRect(iconTint, Offset(c.x - s / 2, c.y - s / 2), Size(s, s), CornerRadius(s * 0.22f))
-            }
         }
 
         // The touch area is the drop itself.
@@ -238,9 +234,10 @@ fun Orb(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            if (mode != OrbMode.LOCKED) {
+            // Listening by itself: the stop, drawn like the mic (a thin line), says "toque pra parar".
+            run {
                 Icon(
-                    FioIcons.Mic,
+                    if (mode == OrbMode.LOCKED) FioIcons.Stop else FioIcons.Mic,
                     contentDescription = null,
                     tint = iconTint,
                     modifier = Modifier.size(38.dp).graphicsLayer {
@@ -275,12 +272,30 @@ fun DrawScope.drawStitchRing(c: Offset, r: Float, color: Color, strength: Float)
     drawCircle(color.copy(alpha = 0.18f * strength), radius = r * 1.40f, center = c, style = Stroke(width = 1.dp.toPx()))
 }
 
-/** The yarn's loose end: out of the ball at the bottom right, a little curl. */
-fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color) {
+/**
+ * The yarn's loose end: out of the ball at the bottom right, a little curl. [sway] (0..1) lets it
+ * swing from where it leaves the ball, in one piece (the curl keeps its shape), more with the voice
+ * ([level]); [swell] is how much the ball grew, so it stays attached to it.
+ */
+fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color, time: Float = 0f, sway: Float = 0f, level: Float = 0f, swell: Float = 1f) {
+    val o = Offset(c.x + (swell - 1f) * r * 0.66f, c.y + (swell - 1f) * r * 0.66f)
+    val start = Offset(o.x + r * 0.62f, o.y + r * 0.66f)
+    val angle = sway * (0.10f + 0.16f * level) * sin(time * 2.6f) + sway * 0.04f * sin(time * 4.1f + 0.7f)
+    val curl = 1f + sway * (0.04f + 0.05f * level) * sin(time * 3.3f + 1.4f)
+    val cosA = cos(angle)
+    val sinA = sin(angle)
+    // A point of the curl (in radii from the ball's center), swung around where it leaves the ball.
+    fun at(x: Float, y: Float): Offset {
+        val dx = (o.x + r * x - start.x) * curl
+        val dy = (o.y + r * y - start.y) * curl
+        return Offset(start.x + dx * cosA - dy * sinA, start.y + dx * sinA + dy * cosA)
+    }
     val p = Path().apply {
-        moveTo(c.x + r * 0.62f, c.y + r * 0.66f)
-        cubicTo(c.x + r * 0.92f, c.y + r * 0.96f, c.x + r * 1.20f, c.y + r * 0.94f, c.x + r * 1.24f, c.y + r * 1.20f)
-        cubicTo(c.x + r * 1.28f, c.y + r * 1.44f, c.x + r * 1.02f, c.y + r * 1.50f, c.x + r * 0.98f, c.y + r * 1.34f)
+        moveTo(start.x, start.y)
+        val a1 = at(0.92f, 0.96f); val a2 = at(1.20f, 0.94f); val a3 = at(1.24f, 1.20f)
+        cubicTo(a1.x, a1.y, a2.x, a2.y, a3.x, a3.y)
+        val b1 = at(1.28f, 1.44f); val b2 = at(1.02f, 1.50f); val b3 = at(0.98f, 1.34f)
+        cubicTo(b1.x, b1.y, b2.x, b2.y, b3.x, b3.y)
     }
     drawPath(p, color, style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round))
 }
