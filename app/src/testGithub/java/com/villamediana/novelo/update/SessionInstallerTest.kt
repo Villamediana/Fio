@@ -89,7 +89,7 @@ class SessionInstallerTest {
             context,
             Intent(UpdateStatusReceiver.ACTION).putExtra(PackageInstaller.EXTRA_STATUS, status).apply(extra),
         )
-        val updates = com.villamediana.novelo.NoveloApplication.graph.updates
+        val updates = com.villamediana.novelo.Store.updates
         val confirm = Intent("android.content.pm.action.CONFIRM_INSTALL")
         send(PackageInstaller.STATUS_PENDING_USER_ACTION) { putExtra(Intent.EXTRA_INTENT, confirm) }
         assertEquals("android.content.pm.action.CONFIRM_INSTALL", updates.confirm.value?.action)

@@ -28,7 +28,7 @@ import com.villamediana.novelo.BuildConfig
 import com.villamediana.novelo.NoveloActivity
 import com.villamediana.novelo.Notifications
 import com.villamediana.novelo.R
-import com.villamediana.novelo.NoveloApplication
+import com.villamediana.novelo.Store
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -255,7 +255,7 @@ class UpdateStatusReceiver : BroadcastReceiver() {
         } else {
             null
         }
-        NoveloApplication.graph.updates.onInstallStatus(result, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), confirmation)
+        Store.updates.onInstallStatus(result, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), confirmation)
     }
 
     companion object {
@@ -271,7 +271,7 @@ class UpdateStatusReceiver : BroadcastReceiver() {
 class UpdatedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        val updated = NoveloApplication.graph.updates.afterUpdate() ?: return
+        val updated = Store.updates.afterUpdate() ?: return
         UpdateNotifier.updated(context, updated.version)
     }
 }
@@ -283,7 +283,7 @@ class UpdatedReceiver : BroadcastReceiver() {
  */
 class UpdateAutoWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val updates = NoveloApplication.graph.updates
+        val updates = Store.updates
         if (!updates.enabled) return Result.success()
         val onScreen = withContext(Dispatchers.Main) { ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
         if (onScreen) return Result.retry()
@@ -319,7 +319,7 @@ class UpdateAutoWorker(appContext: Context, params: WorkerParameters) : Coroutin
  */
 class UpdateIdleWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val updates = NoveloApplication.graph.updates
+        val updates = Store.updates
         if (!updates.enabled || updates.autoReady.value == null) return Result.success()
         val onScreen = withContext(Dispatchers.Main) { ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) }
         if (onScreen) return Result.success() // back in use: the next time it leaves
@@ -356,7 +356,7 @@ class UpdateIdleWorker(appContext: Context, params: WorkerParameters) : Coroutin
 /** A check a day in the background; a new version is announced once, when the app is not on screen. */
 class UpdateCheckWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val updates = NoveloApplication.graph.updates
+        val updates = Store.updates
         if (!updates.enabled) return Result.success()
         updates.check(manual = false)
         val onScreen = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)

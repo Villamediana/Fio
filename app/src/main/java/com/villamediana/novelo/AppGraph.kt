@@ -25,8 +25,6 @@ import com.villamediana.novelo.mind.WhenOnline
 import com.villamediana.novelo.ai.NoveloModels
 import com.villamediana.novelo.remind.Reminders
 import com.villamediana.novelo.settings.Settings
-import com.villamediana.novelo.update.Updates
-import com.villamediana.novelo.update.createUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -160,5 +158,4 @@ class AppGraph(context: Context) {
     }
 
     /** The app updating itself from the GitHub releases (Ajustes › Sobre, the update sheet). */
-    val updates: Updates by lazy { createUpdates(appContext, http, scope) }
 }

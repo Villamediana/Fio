@@ -9,14 +9,13 @@ plugins {
     alias(libs.plugins.room)
 }
 
-// Release signing lives outside the repo: ~/keystores/novelo-keystore.properties (or keystore.properties at the root).
-val signingProps = Properties().apply {
-    val candidates = listOf(
-        rootProject.file("keystore.properties"),
-        File(System.getProperty("user.home"), "keystores/novelo-keystore.properties"),
-    )
+// Signing lives outside the repo, in ~/keystores: the release key (the GitHub build; the phones only take
+// an update signed by it) and the upload key (what goes to Google Play, which signs the app itself).
+fun keystoreProps(vararg candidates: File) = Properties().apply {
     candidates.firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
 }
+val signingProps = keystoreProps(rootProject.file("keystore.properties"), File(System.getProperty("user.home"), "keystores/novelo-keystore.properties"))
+val uploadProps = keystoreProps(File(System.getProperty("user.home"), "keystores/novelo-upload.properties"))
 
 // The on-device model (LFM3 through llama.cpp, app/src/main/cpp). Built only with -Pnovelo.llama=<dir>,
 // a llama.cpp checkout that lives just for the build (tools/release.sh fetches it and deletes it).
@@ -58,8 +57,8 @@ android {
         applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.24.0"
+        versionCode = 37
+        versionName = "1.25.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NV_NOTICE", "\"" + listOf(
@@ -94,13 +93,29 @@ android {
     }
 
     signingConfigs {
-        if (signingProps.getProperty("storeFile") != null) {
-            create("release") {
-                storeFile = file(signingProps.getProperty("storeFile"))
-                storePassword = signingProps.getProperty("storePassword")
-                keyAlias = signingProps.getProperty("keyAlias")
-                keyPassword = signingProps.getProperty("keyPassword")
+        for ((name, props) in listOf("release" to signingProps, "upload" to uploadProps)) {
+            if (props.getProperty("storeFile") == null) continue
+            create(name) {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
             }
+        }
+    }
+
+    // Two builds of the same app. github: its own updates from the GitHub releases (src/github), signed
+    // with the release key. play: no updater (Play updates it, and an app from Play may not update itself),
+    // signed with the upload key; it goes to Play as an App Bundle (bundlePlayRelease).
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") {
+            dimension = "store"
+            signingConfig = signingConfigs.findByName("release")
+        }
+        create("play") {
+            dimension = "store"
+            signingConfig = signingConfigs.findByName("upload")
         }
     }
 
@@ -113,8 +128,7 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Never the debug key: an APK signed with another key can't update the installed app.
-            signingConfig = signingConfigs.findByName("release")
+            // Never the debug key: each build signs with its own (productFlavors above).
         }
     }
 
@@ -169,9 +183,12 @@ room {
 }
 
 gradle.taskGraph.whenReady {
-    val wantsRelease = allTasks.any { it.project == project && it.name.contains("Release") && (it.name.startsWith("assemble") || it.name.startsWith("package") || it.name.startsWith("bundle")) }
-    if (wantsRelease && signingProps.getProperty("storeFile") == null) {
+    fun wants(flavor: String) = allTasks.any { it.project == project && it.name.contains("${flavor}Release") && (it.name.startsWith("assemble") || it.name.startsWith("package") || it.name.startsWith("bundle")) }
+    if (wants("Github") && signingProps.getProperty("storeFile") == null) {
         throw GradleException("Release signing keystore missing: ~/keystores/novelo-keystore.properties")
+    }
+    if (wants("Play") && uploadProps.getProperty("storeFile") == null) {
+        throw GradleException("Play upload keystore missing: ~/keystores/novelo-upload.properties")
     }
 }
 

@@ -56,7 +56,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.villamediana.novelo.R
-import com.villamediana.novelo.NoveloApplication
+import com.villamediana.novelo.Store
 import com.villamediana.novelo.ui.components.NoveloMark
 import com.villamediana.novelo.ui.components.formatBytes
 import com.villamediana.novelo.ui.components.pressScale
@@ -76,7 +76,7 @@ import java.text.NumberFormat
  * back from the system settings, Android's confirmation screen and the sheet itself.
  */
 @Composable
-fun UpdateHost(updates: Updates = NoveloApplication.graph.updates) {
+fun UpdateHost(updates: Updates = Store.updates) {
     if (!updates.enabled) return
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -336,7 +336,7 @@ private fun failureText(reason: UpdateFailure): String = t(
 
 /** Ajustes › Sobre: look for a new version, or the one found (opens the sheet). */
 @Composable
-fun UpdateRow(updates: Updates = NoveloApplication.graph.updates) {
+fun UpdateRow(updates: Updates = Store.updates) {
     if (!updates.enabled) return
     val state by updates.state.collectAsStateWithLifecycle()
     // Read once here: a lambda drawn later must never look at `state` again (by then it can be
