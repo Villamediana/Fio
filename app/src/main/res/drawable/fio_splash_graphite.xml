@@ -1,57 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A abertura: o novelo da tela principal, do mesmo tamanho (a caixa do ícone é 288dp: 1 unidade = 2,67dp),
+     pra que ele vire o botão sem pular. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="@color/splash_graphite" android:pathData="M54,18 a36,36 0 1,0 0.01,0 z" />
-    <path
-        android:pathData="M33,52 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M36,44 C44,38 58,37 68,45"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M33.5,53 C43,46 60,46 70.5,55"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M36,62 C45,56 58,57 67,63"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M45,34.5 C39,43 39,58 47,69.5"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M55,33.2 C49,43 50,59 57.5,70"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M65.4,65.4 C70,70 76,71 78,75 C80,79 76,81.5 73.5,79.5"
-        android:strokeColor="@color/splash_graphite_on"
-        android:strokeWidth="3.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+    <path android:fillColor="@color/splash_graphite" android:pathData="M22.50,54.00 a31.5,31.5 0 1,0 63.00,0 a31.5,31.5 0 1,0 -63.00,0 z" />
+    <group>
+        <clip-path android:pathData="M22.50,54.00 a31.5,31.5 0 1,0 63.00,0 a31.5,31.5 0 1,0 -63.00,0 z" />
+        <path
+            android:pathData="M28.17,45.18 C42.66,34.47 66.60,33.84 81.09,48.96 M25.65,54.63 C42.66,43.29 67.23,43.92 83.61,59.04 M28.80,65.97 C44.55,55.26 66.60,55.89 80.46,69.75 M36.36,78.57 C48.33,69.75 62.82,70.38 72.90,79.20 M42.03,28.17 C33.84,45.18 35.73,67.86 50.85,83.61 M55.26,25.02 C47.07,43.92 48.96,67.23 64.08,84.24 M69.12,28.80 C61.56,44.55 63.45,66.60 76.68,75.42"
+            android:strokeColor="@color/splash_graphite_on"
+            android:strokeAlpha="0.24"
+            android:strokeWidth="0.92"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000" />
+    </group>
+    <path android:fillColor="@color/splash_graphite" android:pathData="M42.66,54.00 a11.34,11.34 0 1,0 22.68,0 a11.34,11.34 0 1,0 -22.68,0 z" />
+    <group android:scaleX="0.5938" android:scaleY="0.5938" android:translateX="46.875" android:translateY="46.875">
+        <path android:strokeColor="@color/splash_graphite_on" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M12,3.5a2.75,2.75 0 0,1 2.75,2.75v5a2.75,2.75 0 0,1 -5.5,0v-5a2.75,2.75 0 0,1 2.75,-2.75z" />
+        <path android:strokeColor="@color/splash_graphite_on" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M6.5,11a5.5,5.5 0 0,0 11,0" />
+        <path android:strokeColor="@color/splash_graphite_on" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M12,16.5V20.5" />
+    </group>
 </vector>

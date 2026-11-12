@@ -60,6 +60,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.villamediana.fio.ui.components.IconAction
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.villamediana.fio.ui.components.StitchColor
 import com.villamediana.fio.ui.components.paper
 import com.villamediana.fio.ui.components.stitched
@@ -171,8 +174,11 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
             }
 
             Spacer(Modifier.weight(1f - 0.82f * lift))
+            // The opening's ball lands where this one is (see FioActivity).
+            DisposableEffect(Unit) { onDispose { OrbSpot.center = null } }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Orb(
+                    modifier = Modifier.onGloballyPositioned { OrbSpot.center = it.boundsInWindow().center },
                     mode = mode,
                     level = level,
                     size = (280 - 70 * lift).dp,

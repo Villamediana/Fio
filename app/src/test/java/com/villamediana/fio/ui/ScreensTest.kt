@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -538,6 +539,24 @@ class ScreensTest {
         runBlocking {
             graph.settings.setBackupFolder("", "")
         }
+    }
+
+    @Test
+    fun theOpeningIsTheButton() {
+        // The opening's icon box is 288dp: its ball has to be the button's (168dp) and whole (inside the 192dp mask).
+        compose.setContent {
+            FioTheme(ThemeMode.LIGHT) {
+                Box(Modifier.fillMaxSize().background(FioColors.Background), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    androidx.compose.foundation.Image(
+                        androidx.compose.ui.res.painterResource(com.villamediana.fio.R.drawable.fio_splash_vermilion),
+                        contentDescription = null,
+                        modifier = Modifier.size(androidx.compose.ui.unit.Dp(288f)),
+                    )
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(300)
+        shot("31-opening")
     }
 
     @Test
