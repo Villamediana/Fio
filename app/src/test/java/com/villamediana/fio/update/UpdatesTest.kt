@@ -108,6 +108,7 @@ class UpdatesTest {
         code: Long = 58,
         enabled: Boolean = true,
         exitReason: (Long) -> String? = { null },
+        keepAlive: (Boolean) -> Unit = {},
     ) = Updates(
         scope = scope,
         source = ReleaseSource(github.client, "test"),
@@ -122,6 +123,7 @@ class UpdatesTest {
         onFound = { synchronized(found) { found += it.version } },
         onManual = { manualCalls++ },
         exitReason = exitReason,
+        keepAlive = keepAlive,
     )
 
     private fun apiCalls() = github.count { it.url.toString() == ReleaseFeed.LATEST_URL }
@@ -232,6 +234,17 @@ class UpdatesTest {
         assertTrue(installer.installed.single().contentEquals(apkBytes))
         assertEquals("1.13.0", memory.read().installing)
         assertTrue(File(apkDir, "Fio-1.13.0.apk").isFile)
+    }
+
+    @Test
+    fun theAppIsKeptRunningOnlyWhileItDownloads() {
+        val held = java.util.Collections.synchronizedList(mutableListOf<Boolean>())
+        val u = updates(keepAlive = { held += it })
+        runBlocking { u.check(manual = false) }
+        u.update()
+        u.awaitState { it is UpdateState.Installing }
+        // On for the download (minimized, it isn't frozen halfway), off before Android's install screen.
+        assertEquals(listOf(true, false), held.toList())
     }
 
     @Test

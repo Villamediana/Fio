@@ -172,7 +172,6 @@
     <string name="local_size_offline">%1$s</string>
     <string name="local_download">Descargar</string>
     <string name="local_stop_download">Detener la descarga</string>
-    <string name="local_delete">Borrar del celular</string>
     <string name="setup_hello">¡Hola! Dejemos Novelo listo.</string>
     <string name="setup_permissions_line">Primero, lo que necesita para ayudarte.</string>
     <string name="setup_allow">Permitir</string>

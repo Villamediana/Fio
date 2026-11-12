@@ -122,21 +122,6 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
         }
     }
 
-    /** Off the phone. Gone first, then looked at again: it never says "ready" with nothing there. */
-    fun delete() {
-        watch?.cancel()
-        scope.launch(Dispatchers.IO) {
-            wanted.delete()
-            PARTS.forEach { part ->
-                activeId(part)?.let { runCatching { manager.remove(it) } }
-                File(dir, part.name + ".id").delete()
-                File(dir, part.name).delete()
-                ok(part).delete()
-            }
-            refresh()
-        }
-    }
-
     /** The next part that isn't here yet starts coming; false when there is none left. */
     private fun next(): Boolean {
         if (PARTS.any { activeId(it) != null }) return true

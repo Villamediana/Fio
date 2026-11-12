@@ -292,8 +292,8 @@ Arquivos (`LocalModel`): `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Omni-
 áudio), o "Ouvido do Novelo". Uma barra só: as partes vêm uma depois da outra (`wanted.txt` lembra o pedido se o
 app fechar), a notificação diz "Novelo" e não o nome de modelo, cada parte tem seu `.ok` com o SHA-256 conferido.
 Fora do Wi-Fi o "Baixar" pergunta antes (esperar o Wi-Fi ou baixar assim mesmo), nos primeiros passos e em
-Ajustes. Quando termina, o que esperava por ele vai sozinho (`AppGraph` → `retryPending`). Apagar some com os
-arquivos primeiro e só então olha de novo (nunca "pronto" sem nada lá). Até a 1.6 quem ouvia era o LFM3-Audio;
+Ajustes. Quando termina, o que esperava por ele vai sozinho (`AppGraph` → `retryPending`). Ouvir depende dele:
+desde a 1.20.1 não há como apagá-lo em Ajustes (ele vem nos primeiros passos e fica). Até a 1.6 quem ouvia era o LFM3-Audio;
 na 1.19 o celular pensava com d1-2B + LFM3-1.7B (saiu na 1.20: lento pra fala do dia a dia). O que sobrou disso
 é apagado ao abrir (`LocalModel.LEFTOVERS`).
 
@@ -330,6 +330,11 @@ Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + P
 `tools/release.sh -n $'- novidade'`. O script confere git, versão, pacote e o certificado
 (SHA-256 `f538e500…48bffc`, chave em `~/keystores/fio-release.jks`), publica e só diz `published`
 quando `/releases/latest` bate. Notas = o texto da tela "Nova versão" no celular.
+
+O botão "Atualizar" baixa a versão nova com o app segurando um serviço em primeiro plano (`update/UpdateService`,
+dataSync, progresso numa notificação silenciosa, CPU acordada até 20 min): minimizado ou com a tela apagada, o
+Android congelava o app e o download caía no meio ("A conexão caiu"). Liga só durante o download
+(`Updates.keepAlive`); a instalação é a tela do Android, de volta no app.
 
 ## Testes
 

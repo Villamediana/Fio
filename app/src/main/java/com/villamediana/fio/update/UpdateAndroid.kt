@@ -53,6 +53,7 @@ fun createUpdates(context: Context, http: OkHttpClient, scope: CoroutineScope): 
         onFound = { UpdateAutoWorker.schedule(app) },
         onManual = { UpdateAutoWorker.cancel(app) },
         exitReason = { since -> ExitReport.describe(app, since) },
+        keepAlive = { on -> UpdateService.hold(app, on) },
     )
 }
 

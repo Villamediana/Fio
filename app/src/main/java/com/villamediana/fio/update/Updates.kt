@@ -151,6 +151,8 @@ class Updates internal constructor(
     private val onManual: () -> Unit = {},
     /** Why the app closed since [Long] (Android's own record, a crash caught here); null when it didn't. */
     private val exitReason: (since: Long) -> String? = { null },
+    /** On while the button's download runs: the app kept running if she leaves it (minimized, screen off). */
+    private val keepAlive: (Boolean) -> Unit = {},
 ) {
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state
@@ -303,11 +305,14 @@ class Updates internal constructor(
                 _state.value = UpdateState.NeedsPermission(release)
                 return@launch
             }
+            keepAlive(true)
             val apk = try {
                 withContext(Dispatchers.IO) { ready(release) ?: download(release) }
             } catch (e: UpdateException) {
                 fail(release, e.reason, e.message)
                 return@launch
+            } finally {
+                keepAlive(false)
             }
             val info = withContext(Dispatchers.IO) { runCatching { installer.inspect(apk) }.getOrNull() }
             if (info == null || info.packageName != current.packageName || info.versionCode <= current.versionCode) {
