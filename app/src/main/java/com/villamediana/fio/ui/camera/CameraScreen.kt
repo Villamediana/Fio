@@ -108,7 +108,7 @@ fun CameraScreen(nav: Nav) {
         }
 
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("O Fio lê e guarda o que estiver na foto", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+            Text("O Novelo lê e guarda o que estiver na foto", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
             Spacer(Modifier.height(18.dp))
             // The shutter in the middle; the turn to the selfie camera on its right.
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

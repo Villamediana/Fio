@@ -62,7 +62,8 @@ import com.villamediana.fio.settings.ThemeMode
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.Screen
 import com.villamediana.fio.ui.components.FioIcons
-import com.villamediana.fio.ui.components.FioMark
+import com.villamediana.fio.ui.components.NoveloMark
+import com.villamediana.fio.ui.components.paper
 import com.villamediana.fio.ui.components.Group
 import com.villamediana.fio.ui.components.IconAction
 import com.villamediana.fio.ui.components.Pill
@@ -127,7 +128,7 @@ fun SettingsScreen(nav: Nav) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
@@ -235,10 +236,10 @@ fun SettingsScreen(nav: Nav) {
                 Modifier,
                 {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        FioMark(34.dp)
+                        NoveloMark(34.dp)
                         Spacer(Modifier.width(14.dp))
                         Column {
-                            Text("Fio", style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
+                            Text("Novelo", style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
                             Text("versão ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted)
                         }
                     }

@@ -56,7 +56,7 @@ class BackupTest {
     )
 
     private val root get() = FileShelf(chosen)
-    private val home get() = File(chosen, "Fio")
+    private val home get() = File(chosen, "Novelo")
 
     private fun files(dir: File = home): List<String> =
         dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }.sorted().toList()
@@ -151,10 +151,22 @@ class BackupTest {
         val fio = tmp.newFolder("Fio")
         val b = backup()
         assertEquals("Fio", b.place(FileShelf(fio)))
-        assertEquals("Documents/Fio", b.place(root))
+        assertEquals("Documents/Novelo", b.place(root))
         b.save(FileShelf(fio), "k")
         assertTrue(File(fio, "Backups").isDirectory)
         assertFalse(File(fio, "Fio").exists())
+        assertFalse(File(fio, "Novelo").exists())
+    }
+
+    @Test
+    fun theFioFolderFromBeforeTheNameStaysTheOne() = runBlocking {
+        aDay()
+        File(chosen, "Fio").mkdirs()
+        val b = backup()
+        assertEquals("Documents/Fio", b.place(root))
+        b.save(root, "k")
+        assertTrue(File(chosen, "Fio/Backups").isDirectory)
+        assertFalse(File(chosen, "Novelo").exists())
     }
 
     @Test

@@ -88,7 +88,7 @@ class Backups(
     /** Puts the snapshot [name] back in place of everything (what is here first becomes a backup). */
     suspend fun restore(name: String): Result<Backup.Restored> {
         val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return Result.failure(IOException("Escolha a pasta do backup."))
-        if (!mind.idle) return Result.failure(IOException("Espere o Fio terminar o que está fazendo e tente de novo."))
+        if (!mind.idle) return Result.failure(IOException("Espere o Novelo terminar o que está fazendo e tente de novo."))
         _busy.value = IMPORTING
         val r = try {
             Result.success(core.restore(root(folder), folder, name))

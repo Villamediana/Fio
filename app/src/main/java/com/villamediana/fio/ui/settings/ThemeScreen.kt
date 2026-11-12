@@ -45,6 +45,12 @@ import com.villamediana.fio.FioApplication
 import com.villamediana.fio.settings.ThemeMode
 import com.villamediana.fio.ui.Nav
 import com.villamediana.fio.ui.components.FioIcons
+import com.villamediana.fio.ui.components.StitchColor
+import com.villamediana.fio.ui.components.paper
+import com.villamediana.fio.ui.components.stitched
+import com.villamediana.fio.ui.home.drawLooseEnd
+import com.villamediana.fio.ui.home.drawStitchRing
+import com.villamediana.fio.ui.home.drawYarn
 import com.villamediana.fio.ui.home.QuietIcon
 import com.villamediana.fio.ui.theme.FioAccents
 import com.villamediana.fio.ui.theme.FioColors
@@ -57,7 +63,7 @@ fun ThemeScreen(nav: Nav) {
     val s by st.now.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             Text("Tema", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
@@ -137,7 +143,7 @@ private fun Preview(modifier: Modifier = Modifier) {
             .width(220.dp)
             .height(400.dp)
             .clip(shape)
-            .background(FioColors.Background)
+            .paper()
             .border(3.dp, accent.copy(alpha = 0.4f), shape)
             .padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -147,26 +153,32 @@ private fun Preview(modifier: Modifier = Modifier) {
         }
         Spacer(Modifier.weight(1f))
         Box(Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+            val onAccent = FioColors.OnAccent
             Canvas(Modifier.fillMaxSize()) {
                 val r = size.minDimension * 0.30f
-                drawCircle(accent.copy(alpha = 0.32f), radius = r * 1.26f, style = Stroke(1.dp.toPx()))
+                drawStitchRing(center, r, accent, 1f)
+                drawLooseEnd(center, r, accent)
                 drawCircle(accent, radius = r)
+                drawYarn(center, r, onAccent.copy(alpha = 0.24f))
+                drawCircle(accent, radius = r * 0.36f)
             }
             Icon(FioIcons.Mic, null, tint = FioColors.OnAccent, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
-        Text("O que está na sua cabeça?", style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp), color = FioColors.TextFaint)
+        Text("O que está na sua cabeça?", style = com.villamediana.fio.ui.theme.FioText.Invite.copy(fontSize = 12.sp, lineHeight = 16.sp), color = FioColors.TextMuted)
         Spacer(Modifier.weight(1.1f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(FioIcons.PhotoCamera, null, tint = FioColors.Text.copy(alpha = 0.62f), modifier = Modifier.size(15.dp))
             Spacer(Modifier.weight(1f))
             Row(
-                Modifier.clip(CircleShape).background(FioColors.Surface).padding(horizontal = 12.dp, vertical = 6.dp),
+                Modifier.clip(CircleShape).background(FioColors.Surface).stitched(CircleShape, StitchColor, inset = 3.dp, width = 1.dp, dash = 2.5.dp, gap = 2.dp).padding(start = 12.dp, end = 7.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Hoje", style = MaterialTheme.typography.labelMedium, color = FioColors.Text)
+                Text("Hoje", style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp, lineHeight = 15.sp), color = FioColors.Text)
                 Spacer(Modifier.width(5.dp))
-                Text("2", style = MaterialTheme.typography.labelMedium, color = accent)
+                Box(Modifier.size(14.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
+                    Text("2", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 10.sp), color = FioColors.OnAccent)
+                }
             }
             Spacer(Modifier.weight(1f))
             Icon(FioIcons.Search, null, tint = FioColors.Text.copy(alpha = 0.62f), modifier = Modifier.size(15.dp))

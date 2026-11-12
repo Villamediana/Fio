@@ -13,11 +13,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * A photo kept in Fio, copied to the phone's gallery (Pictures/Fio) when she wants it there too:
- * as she sees it in Fio (her turn counted) and on the day it was taken.
+ * A photo kept in Novelo, copied to the phone's gallery (Pictures/Novelo) when she wants it there too:
+ * as she sees it in Novelo (her turn counted) and on the day it was taken.
  */
 object ToGallery {
-    val FOLDER = Environment.DIRECTORY_PICTURES + "/Fio"
+    val FOLDER = Environment.DIRECTORY_PICTURES + "/Novelo"
     private val NAME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss")
 
     /** True when the copy is in the gallery. */
@@ -28,7 +28,7 @@ object ToGallery {
         val resolver = context.contentResolver
         try {
             val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "Fio " + Instant.ofEpochMilli(takenAt).atZone(zone).format(NAME) + ".$ext")
+                put(MediaStore.Images.Media.DISPLAY_NAME, "Novelo " + Instant.ofEpochMilli(takenAt).atZone(zone).format(NAME) + ".$ext")
                 put(MediaStore.Images.Media.MIME_TYPE, mime(ext))
                 put(MediaStore.Images.Media.RELATIVE_PATH, FOLDER)
                 put(MediaStore.Images.Media.DATE_TAKEN, takenAt)

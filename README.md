@@ -1,14 +1,14 @@
-# Fio
+# Novelo
 
-Um botão pra tirar as coisas da cabeça.
+Um botão pra tirar as coisas da cabeça. (Antes se chamava Fio; o repositório e o pacote `com.villamediana.fio` seguem com o nome antigo.)
 
-Segure e fale (ou toque pra deixar ouvindo). O Fio transcreve, entende o que é e guarda no lugar certo:
+Segure e fale (ou toque pra deixar ouvindo). O Novelo transcreve, entende o que é e guarda no lugar certo:
 
 - **Tarefas**: com prazo, lembrete, etapas e status (a fazer, fazendo, esperando, feito).
 - **Notas**: ideias, informações, senhas (escondidas até você tocar).
 - **Diário**: o relato do dia. As tarefas e notas que aparecem nele viram itens próprios.
 
-Também dá pra **perguntar** ("o que eu tenho pra hoje?", "quando falei do contrato?", "qual era a senha do wifi da minha mãe?"): o Fio procura no que você guardou e mostra o trecho. Pode **dar notícia** de algo ("terminei a planilha", "o fornecedor respondeu"): ele atualiza o item, marca etapas e guarda o andamento. Em tarefas longas, ele mesmo marca um momento pra perguntar como está.
+Também dá pra **perguntar** ("o que eu tenho pra hoje?", "quando falei do contrato?", "qual era a senha do wifi da minha mãe?"): o Novelo procura no que você guardou e mostra o trecho. Pode **dar notícia** de algo ("terminei a planilha", "o fornecedor respondeu"): ele atualiza o item, marca etapas e guarda o andamento. Em tarefas longas, ele mesmo marca um momento pra perguntar como está.
 
 Pessoas, lugares, projetos e assuntos citados viram nós de um **grafo**. É ele que liga as lembranças entre si e ajuda a achar as coisas.
 

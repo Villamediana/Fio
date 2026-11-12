@@ -107,6 +107,12 @@ import com.villamediana.fio.ui.components.GroupGap
 import com.villamediana.fio.ui.components.PT
 import com.villamediana.fio.ui.components.SWIPE_FOLLOW
 import com.villamediana.fio.ui.components.SectionLabel
+import com.villamediana.fio.ui.components.StitchColor
+import com.villamediana.fio.ui.components.paper
+import com.villamediana.fio.ui.components.stitched
+import com.villamediana.fio.ui.theme.FioText
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import com.villamediana.fio.ui.components.groupShape
 import com.villamediana.fio.ui.components.swipeGoes
 import com.villamediana.fio.ui.graph.Connections
@@ -196,7 +202,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
             SearchBar(
@@ -318,7 +324,7 @@ private fun title(f: Filter) = when (f) {
 }
 
 /**
- * The tabs are just words: the one you are in is ink with a short stitch of the thread under it,
+ * The tabs are just words: the one you are in is ink with a running stitch of the thread under it,
  * the others wait in gray. The stitch slides to the new tab; a tab off the edge comes into view.
  */
 @Composable
@@ -357,9 +363,18 @@ private fun Tabs(selected: Int, position: () -> Float, onSelect: (Int) -> Unit) 
                 val b = bounds[(i + 1).coerceAtMost(last)] ?: a
                 val t = at - i
                 val center = (a.first + a.second / 2f) * (1 - t) + (b.first + b.second / 2f) * t
-                val w = 18.dp.toPx()
-                val h = 3.dp.toPx()
-                drawRoundRect(accent, topLeft = Offset(center - w / 2f, size.height - h - 3.dp.toPx()), size = Size(w, h), cornerRadius = CornerRadius(h / 2f))
+                // As wide as the word (the tab's padding off), a running stitch.
+                val pad = 20.dp.toPx()
+                val w = ((a.second - pad) * (1 - t) + (b.second - pad) * t).coerceAtLeast(12.dp.toPx())
+                val y = size.height - 6.dp.toPx()
+                drawLine(
+                    accent,
+                    start = Offset(center - w / 2f, y),
+                    end = Offset(center + w / 2f, y),
+                    strokeWidth = 2.4.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())),
+                )
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -379,7 +394,7 @@ private fun Tab(text: String, selected: Boolean, onClick: () -> Unit, modifier: 
     val color by animateColorAsState(if (selected) FioColors.Text else FioColors.TextFaint, label = "tab")
     Text(
         text,
-        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal),
         color = color,
         maxLines = 1,
         modifier = modifier
@@ -403,11 +418,12 @@ private fun SearchBar(
 ) {
     Row(
         modifier
-            .height(46.dp)
+            .height(50.dp)
             .clip(CircleShape)
             .background(FioColors.Surface)
+            .stitched(CircleShape, StitchColor, inset = 5.dp)
             .then(if (searching) Modifier else Modifier.clickable(onClick = onOpen))
-            .padding(start = 16.dp, end = 4.dp),
+            .padding(start = 18.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(FioIcons.Search, null, tint = FioColors.TextMuted, modifier = Modifier.size(19.dp))
@@ -492,15 +508,15 @@ private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<
 private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<Photo> = emptyList()) {
     val d = Instant.ofEpochMilli(e.createdAt).atZone(ZoneId.systemDefault())
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp).animateContentSize(),
+        Modifier.fillMaxWidth().clip(shape).background(FioColors.Surface).stitched(shape, StitchColor).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 18.dp).animateContentSize(),
     ) {
         Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text)
-            Text(d.month.getDisplayName(TextStyle.SHORT, PT).removeSuffix("."), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
+            Text(d.month.getDisplayName(TextStyle.SHORT, PT).removeSuffix("."), style = FioText.Hand, color = FioColors.TextMuted)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(e.title, style = MaterialTheme.typography.titleMedium, color = FioColors.Text, maxLines = 2)
+            Text(e.title, style = MaterialTheme.typography.titleLarge, color = FioColors.Text, maxLines = 2)
             if (e.body.isNotBlank() && !e.sensitive) {
                 Spacer(Modifier.height(4.dp))
                 Text(e.body, style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, maxLines = 4)
@@ -561,7 +577,7 @@ private fun Empty(filter: Filter) {
         Text(
             when (filter) {
                 Filter.LINKS -> "Elas aparecem quando você fala de pessoas, lugares e projetos."
-                Filter.GALLERY -> "As fotos que você tira no Fio ficam aqui e no diário do dia."
+                Filter.GALLERY -> "As fotos que você tira no Novelo ficam aqui e no diário do dia."
                 else -> "Fale no botão da tela inicial."
             },
             style = MaterialTheme.typography.bodyMedium,

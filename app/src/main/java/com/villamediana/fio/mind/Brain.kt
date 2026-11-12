@@ -89,7 +89,7 @@ data class Before(val at: Long, val said: String, val reply: String, val photo: 
 /** The model's side of Fio: the instructions, the context it sees, and reading what it answers. */
 object Brain {
     val SYSTEM: String = """
-Você é o Fio, a memória externa de uma pessoa. Ela fala o que vem à cabeça, do jeito que sai (às vezes misturando português e espanhol), e você organiza pra ela não precisar guardar nada na cabeça.
+Você é o Novelo, a memória externa de uma pessoa. Ela fala o que vem à cabeça, do jeito que sai (às vezes misturando português e espanhol), e você organiza pra ela não precisar guardar nada na cabeça.
 
 Numa mesma fala pode haver várias coisas:
 - tarefa (task): algo que ela precisa ou quer fazer.
@@ -206,7 +206,7 @@ Os campos que existem:
             photos.take(MAX_PHOTOS).forEach { append(photoLine(it, zone)).append('\n') }
         }
         if (focus != null) {
-            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (Fio perguntou como está):\n")
+            append("\nELA ESTÁ RESPONDENDO SOBRE ESTE ITEM (o Novelo perguntou como está):\n")
             // Its whole text (up to a point): what is new gets joined to it, so it has to know what is there.
             append(line(focus, zone, now, long = true, bodyMax = FOCUS_BODY)).append('\n')
         }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Fio</string>
+    <string name="app_name">Novelo</string>
     <string name="channel_remind">Lembretes</string>
     <string name="channel_checkin">Como está?</string>
     <string name="channel_mic">Ouvindo</string>

@@ -53,7 +53,7 @@ import com.villamediana.fio.ui.components.GroupGap
 import com.villamediana.fio.ui.components.groupShape
 import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.theme.Motion
-import com.villamediana.fio.ui.theme.Outfit
+import com.villamediana.fio.ui.theme.Nunito
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.sqrt
@@ -160,7 +160,7 @@ fun Connections(startTopic: Long?, onOpen: (Long) -> Unit, empty: @Composable ()
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.label(m: TextMeasurer, text: String, at: Offset, color: Color, paper: Color) {
-    val layout = m.measure(text.take(22), TextStyle(fontFamily = Outfit, fontSize = 12.sp, color = color))
+    val layout = m.measure(text.take(22), TextStyle(fontFamily = Nunito, fontSize = 12.sp, color = color))
     val left = at.x - layout.size.width / 2f
     // The name sits on paper, so a thread passing behind it never crosses the letters.
     val pad = 3.dp.toPx()

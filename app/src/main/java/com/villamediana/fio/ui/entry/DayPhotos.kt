@@ -32,6 +32,7 @@ import com.villamediana.fio.ui.components.PhotoTile
 import com.villamediana.fio.ui.components.PhotoViewer
 import com.villamediana.fio.ui.components.bleed
 import com.villamediana.fio.ui.components.rememberAspects
+import com.villamediana.fio.ui.components.stitched
 import java.io.File
 import java.time.ZoneId
 
@@ -61,6 +62,9 @@ internal fun EntryPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) 
     PhotoRow(photos, side, modifier.padding(top = 22.dp), tag = "entry-photo")
 }
 
+/** The seam on a photo: light, like thread on fabric. */
+private val StitchOnPhoto = androidx.compose.ui.graphics.Color(0xCCFBF6EC)
+
 /** A sideways row of [photos] at [height], of different widths (see [Mosaic]); [side] = the page's own margin. */
 @Composable
 internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {
@@ -81,6 +85,7 @@ internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifi
                     .height(height)
                     .width(height * ratio)
                     .clip(RoundedCornerShape(20.dp))
+                    .stitched(RoundedCornerShape(20.dp), StitchOnPhoto)
                     .clickable { opened = i }
                     .testTag("$tag-$i"),
             )

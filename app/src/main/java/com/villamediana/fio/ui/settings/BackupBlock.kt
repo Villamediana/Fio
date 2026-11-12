@@ -173,7 +173,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Troca tudo o que está no Fio por este backup. Antes, o que está aqui vira um backup nesta pasta.",
+                        "Troca tudo o que está no Novelo por este backup. Antes, o que está aqui vira um backup nesta pasta.",
                         style = MaterialTheme.typography.bodySmall,
                         color = FioColors.TextMuted,
                     )
