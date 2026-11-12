@@ -1,5 +1,6 @@
 package com.villamediana.fio.audio
 
+import com.villamediana.fio.settings.t
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -71,12 +72,12 @@ class MicService : Service() {
             .setOnlyAlertOnce(true)
         if (recording) {
             val stop = PendingIntent.getService(this, 1, Intent(this, MicService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-            b.setContentTitle(getString(R.string.mic_listening))
+            b.setContentTitle(t(R.string.mic_listening))
                 .setUsesChronometer(true)
                 .setWhen(since)
-                .addAction(0, getString(R.string.mic_stop), stop)
+                .addAction(0, t(R.string.mic_stop), stop)
         } else {
-            b.setContentTitle(getString(R.string.work_going)).setProgress(0, 0, true)
+            b.setContentTitle(t(R.string.work_going)).setProgress(0, 0, true)
         }
         // Recording is the microphone; the work after it is just the app finishing a job.
         val type = if (recording) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or (if (working) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0)

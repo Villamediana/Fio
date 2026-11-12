@@ -1,5 +1,8 @@
 package com.villamediana.fio.ui.settings
 
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -80,15 +83,15 @@ fun BackupScreen(nav: Nav) {
     fun choose() = pick.launch(s.backupFolder.takeIf { it.isNotBlank() }?.let(Uri::parse))
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
-    PageTop("Backup") { nav.back() }
+    PageTop(t(R.string.backup)) { nav.back() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
     Spacer(Modifier.height(10.dp))
     Group(
         Modifier.padding(horizontal = 16.dp),
         {
             Line(
-                title = "Pasta",
-                subtitle = if (hasFolder) s.backupPlace.ifBlank { "escolhida" } else "escolher onde guardar",
+                title = t(R.string.backup_folder),
+                subtitle = if (hasFolder) s.backupPlace.ifBlank { t(R.string.backup_folder_chosen) } else t(R.string.backup_choose_where),
                 subtitleColor = if (hasFolder) FioColors.TextMuted else FioColors.Accent,
                 onClick = { choose() },
             ) {
@@ -97,26 +100,26 @@ fun BackupScreen(nav: Nav) {
         },
         if (!hasFolder) null else ({
             Line(
-                title = "Fazer agora",
+                title = t(R.string.backup_now),
                 subtitle = when {
-                    busy == Backups.SAVING -> "fazendo…"
+                    busy == Backups.SAVING -> t(R.string.backup_doing)
                     s.backupFailed -> s.backupNote
-                    s.backupAt > 0 -> "último: " + moment(s.backupAt) + (if (s.backupNote.isNotBlank()) " · " + s.backupNote else "")
-                    else -> "vai sozinho todo dia"
+                    s.backupAt > 0 -> t(R.string.backup_last, moment(s.backupAt)) + (if (s.backupNote.isNotBlank()) " · " + s.backupNote else "")
+                    else -> t(R.string.backup_by_itself)
                 },
                 subtitleColor = if (s.backupFailed && busy == null) FioColors.Danger else FioColors.TextMuted,
                 onClick = { if (busy == null) backups.now() },
             ) {
                 if (busy == Backups.SAVING) CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                else IconAction(FioIcons.Upload, "Fazer o backup agora", { if (busy == null) backups.now() }, primary = true, size = 40.dp)
+                else IconAction(FioIcons.Upload, t(R.string.backup_now_long), { if (busy == null) backups.now() }, primary = true, size = 40.dp)
             }
         }),
         {
             Line(
-                title = "Importar backup",
+                title = t(R.string.backup_import),
                 onClick = { if (hasFolder) importing = true else { importAfterPick = true; choose() } },
             ) {
-                IconAction(FioIcons.Download, "Importar backup", { if (hasFolder) importing = true else { importAfterPick = true; choose() } }, size = 40.dp)
+                IconAction(FioIcons.Download, t(R.string.backup_import), { if (hasFolder) importing = true else { importAfterPick = true; choose() } }, size = 40.dp)
             }
         },
     )
@@ -152,39 +155,39 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
 
     FioSheet(onDismissRequest = { if (busy != Backups.IMPORTING) onDismiss() }) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
-            Text("Importar backup", style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
+            Text(t(R.string.backup_import), style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
             Spacer(Modifier.height(14.dp))
             val k = chosen
             val finished = done
             when {
                 finished != null -> {
-                    Text("Pronto. Voltaram " + Backups.note(finished.entries, finished.photos, finished.sounds) + ".", style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
+                    Text(t(R.string.backup_restored, Backups.note(finished.entries, finished.photos, finished.sounds)), style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
                     Spacer(Modifier.height(18.dp))
-                    IconAction(FioIcons.Check, "Ok", onDismiss, primary = true)
+                    IconAction(FioIcons.Check, t(R.string.ok), onDismiss, primary = true)
                 }
                 busy == Backups.IMPORTING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                    Text("Importando…", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextMuted, modifier = Modifier.padding(start = 12.dp))
+                    Text(t(R.string.backup_importing), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextMuted, modifier = Modifier.padding(start = 12.dp))
                 }
                 k != null -> {
                     Text(moment(k.at), style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
                     Text(
-                        holds?.let { Backups.note(it.entries.size, it.photoCount, it.soundCount) } ?: "lendo…",
+                        holds?.let { Backups.note(it.entries.size, it.photoCount, it.soundCount) } ?: t(R.string.reading),
                         style = MaterialTheme.typography.bodyMedium,
                         color = FioColors.TextMuted,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Troca tudo o que está no Novelo pelo que está neste backup.",
+                        t(R.string.backup_replaces),
                         style = MaterialTheme.typography.bodySmall,
                         color = FioColors.TextMuted,
                     )
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        IconAction(FioIcons.Back, "Voltar", { chosen = null })
+                        IconAction(FioIcons.Back, t(R.string.back), { chosen = null })
                         if (holds != null) {
-                            IconAction(FioIcons.Check, "Importar", {
+                            IconAction(FioIcons.Check, t(R.string.import_action), {
                                 problem = null
                                 // On the app's scope: closing the sheet never leaves an import halfway.
                                 graph.scope.launch {
@@ -195,7 +198,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
                     }
                 }
                 list == null -> CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                list!!.isEmpty() && problem == null -> Text("Nenhum backup nesta pasta.", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextMuted)
+                list!!.isEmpty() && problem == null -> Text(t(R.string.backup_none), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextMuted)
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                     itemsIndexed(list!!, key = { _, it -> it.name }) { i, item ->
                         Row(
@@ -203,7 +206,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(moment(item.at), style = MaterialTheme.typography.bodyLarge, color = FioColors.Text, modifier = Modifier.weight(1f))
-                            if (i == 0) Text("mais novo", style = MaterialTheme.typography.bodySmall, color = FioColors.Accent, modifier = Modifier.padding(end = 6.dp))
+                            if (i == 0) Text(t(R.string.newest), style = MaterialTheme.typography.bodySmall, color = FioColors.Accent, modifier = Modifier.padding(end = 6.dp))
                             Icon(FioIcons.Chevron, null, tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
                         }
                     }
@@ -217,17 +220,16 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
     }
 }
 
-private val PT = Locale.forLanguageTag("pt-BR")
-private val HOUR = DateTimeFormatter.ofPattern("HH:mm", PT)
-private val THIS_YEAR = DateTimeFormatter.ofPattern("d 'de' MMM, HH:mm", PT)
-private val OTHER_YEAR = DateTimeFormatter.ofPattern("d 'de' MMM 'de' yyyy, HH:mm", PT)
+private val HOUR: DateTimeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", Lang.locale)
+private val THIS_YEAR: DateTimeFormatter get() = DateTimeFormatter.ofPattern(t(R.string.fmt_day_month_time), Lang.locale)
+private val OTHER_YEAR: DateTimeFormatter get() = DateTimeFormatter.ofPattern(t(R.string.fmt_day_month_year_time), Lang.locale)
 
 /** A moment as people say it: "hoje, 14:32", "ontem, 09:10", "7 de nov, 14:32". */
 internal fun moment(ms: Long, zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone)): String {
     val at = Instant.ofEpochMilli(ms).atZone(zone)
     return when (at.toLocalDate()) {
-        today -> "hoje, " + at.format(HOUR)
-        today.minusDays(1) -> "ontem, " + at.format(HOUR)
+        today -> t(R.string.moment_today, at.format(HOUR))
+        today.minusDays(1) -> t(R.string.moment_yesterday, at.format(HOUR))
         else -> at.format(if (at.year == today.year) THIS_YEAR else OTHER_YEAR).replace(".", "")
     }
 }

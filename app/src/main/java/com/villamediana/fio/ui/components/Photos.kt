@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.components
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -142,7 +144,7 @@ fun Modifier.bleed(by: Dp): Modifier = layout { measurable, constraints ->
     layout((placeable.width - 2 * extra).coerceAtLeast(0), placeable.height) { placeable.place(-extra, 0) }
 }
 
-private val WHEN = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM · HH:mm", PT)
+private val WHEN: DateTimeFormatter get() = DateTimeFormatter.ofPattern(t(R.string.fmt_photo_when), PT)
 
 /**
  * Photos big, on black, one beside the other: swipe between them; under each, when it was taken
@@ -210,21 +212,21 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).padding(4.dp).animateContentSize(tween(220)),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            ViewerAction(FioIcons.Rotate, "Girar") {
+                            ViewerAction(FioIcons.Rotate, t(R.string.photo_rotate)) {
                                 asking = false
                                 angle += 90f
                                 graph.scope.launch { graph.library.turnPhoto(p.id) }
                             }
-                            ViewerAction(FioIcons.Download, "Baixar") {
+                            ViewerAction(FioIcons.Download, t(R.string.photo_download)) {
                                 asking = false
                                 // As it is seen here: the turn on screen may be ahead of the one saved.
                                 val turn = angle.toInt() % 360
                                 scope.launch {
-                                    note = if (ToGallery.save(context, p.path, p.takenAt, turn)) "Salva na galeria do celular" else "Não consegui salvar na galeria"
+                                    note = if (ToGallery.save(context, p.path, p.takenAt, turn)) t(R.string.photo_saved) else t(R.string.photo_not_saved)
                                 }
                             }
                             if (!asking) {
-                                ViewerAction(FioIcons.Trash, "Remover") { asking = true }
+                                ViewerAction(FioIcons.Trash, t(R.string.photo_remove)) { asking = true }
                             } else {
                                 // Asked once: one more tap takes it out of Fio.
                                 Row(
@@ -232,17 +234,17 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                                         .height(44.dp)
                                         .clip(CircleShape)
                                         .background(REMOVE.copy(alpha = 0.18f))
-                                        .clickable(onClickLabel = "Remover a foto") {
+                                        .clickable(onClickLabel = t(R.string.photo_remove_long)) {
                                             asking = false
                                             if (photos.size == 1) onClose()
                                             graph.scope.launch { graph.library.removePhoto(p.id) }
                                         }
-                                        .semantics { contentDescription = "Remover a foto" }
+                                        .semantics { contentDescription = t(R.string.photo_remove_long) }
                                         .padding(horizontal = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Icon(FioIcons.Trash, null, tint = REMOVE, modifier = Modifier.size(20.dp))
-                                    Text("Remover", style = MaterialTheme.typography.labelLarge, color = REMOVE, modifier = Modifier.padding(start = 8.dp))
+                                    Text(t(R.string.photo_remove), style = MaterialTheme.typography.labelLarge, color = REMOVE, modifier = Modifier.padding(start = 8.dp))
                                 }
                             }
                         }
@@ -252,7 +254,7 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
             Row(Modifier.statusBarsPadding().fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 // White on the black, whatever the theme.
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = "Fechar", onClick = onClose).semantics { contentDescription = "Fechar" },
+                    Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = t(R.string.close), onClick = onClose).semantics { contentDescription = t(R.string.close) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(FioIcons.Close, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp))

@@ -1,5 +1,8 @@
 package com.villamediana.fio.mind
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.settings.t
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -10,8 +13,8 @@ import java.util.Locale
  * Pure helpers for the day around a moment.
  */
 object DayDiary {
-    private val PT = Locale.forLanguageTag("pt-BR")
-    private val TITLE = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", PT)
+    /** "Quarta-feira, 11 de novembro", in the app's language (a diary made today keeps today's words). */
+    private val TITLE: DateTimeFormatter get() = DateTimeFormatter.ofPattern(t(R.string.fmt_weekday_day_month), Lang.locale)
 
     /** The whole day (in [zone]) that [ms] falls in, first to last millisecond. */
     fun bounds(ms: Long, zone: ZoneId): LongRange {
@@ -41,5 +44,5 @@ object DayDiary {
 
     /** The name of a diary started by a photo, before anything was told: the day ("Terça-feira, 11 de novembro"). */
     fun title(ms: Long, zone: ZoneId): String =
-        Instant.ofEpochMilli(ms).atZone(zone).format(TITLE).replaceFirstChar { it.titlecase(PT) }
+        Instant.ofEpochMilli(ms).atZone(zone).format(TITLE).replaceFirstChar { it.titlecase(Lang.locale) }
 }

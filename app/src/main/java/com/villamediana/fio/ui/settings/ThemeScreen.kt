@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.settings
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -65,8 +67,8 @@ fun ThemeScreen(nav: Nav) {
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
-            Text("Tema", style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
+            QuietIcon(FioIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
+            Text(t(R.string.theme), style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             Spacer(Modifier.height(14.dp))
@@ -76,9 +78,9 @@ fun ThemeScreen(nav: Nav) {
             // Escuro / Claro / Sistema
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 listOf(
-                    Triple(ThemeMode.DARK, "Escuro", FioIcons.Moon),
-                    Triple(ThemeMode.LIGHT, "Claro", FioIcons.Sun),
-                    Triple(ThemeMode.SYSTEM, "Sistema", FioIcons.Contrast),
+                    Triple(ThemeMode.DARK, t(R.string.theme_dark), FioIcons.Moon),
+                    Triple(ThemeMode.LIGHT, t(R.string.theme_light), FioIcons.Sun),
+                    Triple(ThemeMode.SYSTEM, t(R.string.theme_system), FioIcons.Contrast),
                 ).forEach { (mode, label, icon) ->
                     ModeChip(label, icon, selected = s.theme == mode, modifier = Modifier.weight(1f)) { scope.launch { st.setTheme(mode) } }
                 }
@@ -165,7 +167,7 @@ private fun Preview(modifier: Modifier = Modifier) {
             Icon(FioIcons.Mic, null, tint = FioColors.OnAccent, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
-        Text("O que está na sua cabeça?", style = com.villamediana.fio.ui.theme.FioText.Invite.copy(fontSize = 12.sp, lineHeight = 16.sp), color = FioColors.TextMuted)
+        Text(t(R.string.invite), style = com.villamediana.fio.ui.theme.FioText.Invite.copy(fontSize = 12.sp, lineHeight = 16.sp), color = FioColors.TextMuted)
         Spacer(Modifier.weight(1.1f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(FioIcons.PhotoCamera, null, tint = FioColors.Text.copy(alpha = 0.62f), modifier = Modifier.size(15.dp))
@@ -174,7 +176,7 @@ private fun Preview(modifier: Modifier = Modifier) {
                 Modifier.clip(CircleShape).background(FioColors.Surface).stitched(CircleShape, StitchColor, inset = 3.dp, width = 1.dp, dash = 2.5.dp, gap = 2.dp).padding(start = 12.dp, end = 7.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Hoje", style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp, lineHeight = 15.sp), color = FioColors.Text)
+                Text(t(R.string.today), style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp, lineHeight = 15.sp), color = FioColors.Text)
                 Spacer(Modifier.width(5.dp))
                 Box(Modifier.size(14.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
                     Text("2", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 10.sp), color = FioColors.OnAccent)

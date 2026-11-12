@@ -1,5 +1,7 @@
 package com.villamediana.fio.local
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import com.villamediana.fio.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -26,7 +28,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         use(files) { h ->
             val seconds = pcm.size / 16_000
             val sink = streaming { onText(clean(it)) }
-            val out = nativeTranscribe(h, pcm, asrPrompt(language).toByteArray(), 64 + seconds * 12, sink) ?: throw IllegalStateException("o modelo local não conseguiu ouvir este trecho")
+            val out = nativeTranscribe(h, pcm, asrPrompt(language).toByteArray(), 64 + seconds * 12, sink) ?: throw IllegalStateException(t(R.string.local_couldnt_hear))
             clean(String(out, Charsets.UTF_8))
         }
 
@@ -47,7 +49,7 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
         use(files) { h ->
             val bytes = prompt.toByteArray()
             val keep = if (fixed.isNotEmpty() && prompt.startsWith(fixed)) fixed.toByteArray().size else 0
-            val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException("o modelo local não respondeu")
+            val out = nativeGenerate(h, bytes, keep, grammar, image, maxTokens, streaming(onText)) ?: throw IllegalStateException(t(R.string.local_no_answer))
             String(out, Charsets.UTF_8)
         }
 
@@ -73,12 +75,12 @@ class LocalEngine(private val cacheDir: java.io.File? = null) {
 
     private suspend fun <T> use(files: LocalModel.Files, block: (Long) -> T): T = lock.withLock {
         withContext(Dispatchers.Default) {
-            check(available) { "motor local não incluído nesta versão" }
+            check(available) { t(R.string.local_no_engine) }
             if (handle == 0L || loadedFrom != files.model.path) {
                 freeLocked()
                 val threads = threads()
                 handle = nativeLoad(files.model.path, files.projector?.path.orEmpty(), threads, 8192, snapshotFile(files)?.path.orEmpty())
-                check(handle != 0L) { "não deu pra carregar o modelo local" }
+                check(handle != 0L) { t(R.string.local_cant_load) }
                 loadedFrom = files.model.path
             }
             lastUse = System.currentTimeMillis()

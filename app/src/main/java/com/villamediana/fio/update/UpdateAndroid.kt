@@ -1,5 +1,6 @@
 package com.villamediana.fio.update
 
+import com.villamediana.fio.settings.t
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -95,23 +96,23 @@ object ExitReport {
     }
 
     private fun reasonName(reason: Int): String = when (reason) {
-        1 -> "o app saiu sozinho"
-        2 -> "encerrado pelo sistema"
-        3 -> "pouca memória"
-        4 -> "erro no app (crash)"
-        5 -> "erro nativo (crash)"
-        6 -> "travou (ANR)"
-        7 -> "falha ao iniciar"
-        8 -> "uma permissão mudou"
-        9 -> "uso excessivo de recursos"
-        10 -> "fechado (pedido do usuário ou do sistema)"
-        11 -> "forçado a parar"
-        12 -> "um processo do qual dependia caiu"
-        13 -> "outro motivo do sistema"
-        14 -> "congelado pelo sistema"
-        15 -> "o pacote mudou de estado"
-        16 -> "o app foi atualizado"
-        else -> "motivo desconhecido ($reason)"
+        1 -> t(R.string.exit_1)
+        2 -> t(R.string.exit_2)
+        3 -> t(R.string.exit_3)
+        4 -> t(R.string.exit_4)
+        5 -> t(R.string.exit_5)
+        6 -> t(R.string.exit_6)
+        7 -> t(R.string.exit_7)
+        8 -> t(R.string.exit_8)
+        9 -> t(R.string.exit_9)
+        10 -> t(R.string.exit_10)
+        11 -> t(R.string.exit_11)
+        12 -> t(R.string.exit_12)
+        13 -> t(R.string.exit_13)
+        14 -> t(R.string.exit_14)
+        15 -> t(R.string.exit_15)
+        16 -> t(R.string.exit_16)
+        else -> t(R.string.exit_unknown, reason)
     }
 }
 
@@ -262,7 +263,7 @@ class UpdateStatusReceiver : BroadcastReceiver() {
 }
 
 /**
- * The new version, right after Android replaced the app: "Novelo atualizado · toque pra abrir"
+ * The new version, right after Android replaced the app: t(R.string.update_done_notif)
  * (it goes away once the app is on screen). From the button, Android's installer itself offers
  * "Abrir"; installed by itself while the app was not in use, the app never pops up over anything.
  */
@@ -386,8 +387,8 @@ object UpdateNotifier {
         post(
             context,
             Notifications.ID_UPDATE_AVAILABLE,
-            context.getString(R.string.update_notif_available_title),
-            context.getString(R.string.update_notif_available_text, release.version),
+            t(R.string.update_notif_available_title),
+            t(R.string.update_notif_available_text, release.version),
             openSheet = true,
         )
     }
@@ -402,8 +403,8 @@ object UpdateNotifier {
         post(
             context,
             Notifications.ID_UPDATED,
-            context.getString(R.string.update_notif_done_title),
-            context.getString(R.string.update_notif_done_text, version),
+            t(R.string.update_notif_done_title),
+            t(R.string.update_notif_done_text, version),
             openSheet = false,
         )
     }

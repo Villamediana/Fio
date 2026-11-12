@@ -9,6 +9,7 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import androidx.core.splashscreen.SplashScreenViewProvider
 import com.villamediana.fio.ui.home.OrbSpot
+import com.villamediana.fio.settings.Lang
 import android.view.animation.DecelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -41,6 +42,11 @@ class FioActivity : ComponentActivity() {
     /** Her settings, once read: the splash stays until then (no frame in another theme). */
     private var first: FioSettings? = null
 
+    /** The screens in the app's language (Portuguese unless she chose another), whatever the phone is in. */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The logo stays long enough to be seen, then the app shows through it as it fades.
         val shownAt = SystemClock.uptimeMillis()
@@ -62,7 +68,9 @@ class FioActivity : ComponentActivity() {
             setContent {
                 val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = s)
                 FioTheme(mode = settings.theme, accent = settings.accent) {
-                    FioRoot(ask = ask, onAskHandled = { ask = null })
+                    // The first steps once (permissions, backup, who thinks), then the app.
+                    if (settings.setupDone) FioRoot(ask = ask, onAskHandled = { ask = null })
+                    else com.villamediana.fio.ui.setup.SetupScreen(onDone = {})
                 }
             }
             first = s

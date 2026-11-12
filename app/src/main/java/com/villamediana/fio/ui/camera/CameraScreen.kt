@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.camera
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -102,20 +104,20 @@ fun CameraScreen(nav: Nav) {
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = shutter.value }.background(Color.White))
 
         Box(Modifier.fillMaxSize().statusBarsPadding().padding(8.dp)) {
-            RoundIcon(FioIcons.Close, "Fechar", Modifier.align(Alignment.TopStart)) { nav.back() }
+            RoundIcon(FioIcons.Close, t(R.string.close), Modifier.align(Alignment.TopStart)) { nav.back() }
             // The front camera has no flash.
-            if (!front) RoundIcon(if (flash) FioIcons.FlashOn else FioIcons.FlashOff, "Flash", Modifier.align(Alignment.TopEnd)) { flash = !flash }
+            if (!front) RoundIcon(if (flash) FioIcons.FlashOn else FioIcons.FlashOff, t(R.string.flash), Modifier.align(Alignment.TopEnd)) { flash = !flash }
         }
 
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("O Novelo lê e guarda o que estiver na foto", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+            Text(t(R.string.camera_reads), style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
             Spacer(Modifier.height(18.dp))
             // The shutter in the middle; the turn to the selfie camera on its right.
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (canFlip) {
                     RoundIcon(
                         FioIcons.FlipCamera,
-                        if (front) "Câmera de trás" else "Câmera da frente",
+                        if (front) t(R.string.camera_back) else t(R.string.camera_front),
                         Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).graphicsLayer { rotationZ = spin.value },
                     ) {
                         if (!busy) {

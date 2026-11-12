@@ -23,6 +23,9 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import com.villamediana.fio.ai.Api
+import com.villamediana.fio.ai.Provider
+import com.villamediana.fio.ai.Providers
 
 /** Where hearing (speech → text) or thinking (organizing) happens. */
 enum class Source(val key: String) {
@@ -47,6 +50,8 @@ data class FioSettings(
     val think: Source = Source.LOCAL,
     val thinkModel: String = "",
     val apiBase: String = "",
+    /** Whose API (see [Providers]); empty: set up before providers existed, the address she typed. */
+    val apiProvider: String = "",
     val hasApiKey: Boolean = false,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     /** The highlight color's id (see FioAccents); empty is the thread's own vermilion. */
@@ -62,8 +67,17 @@ data class FioSettings(
     /** What the last backup took ("120 itens · 34 fotos"), or why it didn't go. */
     val backupNote: String = "",
     val backupFailed: Boolean = false,
+    /** The first steps (permissions, backup, intelligence) were gone through. */
+    val setupDone: Boolean = false,
 ) {
-    val apiReady: Boolean get() = apiBase.isNotBlank() && hasApiKey
+    val provider: Provider get() = Providers.of(apiProvider)
+
+    /** The address asked: the provider's own, or the one she typed (Foundry, another). */
+    val apiAddress: String get() = provider.base ?: apiBase
+
+    val apiReady: Boolean get() = apiAddress.isNotBlank() && hasApiKey
+
+    fun endpoint(key: String): Api.Endpoint = Api.Endpoint(apiAddress, key, provider.wire)
 }
 
 private val Context.store: DataStore<Preferences> by preferencesDataStore("settings")
@@ -79,6 +93,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             think = Source.of(p[THINK]),
             thinkModel = p[THINK_MODEL].orEmpty(),
             apiBase = p[API_BASE].orEmpty(),
+            apiProvider = p[API_PROVIDER].orEmpty(),
             hasApiKey = !p[API_KEY].isNullOrEmpty(),
             theme = ThemeMode.of(p[THEME]),
             accent = p[ACCENT].orEmpty(),
@@ -88,6 +103,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             backupAt = p[BACKUP_AT] ?: 0L,
             backupNote = p[BACKUP_NOTE].orEmpty(),
             backupFailed = p[BACKUP_FAILED] ?: false,
+            setupDone = p[SETUP_DONE] ?: false,
         )
     }
 
@@ -102,6 +118,8 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun setThink(source: Source) = store.edit { it[THINK] = source.key }
     suspend fun setThinkModel(model: String) = store.edit { it[THINK_MODEL] = model.trim() }
     suspend fun setApiBase(url: String) = store.edit { it[API_BASE] = url.trim().trimEnd('/') }
+    suspend fun setApiProvider(id: String) = store.edit { it[API_PROVIDER] = id }
+    suspend fun setSetupDone() = store.edit { it[SETUP_DONE] = true }
     suspend fun setApiKey(key: String) = store.edit { p ->
         val k = key.trim()
         if (k.isEmpty()) p.remove(API_KEY) else p[API_KEY] = vault.seal(k)
@@ -135,6 +153,8 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val THINK_MODEL = stringPreferencesKey("think_model")
         val API_BASE = stringPreferencesKey("api_base")
         val API_KEY = stringPreferencesKey("api_key_sealed")
+        val API_PROVIDER = stringPreferencesKey("api_provider")
+        val SETUP_DONE = booleanPreferencesKey("setup_done")
         val THEME = stringPreferencesKey("theme")
         val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")

@@ -1,5 +1,8 @@
 package com.villamediana.fio.ui.components
 
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -79,7 +82,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-val PT: Locale = Locale.forLanguageTag("pt-BR")
+/** The app's language for dates and numbers (Portuguese unless she chose another). */
+val PT: Locale get() = Lang.locale
 
 /** Shrinks a little while pressed (the touch is felt, nothing flashes). */
 fun Modifier.pressScale(interaction: MutableInteractionSource, pressed: Float = 0.96f): Modifier = composed {
@@ -187,16 +191,16 @@ fun Modifier.stitched(shape: Shape, color: Color, inset: Dp = 7.dp, width: Dp = 
     }
 
 fun kindLabel(kind: Kind): String = when (kind) {
-    Kind.TASK -> "Tarefa"
-    Kind.NOTE -> "Nota"
-    Kind.DIARY -> "Diário"
+    Kind.TASK -> t(R.string.kind_task)
+    Kind.NOTE -> t(R.string.kind_note)
+    Kind.DIARY -> t(R.string.kind_diary)
 }
 
 fun statusLabel(status: Status): String = when (status) {
-    Status.TODO -> "A fazer"
-    Status.DOING -> "Fazendo"
-    Status.WAITING -> "Esperando"
-    Status.DONE -> "Feito"
+    Status.TODO -> t(R.string.status_todo)
+    Status.DOING -> t(R.string.status_doing)
+    Status.WAITING -> t(R.string.status_waiting)
+    Status.DONE -> t(R.string.status_done)
 }
 
 /** A rounded word that can be chosen (statuses, choices). Chosen is a breath of the accent, never a black block. */
@@ -355,12 +359,12 @@ object Dates {
     fun day(ms: Long, zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone)): String {
         val d = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
         return when (d) {
-            today -> "hoje"
-            today.plusDays(1) -> "amanhã"
-            today.minusDays(1) -> "ontem"
+            today -> t(R.string.day_today)
+            today.plusDays(1) -> t(R.string.day_tomorrow)
+            today.minusDays(1) -> t(R.string.day_yesterday)
             else -> if (d.year == today.year && d.isAfter(today.minusDays(6)) && d.isBefore(today.plusDays(7)))
                 d.dayOfWeek.getDisplayName(TextStyle.FULL, PT)
-            else d.format(DateTimeFormatter.ofPattern(if (d.year == today.year) "d 'de' MMM" else "d 'de' MMM yyyy", PT))
+            else d.format(DateTimeFormatter.ofPattern(t(if (d.year == today.year) R.string.fmt_day_month else R.string.fmt_day_month_year), PT))
         }
     }
 
@@ -423,7 +427,7 @@ fun EntryCard(
                 )
                 if (entry.sensitive) {
                     Spacer(Modifier.width(6.dp))
-                    Icon(FioIcons.Lock, "Sensível", tint = FioColors.TextFaint, modifier = Modifier.size(15.dp))
+                    Icon(FioIcons.Lock, t(R.string.sensitive), tint = FioColors.TextFaint, modifier = Modifier.size(15.dp))
                 }
             }
             val snippet = when {
@@ -491,7 +495,7 @@ fun meta(
     e.remindAt?.takeIf { it > now && !(e.dueHasTime && it == e.dueAt) }?.let { r ->
         val day = dayOf(r)
         val sameDay = e.dueAt?.let { dayOf(it) == day } == true || (inToday && day == today)
-        add(("lembrete " + if (sameDay) Dates.time(r, zone) else Dates.day(r, zone, today) + " · " + Dates.time(r, zone)) to false)
+        add(t(R.string.reminder_at, if (sameDay) Dates.time(r, zone) else Dates.day(r, zone, today) + " · " + Dates.time(r, zone)) to false)
     }
 }
 

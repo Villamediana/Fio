@@ -1,5 +1,6 @@
 package com.villamediana.fio.remind
 
+import com.villamediana.fio.settings.t
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlarmManager
@@ -150,7 +151,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val checkIn = kind == Reminders.CHECK_IN
         val text = when {
             checkIn -> e.title
-            e.sensitive -> context.getString(R.string.notif_sensitive)
+            e.sensitive -> t(R.string.notif_sensitive)
             e.body.isNotBlank() -> e.body.take(160)
             e.dueAt != null -> DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(e.dueAt))
             else -> ""
@@ -158,7 +159,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val b = NotificationCompat.Builder(context, if (checkIn) Notifications.CHANNEL_CHECKIN else Notifications.CHANNEL_REMIND)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.accent))
-            .setContentTitle(if (checkIn) context.getString(R.string.notif_checkin_title) else e.title)
+            .setContentTitle(if (checkIn) t(R.string.notif_checkin_title) else e.title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
@@ -171,10 +172,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 FioActivity.talkAbout(context, e.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            b.addAction(0, context.getString(R.string.notif_talk), talk)
+            b.addAction(0, t(R.string.notif_talk), talk)
         }
-        if (e.kindEnum == Kind.TASK) b.addAction(0, context.getString(R.string.notif_done), action(context, Reminders.ACTION_DONE, e.id, kind))
-        b.addAction(0, context.getString(R.string.notif_snooze), action(context, Reminders.ACTION_SNOOZE, e.id, kind))
+        if (e.kindEnum == Kind.TASK) b.addAction(0, t(R.string.notif_done), action(context, Reminders.ACTION_DONE, e.id, kind))
+        b.addAction(0, t(R.string.notif_snooze), action(context, Reminders.ACTION_SNOOZE, e.id, kind))
         NotificationManagerCompat.from(context).notify(id, b.build())
     }
 

@@ -1,5 +1,7 @@
 package com.villamediana.fio.backup
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import androidx.room.withTransaction
 import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.FioDatabase
@@ -237,7 +239,7 @@ class Backup(
 
     private fun decode(bytes: ByteArray): Snapshot {
         val snap = runCatching { json.decodeFromString(Snapshot.serializer(), bytes.toString(Charsets.UTF_8)) }.getOrElse { throw IOException(BROKEN) }
-        if (snap.format > Snapshot.FORMAT) throw IOException("Este backup é de uma versão mais nova do Novelo. Atualize o app antes.")
+        if (snap.format > Snapshot.FORMAT) throw IOException(t(R.string.backup_newer))
         return snap
     }
 
@@ -288,8 +290,8 @@ class Backup(
         /** The old backup folder's names (up to 1.17.0). */
         const val HOME = "Novelo"
         const val OLD_HOME = "Fio"
-        private const val NOT_FOUND = "Não achei backup nesta pasta."
-        private const val BROKEN = "Este backup não abriu (arquivo estragado)."
+        private val NOT_FOUND: String get() = t(R.string.backup_not_found)
+        private val BROKEN: String get() = t(R.string.backup_broken)
 
         val json = Json {
             ignoreUnknownKeys = true

@@ -560,6 +560,51 @@ class ScreensTest {
     }
 
     @Test
+    fun theFirstStepsGoOneByOne() {
+        compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.setup.SetupScreen(onDone = {}) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Microfone").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(500)
+        shot("32-setup-permissions")
+        compose.onNodeWithText("Agora não").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Onde guardar seu backup?").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("33-setup-backup")
+        compose.onNodeWithText("Depois").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Sua própria inteligência").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("34-setup-intelligence")
+        compose.onNodeWithText("Sua própria inteligência").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Anthropic").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("A Anthropic não ouve áudio", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("35-setup-own")
+        runBlocking {
+            graph.settings.setApiProvider("")
+            graph.settings.setHear(com.villamediana.fio.settings.Source.API)
+            graph.settings.setThink(com.villamediana.fio.settings.Source.API)
+        }
+    }
+
+    @Test
+    fun theWordsFollowTheChosenLanguage() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        com.villamediana.fio.settings.Lang.set(context, com.villamediana.fio.settings.AppLang.EN)
+        try {
+            val nav = Nav()
+            compose.setContent { FioTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
+            compose.onNodeWithText("Settings").assertExists()
+            compose.onNodeWithText("Intelligence").assertExists()
+            compose.onNodeWithText("Language").assertExists()
+            compose.onNodeWithText("English").assertExists()
+            compose.mainClock.advanceTimeBy(500)
+            shot("36-settings-english")
+        } finally {
+            com.villamediana.fio.settings.Lang.set(context, com.villamediana.fio.settings.AppLang.PT)
+        }
+    }
+
+    @Test
     fun settingsDark() {
         val nav = Nav()
         compose.setContent { FioTheme(ThemeMode.DARK) { SettingsScreen(nav) } }

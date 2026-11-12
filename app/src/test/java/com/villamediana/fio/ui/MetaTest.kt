@@ -8,6 +8,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** The quiet line under a card's title says each day once. */
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34])
 class MetaTest {
     private val zone = ZoneId.of("America/Sao_Paulo")
     private val today = LocalDate.of(2026, 11, 11)

@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.home
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -168,9 +170,9 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
         Column(Modifier.fillMaxSize().graphicsLayer { translationX = lean.floatValue }.statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Writing instead of talking: a light pencil, there for whoever wants it.
-                if (state !is MindState.Listening) QuietIcon(FioIcons.Pencil, "Escrever", { writing = true }, alpha = 0.4f)
+                if (state !is MindState.Listening) QuietIcon(FioIcons.Pencil, t(R.string.write), { writing = true }, alpha = 0.4f)
                 Spacer(Modifier.weight(1f))
-                QuietIcon(FioIcons.Tune, "Ajustes", { nav.go(Screen.Settings) }, alpha = 0.55f)
+                QuietIcon(FioIcons.Tune, t(R.string.settings), { nav.go(Screen.Settings) }, alpha = 0.55f)
             }
 
             Spacer(Modifier.weight(1f - 0.82f * lift))
@@ -226,7 +228,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 
             if (pending > 0 && state !is MindState.Working && state !is MindState.Listening) {
                 Text(
-                    if (pending == 1) "1 coisa esperando · tentar agora" else "$pending coisas esperando · tentar agora",
+                    if (pending == 1) t(R.string.pending_one) else t(R.string.pending_many, pending),
                     style = MaterialTheme.typography.labelMedium,
                     color = FioColors.TextMuted,
                     modifier = Modifier
@@ -264,7 +266,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
 private fun StagedTray(photos: List<com.villamediana.fio.mind.Staged>, onRemove: (com.villamediana.fio.mind.Staged) -> Unit, onSend: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
         Text(
-            if (photos.size == 1) "Fale ou escreva o que fazer com ela, ou envie assim" else "Fale ou escreva o que fazer com elas, ou envie assim",
+            if (photos.size == 1) t(R.string.staged_one) else t(R.string.staged_many),
             style = MaterialTheme.typography.labelMedium,
             color = FioColors.TextMuted,
             modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
@@ -289,8 +291,8 @@ private fun StagedTray(photos: List<com.villamediana.fio.mind.Staged>, onRemove:
                                 .size(22.dp)
                                 .clip(CircleShape)
                                 .background(FioColors.Background.copy(alpha = 0.86f))
-                                .clickable(onClickLabel = "Tirar a foto") { onRemove(p) }
-                                .semantics { contentDescription = "Tirar a foto" },
+                                .clickable(onClickLabel = t(R.string.photo_take_out)) { onRemove(p) }
+                                .semantics { contentDescription = t(R.string.photo_take_out) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(FioIcons.Close, null, tint = FioColors.Text, modifier = Modifier.size(13.dp))
@@ -299,7 +301,7 @@ private fun StagedTray(photos: List<com.villamediana.fio.mind.Staged>, onRemove:
                 }
             }
             Spacer(Modifier.width(10.dp))
-            com.villamediana.fio.ui.components.IconAction(FioIcons.Send, if (photos.size == 1) "Enviar a foto" else "Enviar as fotos", onSend, primary = true, size = 48.dp)
+            com.villamediana.fio.ui.components.IconAction(FioIcons.Send, if (photos.size == 1) t(R.string.send_photo) else t(R.string.send_photos), onSend, primary = true, size = 48.dp)
         }
     }
 }
@@ -313,7 +315,7 @@ private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () ->
     FioSheet(onDismissRequest = onDismiss) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp).imePadding(), verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
-                if (text.isEmpty()) Text("O que está na sua cabeça?", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
+                if (text.isEmpty()) Text(t(R.string.invite), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
                 androidx.compose.foundation.text.BasicTextField(
                     value = text,
                     onValueChange = { text = it },
@@ -325,7 +327,7 @@ private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () ->
                 )
             }
             Spacer(Modifier.width(10.dp))
-            IconAction(FioIcons.Send, "Guardar", { if (text.isNotBlank()) onSend(text) }, primary = text.isNotBlank(), modifier = Modifier.padding(bottom = 4.dp))
+            IconAction(FioIcons.Send, t(R.string.keep), { if (text.isNotBlank()) onSend(text) }, primary = text.isNotBlank(), modifier = Modifier.padding(bottom = 4.dp))
         }
     }
 }
@@ -351,9 +353,9 @@ private fun FocusChip(entry: Entry, onClear: () -> Unit) {
         Modifier.padding(bottom = 14.dp).clip(CircleShape).background(FioColors.Surface2).padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Sobre: " + entry.title, style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Text(t(R.string.about_entry, entry.title), style = MaterialTheme.typography.labelLarge, color = FioColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Box(Modifier.size(34.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
-            Icon(FioIcons.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
+            Icon(FioIcons.Close, t(R.string.take_out), tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -393,7 +395,7 @@ private fun StatusArea(
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             when (s) {
                 MindState.Idle -> Text(
-                    if (hintSeen) "O que está na sua cabeça?" else "Segure pra falar.\nToque pra deixar ouvindo.",
+                    if (hintSeen) t(R.string.invite) else t(R.string.hint_first),
                     style = com.villamediana.fio.ui.theme.FioText.Invite,
                     color = FioColors.TextMuted,
                     textAlign = TextAlign.Center,
@@ -423,9 +425,9 @@ internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCanc
     Spacer(Modifier.height(4.dp))
     Text(
         when {
-            inCancelZone -> "Solte pra descartar"
-            s.locked -> "Ouvindo. Toque pra guardar."
-            else -> "Solte pra guardar · arraste pra cima pra descartar"
+            inCancelZone -> t(R.string.release_to_discard)
+            s.locked -> t(R.string.listening_tap_keep)
+            else -> t(R.string.release_to_keep)
         },
         style = MaterialTheme.typography.bodyMedium,
         color = if (inCancelZone) FioColors.Danger else FioColors.TextMuted,
@@ -435,7 +437,7 @@ internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCanc
     // no circle around it, so the button stays the one thing that stands out.
     if (s.locked) {
         Spacer(Modifier.height(10.dp))
-        QuietIcon(FioIcons.Close, "Cancelar", onCancel, alpha = 0.45f)
+        QuietIcon(FioIcons.Close, t(R.string.cancel), onCancel, alpha = 0.45f)
     }
 }
 
@@ -443,10 +445,10 @@ internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCanc
 private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     Text(
         when (s.stage) {
-            Stage.HEARING -> "Transcrevendo…"
-            Stage.READING -> "Lendo a foto…"
-            Stage.THINKING -> "Organizando…"
-            Stage.LOOKING -> "Procurando nas suas lembranças…"
+            Stage.HEARING -> t(R.string.stage_hearing)
+            Stage.READING -> t(R.string.stage_reading)
+            Stage.THINKING -> t(R.string.stage_thinking)
+            Stage.LOOKING -> t(R.string.stage_looking)
         },
         style = MaterialTheme.typography.labelLarge,
         color = FioColors.Accent,
@@ -459,7 +461,7 @@ private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     // Taking too long: a stop. What was said stays, to try again or discard.
     if (s.captureId != 0L) {
         Spacer(Modifier.height(14.dp))
-        IconAction(FioIcons.Stop, "Parar", onStop, size = 40.dp)
+        IconAction(FioIcons.Stop, t(R.string.stop), onStop, size = 40.dp)
     }
 }
 
@@ -497,9 +499,9 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             }
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (s.said.isNotBlank()) {
-                    QuietWord(if (showSaid) "esconder" else if (s.photo) "da foto" else if (s.typed) "o que você escreveu" else "o que você disse") { showSaid = !showSaid }
+                    QuietWord(if (showSaid) t(R.string.hide) else if (s.photo) t(R.string.said_photo_low) else if (s.typed) t(R.string.said_typed_low) else t(R.string.said_spoken_low)) { showSaid = !showSaid }
                 }
-                Box(Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onDismiss).semantics { contentDescription = "Fechar" }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onDismiss).semantics { contentDescription = t(R.string.close) }, contentAlignment = Alignment.Center) {
                     Icon(FioIcons.Close, null, tint = FioColors.TextFaint, modifier = Modifier.size(16.dp))
                 }
             }
@@ -550,12 +552,12 @@ private fun AppearingCard(index: Int, content: @Composable () -> Unit) {
 
 private fun outcomeLabel(o: Outcome, e: Entry): String = when (o.action) {
     Outcome.CREATED -> when (e.kindEnum) {
-        Kind.TASK -> "Nova tarefa"
-        Kind.NOTE -> "Nota guardada"
-        Kind.DIARY -> "No diário"
+        Kind.TASK -> t(R.string.outcome_new_task)
+        Kind.NOTE -> t(R.string.outcome_note_kept)
+        Kind.DIARY -> t(R.string.outcome_in_diary)
     }
-    Outcome.DONE -> "Feita"
-    else -> "Atualizada"
+    Outcome.DONE -> t(R.string.outcome_done)
+    else -> t(R.string.outcome_updated)
 }
 
 @Composable
@@ -567,17 +569,17 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
     }
     Spacer(Modifier.height(16.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (s.need != null) IconAction(FioIcons.Tune, "Ajustes", onSettings, primary = true)
+        if (s.need != null) IconAction(FioIcons.Tune, t(R.string.settings), onSettings, primary = true)
         if (s.captureId != null) {
-            IconAction(FioIcons.Retry, "Tentar de novo", { onRetry(s.captureId) }, primary = s.need == null)
-            IconAction(FioIcons.Trash, "Descartar", { onDiscard(s.captureId) })
+            IconAction(FioIcons.Retry, t(R.string.try_again), { onRetry(s.captureId) }, primary = s.need == null)
+            IconAction(FioIcons.Trash, t(R.string.discard), { onDiscard(s.captureId) })
         } else {
-            IconAction(FioIcons.Check, "Ok", onDismiss)
+            IconAction(FioIcons.Check, t(R.string.ok), onDismiss)
         }
     }
     if (s.captureId != null && s.need != null) {
         Spacer(Modifier.height(10.dp))
-        Text("Está guardado aqui. Assim que der, eu organizo.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint, textAlign = TextAlign.Center)
+        Text(t(R.string.kept_here), style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint, textAlign = TextAlign.Center)
     }
 }
 
@@ -591,8 +593,8 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () 
     ) {
         // Both sides as wide, so "Hoje" stays in the middle.
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.PhotoCamera, "Câmera", onCamera)
-            QuietIcon(FioIcons.Gallery, "Galeria", onGallery)
+            QuietIcon(FioIcons.PhotoCamera, t(R.string.camera), onCamera)
+            QuietIcon(FioIcons.Gallery, t(R.string.gallery), onGallery)
         }
         val interaction = remember { MutableInteractionSource() }
         Row(
@@ -605,7 +607,7 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () 
                 .padding(start = 24.dp, end = if (today > 0) 14.dp else 24.dp, top = 13.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Hoje", style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
+            Text(t(R.string.today), style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
             if (today > 0) {
                 Spacer(Modifier.width(10.dp))
                 Box(Modifier.size(24.dp).clip(CircleShape).background(FioColors.Accent), contentAlignment = Alignment.Center) {
@@ -614,7 +616,7 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () 
             }
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Search, "Buscar", onSearch)
+            QuietIcon(FioIcons.Search, t(R.string.search), onSearch)
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.theme
 
+import androidx.annotation.StringRes
+import com.villamediana.fio.settings.t
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
@@ -87,7 +89,9 @@ object Palettes {
 }
 
 /** A highlight color to choose in Tema, tuned for each theme (linen and cocoa). */
-data class AccentDef(val id: String, val name: String, val light: Color, val dark: Color)
+data class AccentDef(val id: String, @StringRes val nameRes: Int, val light: Color, val dark: Color) {
+    val name: String get() = t(nameRes)
+}
 
 object FioAccents {
     /**
@@ -95,13 +99,13 @@ object FioAccents {
      * launcher entry stay hers): vermilion is terracotta now, graphite is caramel.
      */
     val all = listOf(
-        AccentDef("vermilion", "Terracota", Color(0xFFC2593A), Color(0xFFE8875F)),
-        AccentDef("pink", "Framboesa", Color(0xFFB84F6A), Color(0xFFE68BA3)),
-        AccentDef("graphite", "Caramelo", Color(0xFFA86A30), Color(0xFFE2A866)),
-        AccentDef("green", "Oliva", Color(0xFF6F7D45), Color(0xFFAEBB82)),
-        AccentDef("blue", "Azul", Color(0xFF5671A0), Color(0xFF93ABD3)),
-        AccentDef("teal", "Sálvia", Color(0xFF4C7F77), Color(0xFF86BDB4)),
-        AccentDef("purple", "Ameixa", Color(0xFF84587F), Color(0xFFC79DC2)),
+        AccentDef("vermilion", R.string.accent_terracota, Color(0xFFC2593A), Color(0xFFE8875F)),
+        AccentDef("pink", R.string.accent_framboesa, Color(0xFFB84F6A), Color(0xFFE68BA3)),
+        AccentDef("graphite", R.string.accent_caramelo, Color(0xFFA86A30), Color(0xFFE2A866)),
+        AccentDef("green", R.string.accent_oliva, Color(0xFF6F7D45), Color(0xFFAEBB82)),
+        AccentDef("blue", R.string.accent_azul, Color(0xFF5671A0), Color(0xFF93ABD3)),
+        AccentDef("teal", R.string.accent_salvia, Color(0xFF4C7F77), Color(0xFF86BDB4)),
+        AccentDef("purple", R.string.accent_ameixa, Color(0xFF84587F), Color(0xFFC79DC2)),
     )
 
     fun byId(id: String?): AccentDef = all.firstOrNull { it.id == id } ?: all.first()

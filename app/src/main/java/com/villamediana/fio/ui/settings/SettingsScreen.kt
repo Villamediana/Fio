@@ -1,5 +1,13 @@
 package com.villamediana.fio.ui.settings
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import com.villamediana.fio.ui.sheets.FioSheet
+import com.villamediana.fio.ui.setup.LanguagePicker
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,23 +63,25 @@ fun SettingsScreen(nav: Nav) {
     val s by graph.settings.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     val busy by graph.backups.busy.collectAsStateWithLifecycle()
+    var choosingLanguage by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
-        PageTop("Ajustes") { nav.back() }
+        PageTop(t(R.string.settings)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
             val ai = intelligenceSummary(s, local, graph.localModel.spec.name)
             val backup = backupSummary(s, busy)
             Group(
                 Modifier,
-                { Door("Inteligência", ai.first, ai.second) { nav.go(Screen.Intelligence) } },
+                { Door(t(R.string.ai_title), ai.first, ai.second) { nav.go(Screen.Intelligence) } },
                 {
                     Door(
-                        "Tema",
-                        when (s.theme) { ThemeMode.SYSTEM -> "Sistema"; ThemeMode.LIGHT -> "Claro"; ThemeMode.DARK -> "Escuro" } + " · " + FioAccents.byId(s.accent).name.lowercase(),
+                        t(R.string.theme),
+                        when (s.theme) { ThemeMode.SYSTEM -> t(R.string.theme_system); ThemeMode.LIGHT -> t(R.string.theme_light); ThemeMode.DARK -> t(R.string.theme_dark) } + " · " + FioAccents.byId(s.accent).name.lowercase(),
                     ) { nav.go(Screen.Theme) }
                 },
-                { Door("Backup", backup.first, backup.second) { nav.go(Screen.Backup) } },
+                { Door(t(R.string.backup), backup.first, backup.second) { nav.go(Screen.Backup) } },
+                { Door(t(R.string.language), Lang.current.label) { choosingLanguage = true } },
             )
 
             Spacer(Modifier.height(26.dp))
@@ -84,13 +94,22 @@ fun SettingsScreen(nav: Nav) {
                         Spacer(Modifier.width(14.dp))
                         Column {
                             Text("Novelo", style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
-                            Text("versão ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted)
+                            Text(t(R.string.version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted)
                         }
                     }
                 },
                 updateLine,
             )
             Spacer(Modifier.height(40.dp))
+        }
+    }
+    if (choosingLanguage) {
+        FioSheet(onDismissRequest = { choosingLanguage = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
+                Text(t(R.string.language), style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
+                Spacer(Modifier.height(16.dp))
+                LanguagePicker()
+            }
         }
     }
 }
@@ -101,21 +120,21 @@ internal fun intelligenceSummary(s: FioSettings, local: LocalModel.State, localN
     val api = s.hear == Source.API || s.think == Source.API
     return when {
         phone && !(LocalEngine.available && local is LocalModel.State.Ready) -> "$localName · " + localShort(local) to true
-        api && !s.apiReady -> "falta o endereço ou a chave da API" to true
-        (s.hear == Source.API && s.hearModel.isBlank()) || (s.think == Source.API && s.thinkModel.isBlank()) -> "falta escolher o modelo" to true
-        phone && api -> (if (s.hear == Source.LOCAL) "ouve no celular · pensa com ${s.thinkModel}" else "ouve com ${s.hearModel} · pensa no celular") to false
-        phone -> "no celular · funciona sem internet" to false
+        api && !s.apiReady -> t(R.string.ai_missing_api) to true
+        (s.hear == Source.API && s.hearModel.isBlank()) || (s.think == Source.API && s.thinkModel.isBlank()) -> t(R.string.ai_missing_model) to true
+        phone && api -> (if (s.hear == Source.LOCAL) t(R.string.ai_mixed_phone_hears, s.thinkModel) else t(R.string.ai_mixed_phone_thinks, s.hearModel)) to false
+        phone -> t(R.string.ai_on_phone_offline) to false
         else -> s.thinkModel to false
     }
 }
 
 /** The backup in a few words; true when it needs her. */
 internal fun backupSummary(s: FioSettings, busy: String?): Pair<String, Boolean> = when {
-    s.backupFolder.isBlank() -> "escolher onde guardar" to true
-    busy == Backups.SAVING -> "fazendo…" to false
+    s.backupFolder.isBlank() -> t(R.string.backup_choose_where) to true
+    busy == Backups.SAVING -> t(R.string.backup_doing) to false
     s.backupFailed -> s.backupNote to true
-    s.backupAt > 0 -> "todo dia · último " + moment(s.backupAt) to false
-    else -> "todo dia" to false
+    s.backupAt > 0 -> t(R.string.backup_daily_last, moment(s.backupAt)) to false
+    else -> t(R.string.backup_daily) to false
 }
 
 /** A way into a page: its name, how things are under it, and the chevron. */
@@ -130,7 +149,7 @@ private fun Door(title: String, subtitle: String, attention: Boolean = false, on
 @Composable
 internal fun PageTop(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        QuietIcon(FioIcons.Back, "Voltar", onBack, alpha = 0.8f)
+        QuietIcon(FioIcons.Back, t(R.string.back), onBack, alpha = 0.8f)
         Text(title, style = MaterialTheme.typography.headlineMedium, color = FioColors.Text, modifier = Modifier.padding(start = 6.dp))
     }
 }
