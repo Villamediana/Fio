@@ -22,7 +22,19 @@ class Keeper(
     /** What happened, in order; entries whose reminders changed are in [touched]. */
     data class Result(val outcomes: List<Outcome>, val touched: List<Long>)
 
-    suspend fun apply(plan: Plan, captureId: Long?): Result = db.withTransaction {
+    /**
+     * [sentPhotos] and [sentFiles]: the photos and files she sent with it, in the order the model saw
+     * them numbered (1, 2…): an item's numbers become theirs.
+     */
+    suspend fun apply(plan: Plan, captureId: Long?, sentPhotos: List<Long> = emptyList(), sentFiles: List<Long> = emptyList()): Result = db.withTransaction {
+        /** An item's numbers → (all of them, these capture ids). */
+        fun picked(nums: List<Int>, ids: List<Long>): Pair<Boolean, List<Long>> =
+            if (Picks.ALL in nums) true to emptyList() else false to nums.mapNotNull { ids.getOrNull(it - 1) }.distinct()
+        fun outcome(id: Long, action: String, photos: List<Int>, files: List<Int>): Outcome {
+            val (allPhotos, pics) = picked(photos, sentPhotos)
+            val (allFiles, docs) = picked(files, sentFiles)
+            return Outcome(id, action, photos = allPhotos, files = allFiles, pics = pics, docs = docs)
+        }
         val now = clock()
         val z = zone()
         val outcomes = mutableListOf<Outcome>()
@@ -41,9 +53,9 @@ class Keeper(
                     val title = if (today.body.isBlank() && item.title.isNotBlank()) item.title.trim().take(140) else today.title
                     val e = today.copy(title = title, body = body)
                     // A file or photo that lives in the day's diary is news of it too.
-                    if (e != today || item.photos || item.files) {
+                    if (e != today || item.photos.isNotEmpty() || item.files.isNotEmpty()) {
                         db.entries().update(e.copy(updatedAt = now))
-                        outcomes += Outcome(today.id, Outcome.UPDATED, photos = item.photos, files = item.files)
+                        outcomes += outcome(today.id, Outcome.UPDATED, item.photos, item.files)
                     }
                     known += today.id
                     tieTopics(today.id, item.entities)
@@ -78,7 +90,7 @@ class Keeper(
             item.related.filter { it != id && db.entries().get(it) != null }.forEach { other ->
                 db.graph().link(Link(minOf(id, other), maxOf(id, other)))
             }
-            outcomes += Outcome(id, if (status == Status.DONE) Outcome.DONE else Outcome.CREATED, photos = item.photos, files = item.files)
+            outcomes += outcome(id, if (status == Status.DONE) Outcome.DONE else Outcome.CREATED, item.photos, item.files)
             if (entry.remindAt != null || entry.checkInAt != null) touched += id
         }
 
@@ -113,14 +125,14 @@ class Keeper(
             if (e.statusEnum == Status.DONE) e = e.copy(checkInAt = null, remindAt = e.remindAt?.takeIf { old.statusEnum == Status.DONE })
             val changed = e != old
             // Photos or files joined to it are news too: it comes up as changed now.
-            val joins = change.photos || change.files
+            val joins = change.photos.isNotEmpty() || change.files.isNotEmpty()
             if (changed || joins) db.entries().update(e.copy(updatedAt = now))
             if (newStatus != null && newStatus != old.statusEnum) {
                 db.progress().insert(Progress(entryId = e.id, at = now, text = "", status = newStatus.key))
             }
             tieTopics(e.id, change.entities)
             if (changed || joins) {
-                outcomes += Outcome(e.id, if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE) Outcome.DONE else Outcome.UPDATED, photos = change.photos, files = change.files)
+                outcomes += outcome(e.id, if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE) Outcome.DONE else Outcome.UPDATED, change.photos, change.files)
                 if (e.remindAt != old.remindAt || e.checkInAt != old.checkInAt) touched += e.id
             }
         }

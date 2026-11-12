@@ -403,6 +403,15 @@ memória de 50 buscas. Sem o ouvido baixado, só palavras.
 
 ## Arquivos (1.31.0)
 
+**O que vai junto, cada um no seu lugar (1.31.4).** O que ela fala e as fotos/arquivos que manda junto podem
+ser de coisas sem nada a ver: cada foto e cada arquivo chega numerado ao modelo (com o que o Omni disse de
+cada um, uma olhada por foto) e cada item diz quais são dele — `"photos": [1]`, `"files": [2]` (`Picks`;
+`true` ainda vale como "todos"). O `Keeper` troca os números pelos ids das capturas (`Outcome.pics`/`docs`;
+`photos`/`files` = todos, como antes) e o `Attached` vê cada foto/arquivo por si. O que não é de item nenhum
+fica solto: a foto na Galeria e no diário do dia; o arquivo no diário do dia (só lembrança do dia — documento
+sempre tem a nota dele). No diário vai só o relato do dia, nada sobre o que ela mandou. O que vai junto não
+conta como "a última conversa" (`lastDone` ignora `partOf`).
+
 O ícone de folha na barra de baixo (ao lado da busca) anexa arquivos de qualquer tipo
 (`OpenMultipleDocuments`). `AppGraph.fromFiles` copia cada um pro app e eles esperam na bandeja das fotos
 (`Mind.stageFiles`, `Staged.name` ≠ null): enviados assim, cada um vai sozinho (`Capture.FILE`); com o que
@@ -415,7 +424,7 @@ palavras da planilha, primeiro slide); PDF com a primeira página desenhada (`Pd
 Kit; imagem pelo ML Kit. Com isso, o nome e o que ela disse, o Omni escreve no celular o que o arquivo é
 (`About.file`, uma frase; sem texto nenhum, ele olha a primeira página como imagem — `FilePeek.look`). Isso
 fica na captura (a busca) e é o que o modelo online recebe ("o que é: …"), nunca o começo do arquivo (só se o
-Omni não disse nada). O modelo online só classifica: marca `"files": true` no único item onde o arquivo mora — em geral uma nota sobre ele. Sem item marcado (ou com o item apagado depois), o arquivo é do
+Omni não disse nada). O modelo online só classifica: põe o número do arquivo em `"files": [n]` do único item onde o arquivo mora — em geral uma nota sobre ele. Sem item marcado (ou com o item apagado depois), o arquivo é do
 diário do dia (`Attached.fileHomes`: o primeiro item marcado que ainda existe, senão nenhum).
 
 Na tela: o item mostra seus arquivos debaixo do texto (`ui/entry/Files.kt`, um toque abre no app que ela

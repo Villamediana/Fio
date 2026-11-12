@@ -129,11 +129,21 @@ data class Capture(
 data class Outcome(
     val entryId: Long,
     val action: String,
-    /** The photos sent with what was said stay with this entry. */
+    /** All the photos sent with what was said stay with this entry (before 1.31.4: the only way). */
     val photos: Boolean = false,
-    /** The files sent (alone, or with what was said) live in this entry. */
+    /** All the files sent (alone, or with what was said) live in this entry. */
     val files: Boolean = false,
+    /** These photos (capture ids) of the ones sent stay with this entry — each sent one goes where it belongs. */
+    val pics: List<Long> = emptyList(),
+    /** These files (capture ids) of the ones sent live in this entry. */
+    val docs: List<Long> = emptyList(),
 ) {
+    /** It holds [part], a photo sent with what was said. */
+    fun holdsPhoto(part: Long): Boolean = action != DELETED && (photos || part in pics)
+
+    /** It holds [part], a file sent (alone or with what was said). */
+    fun holdsFile(part: Long): Boolean = action != DELETED && (files || part in docs)
+
     companion object {
         const val CREATED = "created"
         const val UPDATED = "updated"

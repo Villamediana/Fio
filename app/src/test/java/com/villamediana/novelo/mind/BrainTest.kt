@@ -38,7 +38,17 @@ class BrainTest {
         assertTrue(plan.showPhotos.isEmpty())
         assertEquals(listOf("revisar"), plan.create.single().steps)
         assertEquals(listOf(12L), plan.create.single().related)
-        assertTrue(plan.create.single().files)
+        assertEquals(listOf(Picks.ALL), plan.create.single().files) // true: all of them
+    }
+
+    @Test
+    fun eachItemSaysWhichOfTheSentThingsAreItsOwn() {
+        val plan = Brain.parse("""{"create":[{"kind":"note","title":"RNM","photos":[1,2],"files":[]},{"kind":"note","title":"Carteira de trabalho","files":[1]},{"kind":"task","title":"x","photos":"3","files":false}]}""")!!
+        assertEquals(listOf(1, 2), plan.create[0].photos)
+        assertTrue(plan.create[0].files.isEmpty())
+        assertEquals(listOf(1), plan.create[1].files)
+        assertEquals(listOf(3), plan.create[2].photos)
+        assertTrue(plan.create[2].files.isEmpty())
     }
 
     @Test
