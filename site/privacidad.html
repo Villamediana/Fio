@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Novelo · Privacidad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #F3EBDD; --card: #FBF6EC; --ink: #3A2A1F; --muted: #7A6656; --accent: #C2593A; --line: #E2D5C1; }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #221A15; --card: #2B221C; --ink: #F1E6D6; --muted: #B9A692; --accent: #E07A5A; --line: #3D312A; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.65 Nunito, system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 20px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 36px; }
+  .mark { font: 400 34px/1 Fraunces, Georgia, serif; letter-spacing: -0.01em; }
+  .mark span { color: var(--accent); }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 14px; font-weight: 600; font-size: 15px; }
+  nav a[aria-current] { color: var(--accent); }
+  h1 { font: 400 30px/1.2 Fraunces, Georgia, serif; margin: 0 0 6px; }
+  .date { color: var(--muted); font-size: 15px; margin: 0 0 28px; }
+  h2 { font: 400 21px/1.3 Fraunces, Georgia, serif; margin: 34px 0 8px; }
+  p, li { margin: 0 0 12px; }
+  ul { padding-left: 20px; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1.5px dashed var(--line); border-radius: 18px; padding: 18px 20px; margin: 22px 0; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="mark">Novelo<span>.</span></div>
+    <nav><a href="privacidade.html">Português</a><a href="privacidad.html" aria-current="page">Español</a><a href="privacy.html">English</a></nav>
+  </header>
+
+  <h1>Política de privacidad</h1>
+  <p class="date">Actualizada el 12 de noviembre de 2026</p>
+
+  <div class="card">
+    <p><strong>En resumen:</strong> lo que guardas en Novelo se queda en tu celular. La app no tiene cuenta, anuncios ni rastreo. Tu voz se convierte en texto en el propio celular. Solo el texto (y lo que se ve en una foto) va a un servicio de inteligencia artificial en internet, para organizarlo en tareas, notas y diario.</p>
+  </div>
+
+  <h2>Quién cuida tus datos</h2>
+  <p>Novelo lo hace {{NOME}}, desarrollador independiente en Brasil, responsable del tratamiento de datos descrito aquí según la Ley General de Protección de Datos de Brasil (LGPD). Contacto: <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>.</p>
+
+  <h2>Lo que se queda en tu celular</h2>
+  <p>Todo lo que guardas (tareas, notas, diario, fotos y los audios que la app conserva) se queda solo en el almacenamiento de la app en tu celular. Novelo no tiene un servidor que guarde ese contenido y no pide cuenta ni inicio de sesión.</p>
+
+  <h2>Tu voz</h2>
+  <p>La grabación se convierte en texto en el propio celular, con un modelo de inteligencia artificial que corre en él. El audio no sale del aparato. Una vez convertido en texto se borra, salvo cuando el sonido es lo que vale la pena guardar (una melodía que cantas, por ejemplo); entonces se queda junto al elemento, en el celular.</p>
+
+  <h2>Tus fotos</h2>
+  <p>El texto de una foto se lee en el celular (con ML Kit, de Google, que corre en el aparato; puede enviar a Google datos técnicos de uso y rendimiento, nunca la foto). El modelo del celular también describe lo que se ve en ella. Cuando eliges fotos de la galería, la app recibe solo las que elegiste. Las fotos tomadas con la cámara de la app también se guardan en la galería del celular (carpeta Novelo).</p>
+
+  <h2>Lo que va a internet, y a quién</h2>
+  <p>Para organizar lo que dijiste o escribiste y responder tus preguntas, Novelo envía por internet a un servicio de inteligencia artificial:</p>
+  <ul>
+    <li>el texto de lo que dijiste o escribiste;</li>
+    <li>en una foto, el texto leído en ella y la descripción hecha en el celular (o la propia foto, si usas tu propia inteligencia);</li>
+    <li>lo que el modelo necesita para entender el pedido: tus tareas abiertas, el diario del día, los últimos elementos guardados y los que pueden tener relación con el tema.</li>
+  </ul>
+  <p>A dónde va depende de lo que elijas en Ajustes:</p>
+  <ul>
+    <li><strong>Inteligencia de Novelo</strong> (la predeterminada): el pedido pasa por <a href="https://openrouter.ai/privacy">OpenRouter</a> y lo responden modelos gratuitos de otras empresas. Esos proveedores pueden registrar y guardar lo que reciben, y algunos lo usan para mejorar sus propios modelos, según la política de cada uno. Si prefieres que tus textos no vayan a ellos, usa tu propia inteligencia.</li>
+    <li><strong>Tu propia inteligencia</strong>: el pedido va directo al servicio que configuraste (OpenAI, Anthropic, OpenRouter, Azure u otro), en tu cuenta y bajo su política. Tu clave se queda en el celular, cifrada por Android.</li>
+  </ul>
+  <p>Novelo no guarda esos pedidos en ningún servidor propio.</p>
+
+  <h2>Descargas</h2>
+  <p>El modelo que escucha y ve en el celular se descarga de <a href="https://huggingface.co/privacy">Hugging Face</a>, que, como en cualquier descarga, ve la dirección de internet del aparato.</p>
+
+  <h2>Copia de seguridad</h2>
+  <p>La copia de seguridad es un archivo que la app graba en la carpeta que eliges (en el celular o en una carpeta en la nube que tú elegiste). Novelo no envía la copia a ningún otro lugar.</p>
+
+  <h2>Permisos</h2>
+  <ul>
+    <li><strong>Micrófono</strong>: grabar lo que dices, solo cuando aprietas el botón.</li>
+    <li><strong>Cámara</strong>: tomar fotos dentro de la app.</li>
+    <li><strong>Notificaciones y alarmas</strong>: recordatorios y el aviso de que la app está escuchando u organizando.</li>
+    <li><strong>Internet</strong>: organizar con la inteligencia y descargar el modelo del celular.</li>
+  </ul>
+
+  <h2>Lo que Novelo no hace</h2>
+  <p>No muestra anuncios, no usa herramientas de análisis ni de rastreo, y no vende ni comparte tus datos con nadie más allá de lo descrito aquí. Google Play puede recopilar datos de instalación y de errores de la app, según la <a href="https://policies.google.com/privacy">política de Google</a>.</p>
+
+  <h2>Por cuánto tiempo, y cómo borrar</h2>
+  <p>Tus datos se quedan en el celular hasta que los borres en la app o la desinstales. Desinstalar borra todo, menos los archivos de copia de seguridad que guardaste fuera de la app. Puedes ver, corregir y borrar cada elemento en la propia app. Para ejercer cualquier derecho o hacer preguntas, escribe a <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>.</p>
+
+  <h2>Niños</h2>
+  <p>Novelo no está hecho para niños menores de 13 años.</p>
+
+  <h2>Cambios</h2>
+  <p>Cuando esta política cambie, la fecha de arriba cambia también y la novedad aparece en las notas de la versión de la app.</p>
+
+  <footer>Novelo · <a href="privacidad.html">privacidad</a></footer>
+</main>
+</body>
+</html>
