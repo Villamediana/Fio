@@ -51,7 +51,8 @@ class ApiTest {
         assertEquals("/v1/messages", req.url.encodedPath)
         assertEquals("server-side-fallback-2026-07-01", req.headers["anthropic-beta"])
         val body = req.body!!.utf8()
-        assertTrue(body, body.contains("\"system\":\"sys\""))
+        // The instructions marked for Anthropic's cache.
+        assertTrue(body, body.contains("\"system\":[{\"type\":\"text\",\"text\":\"sys\",\"cache_control\":{\"type\":\"ephemeral\"}}]"))
         assertTrue(body, body.contains("\"type\":\"image\""))
         assertTrue(body, body.contains("\"output_config\":{\"effort\":\"low\"}"))
         assertTrue(body, body.contains("\"fallbacks\":\"default\""))
