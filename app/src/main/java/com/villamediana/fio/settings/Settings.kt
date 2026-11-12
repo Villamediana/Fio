@@ -74,7 +74,7 @@ data class FioSettings(
     val hintSeen: Boolean = false,
     /** The folder the backup goes to (a tree uri the app holds a permission for); empty = none. */
     val backupFolder: String = "",
-    /** Where that is, to show: "Documents/Fio". */
+    /** Where that is, to show: "Documents/Novelo backup.zip". */
     val backupPlace: String = "",
     val backupEvery: BackupEvery = BackupEvery.DAY,
     /** When the last backup ended well (0 = never). */
@@ -132,6 +132,8 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
+    suspend fun setBackupPlace(place: String) = store.edit { it[BACKUP_PLACE] = place }
+
     suspend fun setBackupFolder(uri: String, place: String) = store.edit {
         it[BACKUP_FOLDER] = uri
         it[BACKUP_PLACE] = place

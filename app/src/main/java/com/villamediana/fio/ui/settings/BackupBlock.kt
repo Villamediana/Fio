@@ -124,7 +124,7 @@ internal fun BackupBlock() {
     if (importing) ImportSheet(waitFor = choosing, onDismiss = { importing = false })
 }
 
-/** The snapshots in the folder (the newest first); one tapped, what it holds and the import. */
+/** The backups in the folder (the newest first); one tapped, what it holds and the import. */
 @Composable
 private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
     val graph = FioApplication.graph
@@ -173,7 +173,7 @@ private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Troca tudo o que está no Novelo por este backup. Antes, o que está aqui vira um backup nesta pasta.",
+                        "Troca tudo o que está no Novelo pelo que está neste backup.",
                         style = MaterialTheme.typography.bodySmall,
                         color = FioColors.TextMuted,
                     )
