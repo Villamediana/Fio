@@ -1,4 +1,4 @@
-# Fio · arquitetura
+# Novelo · arquitetura
 
 ## O caminho de um pensamento
 
@@ -60,7 +60,7 @@ voltas de linha, o miolo limpo pro microfone, um ponto de costura em volta e a p
 à direita (`drawYarn`, `drawStitchRing`, `drawLooseEnd` em `ui/home/Orb.kt`, os mesmos na prévia
 do Tema). Ícone do app, splash e marca (`NoveloMark`) são o novelo no acento.
 
-Em Ajustes › Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents`:
+Em Ajustes › Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`NoveloAccents`:
 Terracota, Framboesa, Caramelo, Oliva, Azul, Sálvia, Ameixa). Os ids são os de antes (a escolha
 salva e as entradas do ícone no launcher continuam valendo): `vermilion` virou terracota,
 `graphite` virou caramelo. O que vai sobre o acento é branco quente ou tinta, o que tiver mais
@@ -78,11 +78,12 @@ sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequênci
 costurada.
 
 O nome mudou de Fio pra Novelo na 1.17.0: muda o que aparece (nome, ícone, textos, a pasta do
-backup e a da galeria). Depois da 1.23.1, rumo à Play Store, o app passou a ser `com.villamediana.novelo`
-(`applicationId`; o nome do pacote na Play não muda nunca mais). O código por dentro (`namespace`, pastas,
-`R`/`BuildConfig`, as funções JNI do motor) e o repositório seguem `fio`: quem vê é só o `applicationId`.
-Com o id novo o celular trata como outro app — o de antes (`com.villamediana.fio`) continua instalado, e os
-dados passam pelo backup (exportar no antigo, importar no novo).
+backup e a da galeria). Na 1.24.0, rumo à Play Store, virou Novelo em tudo: o app é `com.villamediana.novelo`
+(o nome do pacote na Play não muda nunca mais), e o código (`namespace`, pastas, classes `Novelo*`, o motor
+`novelo_engine`), o repositório (`Villamediana/Novelo`) e a chave de release (`~/keystores/novelo-release.jks`,
+o mesmo certificado) também. Com o id novo o celular trata como outro app — o de antes (`com.villamediana.fio`)
+continua instalado, e os dados passam pelo backup (exportar no antigo, importar no novo). Só o que lê backup
+antigo segue com o nome de antes: a pasta `Fio/` e os arquivos `fio <data>.json`.
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
 Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
@@ -113,13 +114,13 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 |---|---|
 | `audio/` | `Recorder`, `Wav` (ler/escrever, `Pieces.cut` no silêncio), `MicService` (um serviço em primeiro plano só: microfone enquanto grava, dataSync + wake lock enquanto transcreve e organiza, pra minimizar não parar nada) |
 | `ai/Api` | OpenAI-compatível: `models`, `transcribe`, `chat`; chave em `Authorization: Bearer` e `api-key` |
-| `local/` | `LocalEngine` (JNI → `app/src/main/cpp/fio_engine.cpp`), `LocalModel` (DownloadManager + SHA-256) |
+| `local/` | `LocalEngine` (JNI → `app/src/main/cpp/novelo_engine.cpp`), `LocalModel` (DownloadManager + SHA-256) |
 | `mind/` | `Mind` (orquestra), `Brain` (prompt, contexto, parse, datas, GBNF), `Keeper` (grava o Plan), `Recall` (busca + grafo), `Meaning` (busca por sentido com o Omni), `Engines` (Hearing/Thinking por Ajustes), `PhotoText` (ML Kit OCR + JPEG) |
 | `data/` | Room: `entries`, `captures`, `entities`, `entry_topics`, `links`, `progress`; `Library` (ações da UI) |
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
-| `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Fio` |
+| `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
 ## O prompt
@@ -127,7 +128,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 `Brain.SYSTEM` descreve as ideias (o que é tarefa, nota, diário, notícia, pergunta), nunca listas de
 palavras-gatilho. O modelo decide; o código só valida (tipos conhecidos, ids que existem, datas futuras).
 
-Fotos (1.13.0): a foto tirada no Fio (`Capture` source=photo, arquivo em filesDir/captures) é do
+Fotos (1.13.0): a foto tirada no Novelo (`Capture` source=photo, arquivo em filesDir/captures) é do
 dia — se o dia não tem diário, `Mind.diaryFor` cria um com a data de título (`DayDiary.title`). O
 diário do dia (o mais novo daquele dia) mostra as fotos do dia num carrossel (`ui/entry/DayPhotos`,
 `PhotoRow`), o cartão do Diário mostra até 4 miniaturas, a aba Galeria é um mosaico de duas colunas
@@ -203,12 +204,12 @@ Na 1.15.0:
   sozinhas (`letGo`).
 - **Modelo local mais rápido**: o estado depois das instruções (~1.700 tokens) fica num arquivo
   (`cacheDir/model/prompt-<modelo>-<tamanho>-<versão>.bin`, `read_cache`/`write_cache` no
-  `fio_engine.cpp`) e é preparado enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o
+  `novelo_engine.cpp`) e é preparado enquanto ela fala (`nativePrime` no `warm`). Antes se perdia quando o
   modelo era solto (5 min parado) ou o app fechava.
 - **Tema fora das telas** (`ui/theme/Look`): a abertura segura até as configurações carregarem; claro/escuro
   pelo `UiModeManager.setApplicationNightMode` (12+), splash na cor dela por `setSplashScreenTheme` (13+,
-  `Theme.Fio.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
-  cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `FioActivity`.
+  `Theme.Novelo.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
+  cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `NoveloActivity`.
 
 Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
 null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
@@ -229,7 +230,7 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
   baixam só o ouvido do Novelo. Sem provedor salvo (configurado antes) = Outro, com o endereço digitado.
 - **Idioma do app** (`settings/Lang`): português por padrão (seja qual for o idioma do celular), inglês
   ou espanhol nos primeiros passos e em Ajustes › Idioma; guardado em SharedPreferences pra valer desde
-  o primeiro quadro (`FioActivity.attachBaseContext`). Todo texto vem de `t(R.string.…)`
+  o primeiro quadro (`NoveloActivity.attachBaseContext`). Todo texto vem de `t(R.string.…)`
   (`values`, `values-en`, `values-es`), datas com `Lang.locale` e padrões por idioma (`fmt_*`). O que vai
   pro modelo (instruções, contexto) e o Markdown do backup ficam em português; o modelo responde no
   idioma em que ela fala.
@@ -292,7 +293,7 @@ Novelo backup.zip
 
 ## Motor no celular
 
-`fio_engine.cpp` usa só as APIs C de `llama.h`, `mtmd.h` e `mtmd-helper.h` (llama.cpp v0.9.0):
+`novelo_engine.cpp` usa só as APIs C de `llama.h`, `mtmd.h` e `mtmd-helper.h` (llama.cpp v0.9.0):
 
 - `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR.` (idioma automático),
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
@@ -302,7 +303,7 @@ Novelo backup.zip
 O prompt de ASR é o mesmo do `llama-server` pro LFM3 (e o do card do LFM3-Omni) (`common_chat_get_asr_prompt`): sistema
 `Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.
 
-O build só inclui o nativo com `-Pfio.llama=<pasta do llama.cpp>`. O `release.sh` baixa o llama.cpp
+O build só inclui o nativo com `-Pnovelo.llama=<pasta do llama.cpp>`. O `release.sh` baixa o llama.cpp
 numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a pasta, `app/.cxx` e o
 que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
 baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
@@ -358,7 +359,7 @@ memória de 50 buscas. Sem o ouvido baixado, só palavras.
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa
 `tools/release.sh -n $'- novidade'`. O script confere git, versão, pacote e o certificado
-(SHA-256 `f538e500…48bffc`, chave em `~/keystores/fio-release.jks`), publica e só diz `published`
+(SHA-256 `f538e500…48bffc`, chave em `~/keystores/novelo-release.jks`), publica e só diz `published`
 quando `/releases/latest` bate. Notas = o texto da tela "Nova versão" no celular.
 
 O botão "Atualizar" baixa a versão nova com o app segurando um serviço em primeiro plano (`update/UpdateService`,
@@ -370,4 +371,4 @@ Android congelava o app e o download caía no meio ("A conexão caiu"). Liga só
 
 `./gradlew :app:testDebugUnitTest`: Recall, Brain, Keeper, o caminho inteiro do Mind com motores falsos,
 Api contra MockWebServer, Wav/Pieces, o atualizador (copiado do FreeSong) e `ScreensTest`: o app
-real com a API num MockWebServer, que salva os prints de cada tela em `app/build/fio-shots`.
+real com a API num MockWebServer, que salva os prints de cada tela em `app/build/novelo-shots`.

@@ -1,0 +1,95 @@
+package com.villamediana.novelo.ui.entry
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.villamediana.novelo.NoveloApplication
+import com.villamediana.novelo.data.Entry
+import com.villamediana.novelo.mind.DayDiary
+import com.villamediana.novelo.mind.Photo
+import com.villamediana.novelo.ui.components.Mosaic
+import com.villamediana.novelo.ui.components.PhotoTile
+import com.villamediana.novelo.ui.components.PhotoViewer
+import com.villamediana.novelo.ui.components.bleed
+import com.villamediana.novelo.ui.components.rememberAspects
+import com.villamediana.novelo.ui.components.stitched
+import java.io.File
+import java.time.ZoneId
+
+/**
+ * The photos taken on the day of a diary, under its text (only on the day's diary — the newest of
+ * that day — so a day's photos show once): a row that slides sideways, each photo in its own shape,
+ * edge to edge. A tap opens them big.
+ */
+@Composable
+internal fun DayPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
+    val lib = NoveloApplication.graph.library
+    val day = remember(entry.createdAt) { DayDiary.bounds(entry.createdAt, ZoneId.systemDefault()) }
+    val isDay by produceState(false, entry.id, day) { value = lib.isDayDiary(entry.id, day) }
+    val all by remember(day) { lib.photos(day) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    if (!isDay) return
+    val photos = remember(all) { all.filter { File(it.path).isFile } }
+    if (photos.isEmpty()) return
+    PhotoRow(photos, side, modifier.padding(top = 22.dp))
+}
+
+/** The photos an item holds (a task, a note: sent with what she said), under its text. */
+@Composable
+internal fun EntryPhotos(entry: Entry, side: Dp, modifier: Modifier = Modifier) {
+    val lib = NoveloApplication.graph.library
+    val photos by remember(entry.id) { lib.photosOf(entry.id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    if (photos.isEmpty()) return
+    PhotoRow(photos, side, modifier.padding(top = 22.dp), tag = "entry-photo")
+}
+
+/** The seam on a photo: light, like thread on fabric. */
+private val StitchOnPhoto = androidx.compose.ui.graphics.Color(0xCCFBF6EC)
+
+/** A sideways row of [photos] at [height], of different widths (see [Mosaic]); [side] = the page's own margin. */
+@Composable
+internal fun PhotoRow(photos: List<Photo>, side: Dp, modifier: Modifier = Modifier, height: Dp = 210.dp, tag: String = "day-photo") {
+    var opened by rememberSaveable { mutableStateOf<Int?>(null) }
+    val aspects = rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
+    LazyRow(
+        modifier.bleed(side).fillMaxWidth().testTag("$tag-row"),
+        contentPadding = PaddingValues(horizontal = side),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
+            // Different widths, even for photos all of one shape.
+            val ratio = Mosaic.shape(i, aspects[p.id] ?: 1f)
+            PhotoTile(
+                p.path,
+                turn = p.turn,
+                modifier = Modifier
+                    .height(height)
+                    .width(height * ratio)
+                    .clip(RoundedCornerShape(20.dp))
+                    .stitched(RoundedCornerShape(20.dp), StitchOnPhoto)
+                    .clickable { opened = i }
+                    .testTag("$tag-$i"),
+            )
+        }
+    }
+    opened?.let { start -> PhotoViewer(photos, start, onClose = { opened = null }) }
+}

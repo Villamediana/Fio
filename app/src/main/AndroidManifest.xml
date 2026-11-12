@@ -34,7 +34,7 @@
     </queries>
 
     <application
-        android:name=".FioApplication"
+        android:name=".NoveloApplication"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -45,17 +45,17 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Fio"
+        android:theme="@style/Theme.Novelo"
         android:extractNativeLibs="false"
         tools:targetApi="36">
 
         <activity
-            android:name=".FioActivity"
+            android:name=".NoveloActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.Fio.Splash"
+            android:theme="@style/Theme.Novelo.Splash"
             android:windowSoftInputMode="adjustResize"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
@@ -67,7 +67,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -79,7 +79,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_blue"
             android:roundIcon="@mipmap/ic_launcher_round_blue"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -91,7 +91,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_green"
             android:roundIcon="@mipmap/ic_launcher_round_green"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -103,7 +103,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_pink"
             android:roundIcon="@mipmap/ic_launcher_round_pink"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -115,7 +115,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_purple"
             android:roundIcon="@mipmap/ic_launcher_round_purple"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -127,7 +127,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_teal"
             android:roundIcon="@mipmap/ic_launcher_round_teal"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -139,7 +139,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_graphite"
             android:roundIcon="@mipmap/ic_launcher_round_graphite"
-            android:targetActivity=".FioActivity">
+            android:targetActivity=".NoveloActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -9,18 +9,18 @@ plugins {
     alias(libs.plugins.room)
 }
 
-// Release signing lives outside the repo: ~/keystores/fio-keystore.properties (or keystore.properties at the root).
+// Release signing lives outside the repo: ~/keystores/novelo-keystore.properties (or keystore.properties at the root).
 val signingProps = Properties().apply {
     val candidates = listOf(
         rootProject.file("keystore.properties"),
-        File(System.getProperty("user.home"), "keystores/fio-keystore.properties"),
+        File(System.getProperty("user.home"), "keystores/novelo-keystore.properties"),
     )
     candidates.firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
 }
 
-// The on-device model (LFM3 through llama.cpp, app/src/main/cpp). Built only with -Pfio.llama=<dir>,
+// The on-device model (LFM3 through llama.cpp, app/src/main/cpp). Built only with -Pnovelo.llama=<dir>,
 // a llama.cpp checkout that lives just for the build (tools/release.sh fetches it and deletes it).
-val llamaDir = (findProperty("fio.llama") as String?)?.takeIf { it.isNotBlank() }?.let { File(it) }
+val llamaDir = (findProperty("novelo.llama") as String?)?.takeIf { it.isNotBlank() }?.let { File(it) }
 val withNative = llamaDir != null && File(llamaDir, "CMakeLists.txt").exists()
 
 // The Novelo's own intelligence (free models on OpenRouter) goes with the app's key. The key never
@@ -47,7 +47,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.villamediana.fio"
+    namespace = "com.villamediana.novelo"
     compileSdk {
         version = release(37) {
             minorApiLevel = 0
@@ -58,8 +58,8 @@ android {
         applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
-        versionCode = 35
-        versionName = "1.23.1"
+        versionCode = 36
+        versionName = "1.24.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NV_NOTICE", "\"" + listOf(
@@ -157,7 +157,7 @@ android {
                     "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
                 )
                 it.maxHeapSize = "3g"
-                it.systemProperty("fio.shots", System.getenv("FIO_SHOTS") ?: "")
+                it.systemProperty("novelo.shots", System.getenv("NOVELO_SHOTS") ?: "")
                 it.testLogging { events("failed", "skipped"); showStandardStreams = true }
             }
         }
@@ -171,7 +171,7 @@ room {
 gradle.taskGraph.whenReady {
     val wantsRelease = allTasks.any { it.project == project && it.name.contains("Release") && (it.name.startsWith("assemble") || it.name.startsWith("package") || it.name.startsWith("bundle")) }
     if (wantsRelease && signingProps.getProperty("storeFile") == null) {
-        throw GradleException("Release signing keystore missing: ~/keystores/fio-keystore.properties")
+        throw GradleException("Release signing keystore missing: ~/keystores/novelo-keystore.properties")
     }
 }
 

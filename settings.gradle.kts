@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fio"
+rootProject.name = "Novelo"
 include(":app")

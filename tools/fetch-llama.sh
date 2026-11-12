@@ -2,7 +2,7 @@
 # Baixa o llama.cpp (ggml-org, MIT) na versão que o motor do celular usa, na pasta dada.
 # Só serve pro build: o release.sh baixa numa pasta temporária e apaga no fim (nada fica no servidor).
 #
-#   tools/fetch-llama.sh /tmp/x/llama.cpp && ./gradlew :app:assembleRelease -Pfio.llama=/tmp/x/llama.cpp
+#   tools/fetch-llama.sh /tmp/x/llama.cpp && ./gradlew :app:assembleRelease -Pnovelo.llama=/tmp/x/llama.cpp
 set -euo pipefail
 dest=${1:?uso: tools/fetch-llama.sh <pasta>}
 TAG=v0.9.0
