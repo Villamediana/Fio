@@ -26,6 +26,26 @@ object Longs : kotlinx.serialization.json.JsonTransformingSerializer<List<Long>>
     override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = oneOrMany(element)
 }
 
+/**
+ * Which of the photos or files she sent are an item's: their numbers ("photos": [1, 3]); true is all
+ * of them (0), false or nothing is none. Anything else in the list is left out.
+ */
+object Picks : kotlinx.serialization.json.JsonTransformingSerializer<List<Int>>(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<Int>())) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement {
+        fun one(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonPrimitive? {
+            val p = e as? kotlinx.serialization.json.JsonPrimitive ?: return null
+            if (p is kotlinx.serialization.json.JsonNull) return null
+            if (!p.isString && (p.content == "true" || p.content == "false")) return if (p.content == "true") kotlinx.serialization.json.JsonPrimitive(ALL) else null
+            return p.content.trim().toIntOrNull()?.takeIf { it >= 1 }?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+        }
+        val items = if (element is kotlinx.serialization.json.JsonArray) element.mapNotNull(::one) else listOfNotNull(one(element))
+        return kotlinx.serialization.json.JsonArray(items.distinct())
+    }
+
+    /** "All of them" (true). */
+    const val ALL = 0
+}
+
 private fun oneOrMany(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
     is kotlinx.serialization.json.JsonArray -> kotlinx.serialization.json.JsonArray(e.filter { it !is kotlinx.serialization.json.JsonNull })
     is kotlinx.serialization.json.JsonNull -> kotlinx.serialization.json.JsonArray(emptyList())
@@ -70,10 +90,10 @@ data class NewItem(
     val status: String? = null,
     val sensitive: Boolean = false,
     @Serializable(with = Longs::class) val related: List<Long> = emptyList(),
-    /** The photos sent with what she said stay with this item. */
-    val photos: Boolean = false,
-    /** The files she sent live in this item. */
-    val files: Boolean = false,
+    /** The photos she sent (their numbers) that stay with this item. */
+    @Serializable(with = Picks::class) val photos: List<Int> = emptyList(),
+    /** The files she sent (their numbers) that live in this item. */
+    @Serializable(with = Picks::class) val files: List<Int> = emptyList(),
 )
 
 @Serializable
@@ -95,10 +115,10 @@ data class Change(
     @SerialName("check_in_at") val checkInAt: String? = null,
     val entities: List<NamedTopic> = emptyList(),
     val delete: Boolean = false,
-    /** The photos sent with what she said go to this item too. */
-    val photos: Boolean = false,
-    /** The files she sent live in this item. */
-    val files: Boolean = false,
+    /** The photos she sent (their numbers) that go to this item. */
+    @Serializable(with = Picks::class) val photos: List<Int> = emptyList(),
+    /** The files she sent (their numbers) that live in this item. */
+    @Serializable(with = Picks::class) val files: List<Int> = emptyList(),
 )
 
 /**
@@ -138,12 +158,13 @@ Como preencher:
 - remind_at: quando ela pede pra ser lembrada, ou quando algo tem hora marcada (lembre um pouco antes).
 - check_in_at: em tarefas que levam dias ou têm etapas, escolha um bom momento pra perguntar como está. Pode ser null.
 - steps: as etapas, quando a tarefa tem mais de um passo. status: todo, doing, waiting ou done.
-- sensitive: true para senhas, números de documento, dados bancários e afins.
+- sensitive: true para senhas, documentos pessoais e números deles, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
-- A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
-- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho.
-- Arquivos (O ARQUIVO QUE ELA MANDOU, OS ARQUIVOS QUE ELA MANDOU JUNTO): você vê o nome, o tipo e o que ele é (o celular olhou o começo dele) — nunca o arquivo inteiro. Cada arquivo fica num lugar só: marque "files": true no item a que ele pertence — em geral uma nota sobre ele (crie uma, com um título que diz o que ele é, quando não há), ou o item de que ele faz parte (a tarefa de mandar o currículo). Quando ele é só parte do dia dela, não marque nenhum: ele fica no diário do dia. Não copie o conteúdo do arquivo pros itens.
+- A foto de um momento já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item; ela só ganha a "reply". A foto de algo pra guardar ou fazer (um documento, um papel, um recibo, um aviso, um quadro) é desse item: crie ou mude o item com o que ela traz.
+- No diário fica só o relato do dia. O que ela diz das fotos e dos arquivos que mandou (o que são, de quem, pra quê) vai pro item deles, nunca pro diário.
+- O que ela fala e o que ela manda junto (AS FOTOS QUE ELA MANDOU JUNTO, OS ARQUIVOS QUE ELA MANDOU JUNTO) podem ser da mesma coisa ou de coisas sem nada a ver entre si. Decida cada um por si: o que ela fala vai pro que é; cada foto e cada arquivo vai pro item a que pertence — um que você cria pra ele, um que já existe, ou o mesmo de outra coisa que ela mandou ou falou, quando são da mesma coisa. Em "photos" e "files" desse item, os números das fotos e dos arquivos que são dele; o que não for de nenhum item (a foto de um momento, a lembrança do dia) fica de fora: o diário do dia já mostra.
+- Das fotos e dos arquivos você vê o que o celular disse deles e o texto lido (dos arquivos, o nome e o tipo) — nunca a foto nem o arquivo inteiro. Um documento, ou qualquer arquivo que ela vá querer achar de novo, tem sempre o item dele (em geral uma nota, com um título que diz o que é), mesmo quando ela o manda contando o dia. Não copie o conteúdo do arquivo pros itens.
 - keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
@@ -153,8 +174,8 @@ Responda somente com um objeto JSON. Um exemplo do jeito (só o que foi usado):
 {"reply": "...", "create": [{"kind": "task", "title": "...", "due": "AAAA-MM-DD"}], "update": [{"id": 12, "add_steps": ["..."]}]}
 Os campos que existem:
 - reply
-- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos, files}]
-- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos, files}]
+- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
+- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos [números], files [números]}]
 - search, period {from, to}, show, show_photos, keep_audio
 """.trim()
 
@@ -259,9 +280,10 @@ Os campos que existem:
         append("\nAGORA: ").append(weekday).append(", ").append(at.format(STAMP)).append(" (").append(zone.id).append(")\n")
         val takenOn = takenAt?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), zone) }?.takeIf { it.toLocalDate() != at.toLocalDate() }
         if (sent.isNotEmpty()) {
-            append("\nAS FOTOS QUE ELA MANDOU JUNTO (").append(sent.size).append(if (sent.size == 1) ", na imagem):\n" else ", na imagem, em ordem):\n")
+            append("\nAS FOTOS QUE ELA MANDOU JUNTO (").append(sent.size).append("):\n")
             sent.forEachIndexed { i, p ->
                 append(i + 1).append(". ").append(stamp(p.takenAt, zone))
+                p.description?.let { append(" · o que se vê: ").append(it.take(SEEN).replace('\n', ' ')) }
                 p.text?.let { append(" · texto: ").append(it.take(160).replace('\n', ' ')) }
                 append('\n')
             }
@@ -269,12 +291,12 @@ Os campos que existem:
         seen?.trim()?.takeIf { it.isNotEmpty() }?.let { append("\nO QUE SE VÊ (o celular olhou):\n").append(it.take(SEEN)).append('\n') }
         if (fileAlone) {
             // Nothing said: the file is the whole of it.
-            append("\nO ARQUIVO QUE ELA MANDOU (sem dizer nada):\n")
+            append("\nO ARQUIVO QUE ELA MANDOU (sem dizer nada; é o arquivo 1):\n")
             files.forEach { append(fileLine(it)).append('\n') }
             return@buildString
         }
         if (files.isNotEmpty()) {
-            append("\nOS ARQUIVOS QUE ELA MANDOU JUNTO (").append(files.size).append(if (files.size == 1) "):\n" else ", em ordem):\n")
+            append("\nOS ARQUIVOS QUE ELA MANDOU JUNTO (").append(files.size).append("):\n")
             files.forEachIndexed { i, f -> append(i + 1).append(". ").append(fileLine(f)).append('\n') }
         }
         append(

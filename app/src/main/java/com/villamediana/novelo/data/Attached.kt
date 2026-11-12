@@ -4,18 +4,18 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * Photos sent together with something said or written: they stay with the entries the model said
- * they belong to ("photos": true), as many as she sent.
+ * Photos and files sent together with something said or written: each one stays with the entries
+ * the model said it belongs to (by its number; "true" was all of them) — what she says and what she
+ * sends can be about different things.
  */
 object Attached {
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** The entries that took the photos sent with [c]. */
-    fun holders(c: Capture): Set<Long> =
+    private fun outcomes(c: Capture): List<Outcome> =
         runCatching { json.decodeFromString(ListSerializer(Outcome.serializer()), c.outcomes) }.getOrDefault(emptyList())
-            .filter { it.photos && it.action != Outcome.DELETED }
-            .map { it.entryId }
-            .toSet()
+
+    /** The entries that took [part], a photo sent with [owner] (what she said). */
+    fun holders(owner: Capture, part: Capture): Set<Long> = outcomes(owner).filter { it.holdsPhoto(part.id) }.map { it.entryId }.toSet()
 
     /**
      * The entries a photo sent alone turned into or changed (a receipt that became a note, a flyer
@@ -23,25 +23,22 @@ object Attached {
      */
     fun madeFrom(photo: Capture): Set<Long> =
         if (photo.source != "photo" || photo.partOf != null) emptySet()
-        else runCatching { json.decodeFromString(ListSerializer(Outcome.serializer()), photo.outcomes) }.getOrDefault(emptyList())
-            .filter { it.action != Outcome.DELETED }
-            .map { it.entryId }
-            .toSet()
+        else outcomes(photo).filter { it.action != Outcome.DELETED }.map { it.entryId }.toSet()
+
+    /** The entries that hold [photo]: what it was sent with gave it to them, or it made them (sent alone). */
+    private fun homesOf(photo: Capture, byId: Map<Long, Capture>): Set<Long> =
+        if (photo.partOf != null) byId[photo.partOf]?.let { holders(it, photo) }.orEmpty() else madeFrom(photo)
 
     /** Among [captures] (the photos and what they went with), the photos [entryId] holds, in order. */
     fun photosOf(entryId: Long, captures: List<Capture>): List<Capture> {
-        val holders = captures.filter { it.source != "photo" || it.partOf == null }.associate { it.id to holders(it) }
+        val byId = captures.associateBy { it.id }
         return captures
-            .filter { it.imagePath != null && (if (it.partOf != null) holders[it.partOf]?.contains(entryId) == true else entryId in madeFrom(it)) }
+            .filter { it.imagePath != null && entryId in homesOf(it, byId) }
             .sortedWith(compareBy<Capture> { it.createdAt }.thenBy { it.id })
     }
 
-    /** The entries that took the files of [c] (sent with it, or [c] itself a file sent alone): "files": true. */
-    fun fileHolders(c: Capture): Set<Long> =
-        runCatching { json.decodeFromString(ListSerializer(Outcome.serializer()), c.outcomes) }.getOrDefault(emptyList())
-            .filter { it.files && it.action != Outcome.DELETED }
-            .map { it.entryId }
-            .toSet()
+    /** The entries that took [part], a file sent alone ([owner] is itself) or with what [owner] said. */
+    fun fileHolders(owner: Capture, part: Capture): Set<Long> = outcomes(owner).filter { it.holdsFile(part.id) }.map { it.entryId }.toSet()
 
     /**
      * Where each file lives (file capture id → entry id): the first item the model put it in that
@@ -51,7 +48,7 @@ object Attached {
         val byId = captures.associateBy { it.id }
         return captures.filter { it.filePath != null }.associate { f ->
             val from = if (f.partOf != null) byId[f.partOf] else f
-            f.id to from?.let(::fileHolders)?.firstOrNull { it in entries }
+            f.id to from?.let { fileHolders(it, f) }?.firstOrNull { it in entries }
         }
     }
 
@@ -63,10 +60,7 @@ object Attached {
     fun keptInside(captures: List<Capture>, entries: List<Entry>): Set<Long> {
         val kept = entries.filter { it.kindEnum == Kind.NOTE || it.sensitive }.map { it.id }.toSet()
         if (kept.isEmpty()) return emptySet()
-        val holders = captures.filter { it.source != "photo" || it.partOf == null }.associate { it.id to holders(it) }
-        return captures.filter { c ->
-            c.source == "photo" && c.imagePath != null &&
-                (if (c.partOf != null) holders[c.partOf].orEmpty() else madeFrom(c)).any { it in kept }
-        }.map { it.id }.toSet()
+        val byId = captures.associateBy { it.id }
+        return captures.filter { c -> c.source == "photo" && c.imagePath != null && homesOf(c, byId).any { it in kept } }.map { it.id }.toSet()
     }
 }

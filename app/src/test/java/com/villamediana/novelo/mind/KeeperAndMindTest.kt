@@ -344,10 +344,11 @@ class KeeperAndMindTest {
         assertTrue(m.staged.value.isEmpty())
         // One look for all: what she wrote with the two photos.
         val prompt = thinker.prompts.single()
-        assertTrue(prompt, prompt.contains("AS FOTOS QUE ELA MANDOU JUNTO (2, na imagem, em ordem):"))
-        // What they show, said once by Omni on the phone (one look at both) — the model gets it.
-        assertEquals(1, omni.photos.size)
-        assertTrue(prompt, prompt.contains("O QUE SE VÊ (o celular olhou):\ntênis azul numa vitrine"))
+        // Each photo numbered, with what Omni said it shows (one look each: they may be of different things).
+        assertTrue(prompt, prompt.contains("AS FOTOS QUE ELA MANDOU JUNTO (2):\n1. 2026-11-11 09:59 · o que se vê: tênis azul numa vitrine\n2. "))
+        assertEquals(2, omni.photos.size)
+        // What was sent with it is not "the last talk".
+        assertTrue(prompt, !prompt.contains("ANTES DISSO"))
         val said = db.backup().captures().single { it.source == Capture.TEXT }
         val sent = db.captures().attachedTo(said.id)
         assertEquals(2, sent.size)
@@ -384,7 +385,7 @@ class KeeperAndMindTest {
         assertEquals("Miguel Villamediana · Desenvolvedor de software · São Paulo", omni.asked.single().first.peek)
         assertNull(omni.asked.single().second)
         val prompt = thinker.prompts.single()
-        assertTrue(prompt, prompt.contains("O ARQUIVO QUE ELA MANDOU (sem dizer nada):"))
+        assertTrue(prompt, prompt.contains("O ARQUIVO QUE ELA MANDOU (sem dizer nada; é o arquivo 1):"))
         assertTrue(prompt, prompt.contains("\"CV Miguel 2026.pdf\" · PDF · 2 KB · o que é: currículo do Miguel, desenvolvedor"))
         assertTrue(prompt, !prompt.contains("começo da primeira página"))
         assertEquals(listOf("CV Miguel 2026.pdf"), peek.peeked)
@@ -428,7 +429,8 @@ class KeeperAndMindTest {
         answered(m)
         assertTrue(m.staged.value.isEmpty())
         val prompt = thinker.prompts.single()
-        assertTrue(prompt, prompt.contains("OS ARQUIVOS QUE ELA MANDOU JUNTO (2, em ordem):"))
+        assertTrue(prompt, prompt.contains("OS ARQUIVOS QUE ELA MANDOU JUNTO (2):"))
+        assertTrue(prompt, !prompt.contains("ANTES DISSO"))
         assertTrue(prompt, prompt.contains("1. \"contrato.docx\" · DOCX · 2 KB · o que é: contrato de aluguel do apartamento"))
         assertTrue(prompt, prompt.contains("2. \"gastos.xlsx\" · XLSX · 2 KB · o que é: planilha de gastos de novembro"))
         // Omni knew what she said with them.
@@ -503,6 +505,32 @@ class KeeperAndMindTest {
         assertEquals(1, omni.photos.size) // Omni looked
         assertTrue(prompts.single(), prompts.single().contains("O QUE SE VÊ (o celular olhou):\npôr do sol na praia de Itacaré"))
         assertEquals("pôr do sol na praia de Itacaré", db.captures().allPhotos().single().description)
+    }
+
+    @Test
+    fun thingsSentTogetherCanBeAboutDifferentThingsEachGoesWhereItBelongs() = runBlocking {
+        // She tells her day and sends, all at once, her ID card's photo, a sunset and her work card's PDF.
+        val made = """{"reply":"Guardei.","create":[{"kind":"diary","title":"Un buen día","body":"Fue un buen día y estoy trabajando bien."},{"kind":"note","title":"RNM","sensitive":true,"photos":[1]},{"kind":"note","title":"Carteira de trabalho","sensitive":true,"files":[1]}]}"""
+        val thinker = FakeThinker(ArrayDeque(listOf(made)))
+        val m = mind(FakeEars(""), thinker, about = Says("algo"))
+        m.stage(listOf(jpegFile("rnm.jpg") to now - 60_000, jpegFile("sol.jpg") to now - 30_000))
+        m.stageFiles(listOf(picked("ctps") to "CTPS.pdf"))
+        m.write("fue un buen día y estoy trabajando bien, ese es mi documento de la cartera de trabajo")
+        answered(m)
+        val lib = com.villamediana.novelo.data.Library(db, Synced())
+        val notes = db.entries().all().filter { it.kindEnum == com.villamediana.novelo.data.Kind.NOTE }.associateBy { it.title }
+        val said = db.backup().captures().single { it.source == Capture.TEXT }
+        val (rnm, sun) = db.captures().attachedTo(said.id)
+        val ctps = db.captures().filesWith(said.id).single()
+        // The ID card in its note (hidden there: a note's paper, sensitive), the PDF in the other.
+        assertEquals(listOf(rnm.id), lib.photosOf(notes.getValue("RNM").id).first().map { it.id })
+        assertEquals(listOf(ctps.id), lib.filesOf(notes.getValue("Carteira de trabalho").id).first().map { it.id })
+        assertTrue(lib.filesOf(notes.getValue("RNM").id).first().isEmpty())
+        // The sunset, in no item: loose — the gallery and the day's diary; the ID card isn't there.
+        assertEquals(listOf(sun.id), lib.loosePhotos().first().map { it.id })
+        val day = DayDiary.bounds(now, zone)
+        assertTrue(lib.dayFiles(day).first().isEmpty())
+        assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
     }
 
     @Test
