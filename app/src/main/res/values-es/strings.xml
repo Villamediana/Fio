@@ -142,12 +142,6 @@
     <string name="ai_novelo_summary">Inteligencia del Novelo · oye en el celular</string>
     <string name="need_novelo_not_in_version">la inteligencia del Novelo no viene en esta versión — usa la tuya en Ajustes</string>
     <string name="need_download_ears">descarga el oído del Novelo en Ajustes › Inteligencia</string>
-    <string name="gesture_label">Novelo · Grabar</string>
-    <string name="shortcut">Atajo</string>
-    <string name="shortcut_gesture">Grabar con un gesto</string>
-    <string name="shortcut_how">En el gesto del celular (botón lateral 2x, toque atrás), elige “Novelo · Grabar”.</string>
-    <string name="shortcut_on">activado</string>
-    <string name="shortcut_off">desactivado</string>
     <string name="ai_on_phone">En el celular</string>
     <string name="ai_choose_model">elegir modelo</string>
     <string name="ai_model_thinks">Modelo que piensa</string>

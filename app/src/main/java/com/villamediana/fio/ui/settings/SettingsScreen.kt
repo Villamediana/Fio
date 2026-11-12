@@ -13,14 +13,12 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import com.villamediana.fio.ui.theme.LocalPalette
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.platform.LocalContext
-import com.villamediana.fio.shortcut.Gesture
 import com.villamediana.fio.ui.theme.Motion
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.remember
@@ -74,7 +72,7 @@ import com.villamediana.fio.ui.theme.FioColors
 import com.villamediana.fio.ui.update.UpdateRow
 
 /** The parts of Ajustes, each opened in place. */
-private enum class Part { AI, SHORTCUT, THEME, BACKUP, LANGUAGE }
+private enum class Part { AI, THEME, BACKUP, LANGUAGE }
 
 /**
  * Ajustes: one page. Each part is a line that says in a few words how things are (in the accent
@@ -83,12 +81,10 @@ private enum class Part { AI, SHORTCUT, THEME, BACKUP, LANGUAGE }
 @Composable
 fun SettingsScreen(nav: Nav) {
     val graph = FioApplication.graph
-    val context = LocalContext.current
     val s by graph.settings.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     val busy by graph.backups.busy.collectAsStateWithLifecycle()
     var open by rememberSaveable { mutableStateOf<Part?>(null) }
-    var gesture by remember { mutableStateOf(Gesture.on(context)) }
     fun toggle(p: Part) { open = if (open == p) null else p }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
@@ -98,9 +94,6 @@ fun SettingsScreen(nav: Nav) {
             val ai = intelligenceSummary(s, local, graph.novelo.available)
             val backup = backupSummary(s, busy)
             Fold(t(R.string.ai_title), ai.first, ai.second, open == Part.AI, { toggle(Part.AI) }) { IntelligenceSection() }
-            Fold(t(R.string.shortcut), t(if (gesture) R.string.shortcut_on else R.string.shortcut_off), false, open == Part.SHORTCUT, { toggle(Part.SHORTCUT) }) {
-                ShortcutSection(gesture) { on -> Gesture.set(context, on); gesture = on }
-            }
             Fold(
                 t(R.string.theme),
                 when (s.theme) { ThemeMode.SYSTEM -> t(R.string.theme_system); ThemeMode.LIGHT -> t(R.string.theme_light); ThemeMode.DARK -> t(R.string.theme_dark) } + " · " + FioAccents.byId(s.accent).name.lowercase(),
@@ -131,19 +124,24 @@ fun SettingsScreen(nav: Nav) {
 }
 
 /**
- * One part of Ajustes: its name and how it is, and — opened — what is in it, right under it (the
- * chevron turns down). The page scrolls to keep what opened in view.
+ * One part of Ajustes: its name and how it is; opened, what is in it, inside the same card (its own
+ * cards take the page's color there, so they read as inside it, not as more lines of the menu). The
+ * page scrolls to keep what opened in view.
  */
 @Composable
 private fun Fold(title: String, summary: String, attention: Boolean, open: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
     val turn by animateFloatAsState(if (open) 90f else 0f, Motion.soft(), label = "chevron")
     val bring = remember { BringIntoViewRequester() }
     LaunchedEffect(open) { if (open) { delay(260); bring.bringIntoView() } }
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).bringIntoViewRequester(bring)) {
+    Column(
+        Modifier.fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .bringIntoViewRequester(bring)
+            .clip(RoundedCornerShape(20.dp))
+            .background(FioColors.Surface),
+    ) {
         Row(
             Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(FioColors.Surface)
                 .clickable(onClick = onToggle)
                 .heightIn(min = 60.dp)
                 .padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
@@ -156,30 +154,12 @@ private fun Fold(title: String, summary: String, attention: Boolean, open: Boole
             Icon(FioIcons.Chevron, null, tint = if (open) FioColors.Accent else FioColors.TextFaint, modifier = Modifier.size(18.dp).rotate(turn))
         }
         AnimatedVisibility(open, enter = expandVertically(Motion.enter()) + fadeIn(Motion.enter()), exit = shrinkVertically(Motion.exit()) + fadeOut(Motion.exit())) {
-            Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp)) { content() }
+            val p = FioColors.palette
+            CompositionLocalProvider(LocalPalette provides p.copy(surface = p.background)) {
+                Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 14.dp)) { content() }
+            }
         }
     }
-}
-
-/** Atalho: recording with the phone's own gesture (on or off), and in one line where to choose it. */
-@Composable
-private fun ShortcutSection(on: Boolean, onChange: (Boolean) -> Unit) {
-    Group(Modifier, {
-        Line(title = t(R.string.shortcut_gesture), subtitle = if (on) t(R.string.shortcut_how) else null, onClick = { onChange(!on) }) {
-            Switch(
-                checked = on,
-                onCheckedChange = onChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = FioColors.OnAccent,
-                    checkedTrackColor = FioColors.Accent,
-                    checkedBorderColor = FioColors.Accent,
-                    uncheckedThumbColor = FioColors.TextFaint,
-                    uncheckedTrackColor = FioColors.Surface2,
-                    uncheckedBorderColor = FioColors.Surface3,
-                ),
-            )
-        }
-    })
 }
 
 /** Who thinks, in a few words (hearing is always on the phone); true when something is missing. */

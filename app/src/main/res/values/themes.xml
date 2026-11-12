@@ -6,13 +6,6 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <!-- The gesture's entry: nothing on screen, no animation. -->
-    <style name="Theme.Fio.Invisible" parent="android:Theme.Translucent.NoTitleBar">
-        <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:backgroundDimEnabled">false</item>
-    </style>
-
     <style name="Theme.Fio.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/window_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/fio_splash_vermilion</item>
