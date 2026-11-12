@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -46,61 +47,80 @@ data class Palette(
 )
 
 object Palettes {
-    /** Paper and ink, with one vermilion thread. */
+    /** Warm linen and brown ink, with one terracotta thread. */
     val Light = Palette(
         dark = false,
-        background = Color(0xFFF6F4EF),
-        surface = Color(0xFFFFFFFF),
-        surface2 = Color(0xFFEFECE6),
-        surface3 = Color(0xFFE5E1D9),
-        text = Color(0xFF17171A),
-        textMuted = Color(0xFF68645D),
-        textFaint = Color(0xFFA39E95),
-        line = Color(0x1A17171A),
-        accent = Color(0xFFEC4F2A),
-        onAccent = Color(0xFFFFFFFF),
-        danger = Color(0xFFC62E2E),
-        success = Color(0xFF1F8A70),
+        background = Color(0xFFF3EBDD),
+        surface = Color(0xFFFBF6EC),
+        surface2 = Color(0xFFEADFCC),
+        surface3 = Color(0xFFE0D2BC),
+        text = Color(0xFF3A2A1F),
+        textMuted = Color(0xFF715E4C),
+        textFaint = Color(0xFF9C8670),
+        line = Color(0x1F3A2A1F),
+        accent = Color(0xFFC2593A),
+        onAccent = Color(0xFFFFF8EE),
+        danger = Color(0xFFB4382B),
+        success = Color(0xFF4F7F4A),
     )
 
+    /** Cocoa under a lamp: the same warmth at night. */
     val Dark = Palette(
         dark = true,
-        background = Color(0xFF111113),
-        surface = Color(0xFF1A1A1D),
-        surface2 = Color(0xFF222226),
-        surface3 = Color(0xFF2D2D32),
-        text = Color(0xFFF2F0EB),
-        textMuted = Color(0xFF9D988F),
-        textFaint = Color(0xFF5F5B55),
-        line = Color(0x1FF2F0EB),
-        accent = Color(0xFFFF6A43),
-        onAccent = Color(0xFF17171A),
-        danger = Color(0xFFFF6B6B),
-        success = Color(0xFF3FBF9C),
+        background = Color(0xFF221A15),
+        surface = Color(0xFF2D231D),
+        surface2 = Color(0xFF3A2E26),
+        surface3 = Color(0xFF46382F),
+        text = Color(0xFFF4E8D7),
+        textMuted = Color(0xFFBBA78F),
+        textFaint = Color(0xFF8C7A66),
+        line = Color(0x1FF4E8D7),
+        accent = Color(0xFFE8875F),
+        onAccent = Color(0xFF2A1C10),
+        danger = Color(0xFFFF8A7A),
+        success = Color(0xFF8CC79A),
     )
+
+    /** What goes on the accent: warm white or dark ink, whichever reads better on it. */
+    val OnLight = Color(0xFFFFF8EE)
+    val OnDark = Color(0xFF2A1C10)
 }
 
-/** A highlight color to choose in Tema, tuned for each theme (paper and graphite). */
+/** A highlight color to choose in Tema, tuned for each theme (linen and cocoa). */
 data class AccentDef(val id: String, val name: String, val light: Color, val dark: Color)
 
 object FioAccents {
+    /**
+     * The ids are the ones from before the cozy colors (the choice she saved and the icon's
+     * launcher entry stay hers): vermilion is terracotta now, graphite is caramel.
+     */
     val all = listOf(
-        AccentDef("vermilion", "Vermelhão", Color(0xFFEC4F2A), Color(0xFFFF6A43)),
-        AccentDef("blue", "Azul", Color(0xFF4C6FFF), Color(0xFF7C9BFF)),
-        AccentDef("green", "Verde", Color(0xFF149E5C), Color(0xFF5FD69C)),
-        AccentDef("pink", "Rosa", Color(0xFFE0457B), Color(0xFFFF7AA8)),
-        AccentDef("purple", "Roxo", Color(0xFF7B4DFF), Color(0xFFA88BFF)),
-        AccentDef("teal", "Petróleo", Color(0xFF0E9C9C), Color(0xFF5ED8D8)),
-        AccentDef("graphite", "Grafite", Color(0xFF2B2E36), Color(0xFFE6E8EE)),
+        AccentDef("vermilion", "Terracota", Color(0xFFC2593A), Color(0xFFE8875F)),
+        AccentDef("pink", "Framboesa", Color(0xFFB84F6A), Color(0xFFE68BA3)),
+        AccentDef("graphite", "Caramelo", Color(0xFFA86A30), Color(0xFFE2A866)),
+        AccentDef("green", "Oliva", Color(0xFF6F7D45), Color(0xFFAEBB82)),
+        AccentDef("blue", "Azul", Color(0xFF5671A0), Color(0xFF93ABD3)),
+        AccentDef("teal", "Sálvia", Color(0xFF4C7F77), Color(0xFF86BDB4)),
+        AccentDef("purple", "Ameixa", Color(0xFF84587F), Color(0xFFC79DC2)),
     )
 
     fun byId(id: String?): AccentDef = all.firstOrNull { it.id == id } ?: all.first()
 }
 
+private fun contrast(a: Color, b: Color): Float {
+    val la = a.luminance() + 0.05f
+    val lb = b.luminance() + 0.05f
+    return if (la > lb) la / lb else lb / la
+}
+
+/** What reads on [accent]: warm white or dark ink, by contrast. */
+fun onAccentFor(accent: Color): Color =
+    if (contrast(accent, Palettes.OnLight) >= contrast(accent, Palettes.OnDark)) Palettes.OnLight else Palettes.OnDark
+
 /** [this] palette with [a] as its thread: the button, the marks, the chosen things. */
 fun Palette.withAccent(a: AccentDef): Palette {
     val c = if (dark) a.dark else a.light
-    return copy(accent = c, onAccent = if (c.luminance() > 0.5f) Color(0xFF17171A) else Color.White)
+    return copy(accent = c, onAccent = onAccentFor(c))
 }
 
 val LocalPalette = staticCompositionLocalOf { Palettes.Light }
@@ -122,16 +142,51 @@ object FioColors {
     val Success @Composable @ReadOnlyComposable get() = palette.success
 }
 
-private fun outfit(weight: Int) = Font(
-    R.font.outfit,
+/**
+ * The letters: Fraunces (a soft serif) for what is said big and for the voice of the app,
+ * Nunito (round) for reading and doing, Caveat (a hand) only for the diary's dates.
+ * Fraunces is drawn for its size (opsz), the way a browser does it.
+ */
+private fun fraunces(size: Int, weight: Int, italic: Boolean) = Font(
+    if (italic) R.font.fraunces_italic else R.font.fraunces,
+    weight = FontWeight(weight),
+    style = if (italic) FontStyle.Italic else FontStyle.Normal,
+    variationSettings = FontVariation.Settings(
+        FontVariation.weight(weight),
+        FontVariation.Setting("opsz", size.toFloat().coerceIn(9f, 144f)),
+    ),
+)
+
+/** Fraunces at [size], in the weights the screens ask for. */
+fun serifFamily(size: Int, italic: Boolean = false): FontFamily =
+    FontFamily(fraunces(size, 400, italic), fraunces(size, 500, italic), fraunces(size, 600, italic))
+
+private fun nunito(weight: Int) = Font(
+    R.font.nunito,
     weight = FontWeight(weight),
     variationSettings = FontVariation.Settings(FontVariation.weight(weight)),
 )
 
-val Outfit = FontFamily(outfit(300), outfit(400), outfit(500), outfit(600), outfit(700))
+val Nunito = FontFamily(nunito(400), nunito(500), nunito(600), nunito(700), nunito(800))
 
-private fun style(size: Int, weight: Int, line: Int, spacing: Double = 0.0) = TextStyle(
-    fontFamily = Outfit,
+private fun caveat(weight: Int) = Font(
+    R.font.caveat,
+    weight = FontWeight(weight),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight)),
+)
+
+val Caveat = FontFamily(caveat(500), caveat(600), caveat(700))
+
+private fun serif(size: Int, weight: Int, line: Int, spacing: Double = 0.0) = TextStyle(
+    fontFamily = serifFamily(size),
+    fontWeight = FontWeight(weight),
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    letterSpacing = spacing.sp,
+)
+
+private fun sans(size: Int, weight: Int, line: Int, spacing: Double = 0.0) = TextStyle(
+    fontFamily = Nunito,
     fontWeight = FontWeight(weight),
     fontSize = size.sp,
     lineHeight = line.sp,
@@ -139,22 +194,37 @@ private fun style(size: Int, weight: Int, line: Int, spacing: Double = 0.0) = Te
 )
 
 val FioType = Typography(
-    displayLarge = style(48, 500, 54, -1.2),
-    displayMedium = style(38, 500, 44, -0.8),
-    displaySmall = style(30, 500, 36, -0.5),
-    headlineLarge = style(28, 500, 34, -0.4),
-    headlineMedium = style(24, 500, 30, -0.3),
-    headlineSmall = style(21, 500, 27, -0.2),
-    titleLarge = style(19, 500, 25, -0.1),
-    titleMedium = style(16, 500, 22),
-    titleSmall = style(14, 600, 19),
-    bodyLarge = style(16, 400, 23),
-    bodyMedium = style(14, 400, 20),
-    bodySmall = style(12, 400, 16),
-    labelLarge = style(14, 500, 18),
-    labelMedium = style(12, 500, 16, 0.2),
-    labelSmall = style(11, 600, 14, 0.6),
+    displayLarge = serif(48, 400, 54, -1.0),
+    displayMedium = serif(38, 400, 44, -0.6),
+    displaySmall = serif(30, 400, 36, -0.4),
+    headlineLarge = serif(28, 400, 34, -0.3),
+    headlineMedium = serif(24, 400, 30, -0.2),
+    headlineSmall = serif(21, 400, 27, -0.1),
+    titleLarge = serif(19, 400, 26),
+    titleMedium = sans(16, 600, 22),
+    titleSmall = sans(14, 700, 19),
+    bodyLarge = sans(16, 400, 23),
+    bodyMedium = sans(14, 400, 20),
+    bodySmall = sans(12, 400, 16),
+    labelLarge = sans(14, 600, 18),
+    labelMedium = sans(12, 600, 16, 0.1),
+    labelSmall = sans(11, 700, 14, 0.4),
 )
+
+/** The few voices outside the type scale. */
+object FioText {
+    /** What the button invites ("O que está na sua cabeça?"): the serif, leaning. */
+    val Invite = TextStyle(fontFamily = serifFamily(22, italic = true), fontWeight = FontWeight(400), fontStyle = FontStyle.Italic, fontSize = 22.sp, lineHeight = 29.sp)
+
+    /** The word above a group ("Pra hoje"). */
+    val Section = TextStyle(fontFamily = serifFamily(16, italic = true), fontWeight = FontWeight(400), fontStyle = FontStyle.Italic, fontSize = 16.sp, lineHeight = 21.sp)
+
+    /** The diary's own reading: the serif, roomy. */
+    val Diary = TextStyle(fontFamily = serifFamily(17), fontWeight = FontWeight(400), fontSize = 17.sp, lineHeight = 27.sp)
+
+    /** A date written by hand (diary). */
+    val Hand = TextStyle(fontFamily = Caveat, fontWeight = FontWeight(600), fontSize = 19.sp, lineHeight = 22.sp)
+}
 
 /** Motion: quick out, soft landing. */
 object Motion {

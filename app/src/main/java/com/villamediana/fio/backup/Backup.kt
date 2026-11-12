@@ -42,13 +42,22 @@ class Backup(
 
     data class Restored(val entries: Int, val photos: Int, val sounds: Int = 0)
 
-    /** The Fio folder inside the one she chose: that one itself when it already is (named Fio, or holding Backups/). */
+    /**
+     * The Novelo folder inside the one she chose: that one itself when it already is (named Novelo,
+     * or Fio from before the name changed, or holding Backups/). A Fio folder already there stays
+     * the one (her backups are in it).
+     */
     fun home(root: Shelf, create: Boolean): Shelf? =
-        if (root.name.equals(HOME, ignoreCase = true) || Readable.BACKUPS in root.folders()) root else root.folder(HOME, create)
+        if (isHome(root)) root else root.folder(homeName(root), create)
 
-    /** Where the backup goes, to show ("Documents/Fio"). */
+    /** Where the backup goes, to show ("Documents/Novelo"). */
     fun place(root: Shelf): String =
-        if (root.name.equals(HOME, ignoreCase = true) || Readable.BACKUPS in root.folders()) root.name else root.name + "/" + HOME
+        if (isHome(root)) root.name else root.name + "/" + homeName(root)
+
+    private fun isHome(root: Shelf): Boolean =
+        root.name.equals(HOME, ignoreCase = true) || root.name.equals(OLD_HOME, ignoreCase = true) || Readable.BACKUPS in root.folders()
+
+    private fun homeName(root: Shelf): String = if (OLD_HOME in root.folders()) OLD_HOME else HOME
 
     /** Everything to [root]. [key] tells folders apart (what was written to one says nothing about another). */
     suspend fun save(root: Shelf, key: String): Saved = lock.withLock { saveLocked(root, key) }
@@ -110,7 +119,7 @@ class Backup(
         val backups = home(root, create = false)?.folder(Readable.BACKUPS, create = false) ?: throw IOException(NOT_FOUND)
         val text = (backups.open(name) ?: throw IOException(NOT_FOUND)).use { it.readBytes().toString(Charsets.UTF_8) }
         val snap = runCatching { json.decodeFromString(Snapshot.serializer(), text) }.getOrElse { throw IOException("Este backup não abriu (arquivo estragado).") }
-        if (snap.format > Snapshot.FORMAT) throw IOException("Este backup é de uma versão mais nova do Fio. Atualize o app antes.")
+        if (snap.format > Snapshot.FORMAT) throw IOException("Este backup é de uma versão mais nova do Novelo. Atualize o app antes.")
         snap
     }
 
@@ -221,7 +230,10 @@ class Backup(
         /** Snapshots kept in Backups/ (a month of days, or seven months of weeks). */
         const val KEEP = 30
 
-        const val HOME = "Fio"
+        const val HOME = "Novelo"
+
+        /** The folder's name while the app was called Fio. */
+        const val OLD_HOME = "Fio"
         private const val NOMEDIA = ".nomedia"
         private const val NOT_FOUND = "Não achei backup nesta pasta."
 

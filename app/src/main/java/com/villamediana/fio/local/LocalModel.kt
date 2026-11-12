@@ -94,7 +94,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 if (activeId(part) != null) return@forEach
                 file.delete()
                 val request = DownloadManager.Request(Uri.parse(part.url))
-                    .setTitle("Fio · ${spec.name}")
+                    .setTitle("Novelo · ${spec.name}")
                     .setDescription(part.name)
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                     .setDestinationUri(Uri.fromFile(file))

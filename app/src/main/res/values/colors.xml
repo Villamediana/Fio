@@ -1,29 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="paper">#F6F4EF</color>
-    <color name="ink">#17171A</color>
-    <color name="accent">#EC4F2A</color>
+    <color name="paper">#F3EBDD</color>
+    <color name="ink">#3A2A1F</color>
+    <color name="accent">#C2593A</color>
     <color name="window_bg">@color/paper</color>
-    <!-- Each accent: the splash (follows light/dark: values-night) and the launcher icon (one color). -->
-    <color name="splash_vermilion">#EC4F2A</color>
-    <color name="splash_vermilion_on">#FFFFFF</color>
-    <color name="icon_vermilion">#EC4F2A</color>
-    <color name="splash_blue">#4C6FFF</color>
-    <color name="splash_blue_on">#FFFFFF</color>
-    <color name="icon_blue">#4C6FFF</color>
-    <color name="splash_green">#149E5C</color>
-    <color name="splash_green_on">#FFFFFF</color>
-    <color name="icon_green">#149E5C</color>
-    <color name="splash_pink">#E0457B</color>
-    <color name="splash_pink_on">#FFFFFF</color>
-    <color name="icon_pink">#E0457B</color>
-    <color name="splash_purple">#7B4DFF</color>
-    <color name="splash_purple_on">#FFFFFF</color>
-    <color name="icon_purple">#7B4DFF</color>
-    <color name="splash_teal">#0E9C9C</color>
-    <color name="splash_teal_on">#FFFFFF</color>
-    <color name="icon_teal">#0E9C9C</color>
-    <color name="splash_graphite">#2B2E36</color>
-    <color name="splash_graphite_on">#FFFFFF</color>
-    <color name="icon_graphite">#2B2E36</color>
+    <!-- Each accent: the splash (follows light/dark: values-night) and the launcher icon (one color).
+         The ids are the old ones (the launcher entries stay): vermilion = terracota, graphite = caramelo. -->
+    <!-- terracota -->
+    <color name="splash_vermilion">#C2593A</color>
+    <color name="splash_vermilion_on">#FFF8EE</color>
+    <color name="icon_vermilion">#C2593A</color>
+    <!-- framboesa -->
+    <color name="splash_pink">#B84F6A</color>
+    <color name="splash_pink_on">#FFF8EE</color>
+    <color name="icon_pink">#B84F6A</color>
+    <!-- caramelo -->
+    <color name="splash_graphite">#A86A30</color>
+    <color name="splash_graphite_on">#FFF8EE</color>
+    <color name="icon_graphite">#A86A30</color>
+    <!-- oliva -->
+    <color name="splash_green">#6F7D45</color>
+    <color name="splash_green_on">#FFF8EE</color>
+    <color name="icon_green">#6F7D45</color>
+    <!-- azul -->
+    <color name="splash_blue">#5671A0</color>
+    <color name="splash_blue_on">#FFF8EE</color>
+    <color name="icon_blue">#5671A0</color>
+    <!-- sálvia -->
+    <color name="splash_teal">#4C7F77</color>
+    <color name="splash_teal_on">#FFF8EE</color>
+    <color name="icon_teal">#4C7F77</color>
+    <!-- ameixa -->
+    <color name="splash_purple">#84587F</color>
+    <color name="splash_purple_on">#FFF8EE</color>
+    <color name="icon_purple">#84587F</color>
 </resources>

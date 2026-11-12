@@ -1,5 +1,10 @@
 package com.villamediana.fio.ui.entry
 
+import com.villamediana.fio.ui.components.StitchColor
+import com.villamediana.fio.ui.components.paper
+import com.villamediana.fio.ui.components.stitched
+import com.villamediana.fio.ui.theme.FioText
+import androidx.compose.ui.unit.sp
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Build
@@ -98,7 +103,7 @@ fun EntryScreen(nav: Nav, id: Long) {
     if (e == null) {
         // Deleted (or never there): back to where we came from.
         LaunchedEffect(loaded) { if (loaded) nav.back() }
-        Box(Modifier.fillMaxSize().background(FioColors.Background))
+        Box(Modifier.fillMaxSize().paper())
         return
     }
     LaunchedEffect(Unit) { loaded = true }
@@ -126,7 +131,7 @@ fun EntryScreen(nav: Nav, id: Long) {
 
     val kind = e.kindEnum
     Column(
-        Modifier.fillMaxSize().background(FioColors.Background).statusBarsPadding().navigationBarsPadding().imePadding(),
+        Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
@@ -147,8 +152,11 @@ fun EntryScreen(nav: Nav, id: Long) {
         }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-            Text(kindLabel(kind) + " · " + Dates.dayTime(e.createdAt), style = MaterialTheme.typography.labelLarge, color = FioColors.TextFaint)
-            Spacer(Modifier.height(10.dp))
+            val diary = kind == Kind.DIARY
+            // The diary's day written by hand; the rest says what it is and when it was kept.
+            if (diary) Text(diaryDay(e.createdAt), style = FioText.Hand.copy(fontSize = 22.sp, lineHeight = 26.sp), color = FioColors.TextMuted)
+            else Text(kindLabel(kind) + " · " + Dates.dayTime(e.createdAt), style = MaterialTheme.typography.labelLarge, color = FioColors.TextFaint)
+            Spacer(Modifier.height(if (diary) 6.dp else 10.dp))
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -169,16 +177,25 @@ fun EntryScreen(nav: Nav, id: Long) {
                 }
             }
 
+            // The diary: the day's photos first, then its text on a stitched page in the serif.
+            if (diary) DayPhotos(e, side = 24.dp)
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.fillMaxWidth()) {
+            val page = RoundedCornerShape(24.dp)
+            val bodyStyle = if (diary) FioText.Diary else MaterialTheme.typography.bodyLarge
+            Box(
+                Modifier.fillMaxWidth().then(
+                    if (diary) Modifier.clip(page).background(FioColors.Surface).stitched(page, StitchColor, inset = 8.dp).padding(horizontal = 22.dp, vertical = 22.dp)
+                    else Modifier,
+                ),
+            ) {
                 val blurred = !revealed && Build.VERSION.SDK_INT >= 31
                 Box(if (blurred) Modifier.blur(10.dp) else Modifier) {
-                    if (body.isEmpty()) Text("Detalhes…", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
+                    if (body.isEmpty()) Text("Detalhes…", style = bodyStyle, color = FioColors.TextFaint)
                     BasicTextField(
                         value = if (!revealed && Build.VERSION.SDK_INT < 31) "••••••••" else body,
                         onValueChange = { if (revealed) body = it },
                         readOnly = !revealed,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = FioColors.Text),
+                        textStyle = bodyStyle.copy(color = FioColors.Text),
                         cursorBrush = SolidColor(FioColors.Accent),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -193,8 +210,8 @@ fun EntryScreen(nav: Nav, id: Long) {
                 }
             }
 
-            // The day's photos live in the day's diary.
-            if (kind == Kind.DIARY) DayPhotos(e, side = 24.dp) else EntryPhotos(e, side = 24.dp)
+            // The day's photos live in the day's diary (above its text); an item's, under its text.
+            if (!diary) EntryPhotos(e, side = 24.dp)
             // A sound kept with it (a melody she sang): to hear again.
             EntrySounds(e)
 
@@ -343,7 +360,7 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
     }
     e.checkInAt?.takeIf { it > System.currentTimeMillis() && e.isOpenTask }?.let {
         Spacer(Modifier.height(8.dp))
-        Text("O Fio vai perguntar como está ${Dates.dayTime(it)}.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
+        Text("O Novelo vai perguntar como está ${Dates.dayTime(it)}.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
     }
 }
 
@@ -369,4 +386,11 @@ private fun DateChip(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
             }
         }
     }
+}
+
+/** "quarta-feira, 11 de novembro" (and the year when it is not this one). */
+private fun diaryDay(ms: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+    val d = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+    val pattern = if (d.year == LocalDate.now(zone).year) "EEEE, d 'de' MMMM" else "EEEE, d 'de' MMMM 'de' yyyy"
+    return d.format(java.time.format.DateTimeFormatter.ofPattern(pattern, com.villamediana.fio.ui.components.PT))
 }

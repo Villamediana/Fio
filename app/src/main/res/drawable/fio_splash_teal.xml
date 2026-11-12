@@ -6,9 +6,51 @@
     android:viewportHeight="108">
     <path android:fillColor="@color/splash_teal" android:pathData="M54,18 a36,36 0 1,0 0.01,0 z" />
     <path
-        android:pathData="M34.56,64.80 C45.36,64.80 54.00,63.72 58.32,57.24 C62.64,50.76 59.94,43.20 54.00,43.20 C48.06,43.20 45.36,50.76 49.68,57.24 C54.00,63.72 62.64,64.80 73.44,64.80"
+        android:pathData="M33,52 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0"
         android:strokeColor="@color/splash_teal_on"
-        android:strokeWidth="5"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M36,44 C44,38 58,37 68,45"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M33.5,53 C43,46 60,46 70.5,55"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M36,62 C45,56 58,57 67,63"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M45,34.5 C39,43 39,58 47,69.5"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M55,33.2 C49,43 50,59 57.5,70"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M65.4,65.4 C70,70 76,71 78,75 C80,79 76,81.5 73.5,79.5"
+        android:strokeColor="@color/splash_teal_on"
+        android:strokeWidth="3.4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />

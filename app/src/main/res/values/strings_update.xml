@@ -7,18 +7,18 @@
     <string name="update_later">Agora não</string>
     <string name="update_downloading">Baixando · %1$s</string>
     <string name="update_installing">Instalando…</string>
-    <string name="update_permission_body">Permita que o Fio instale as próprias atualizações.</string>
+    <string name="update_permission_body">Permita que o Novelo instale as próprias atualizações.</string>
     <string name="update_permission_action">Permitir</string>
     <string name="update_retry">Tentar de novo</string>
     <string name="update_error_network">A conexão caiu no meio do download.</string>
     <string name="update_error_integrity">O arquivo chegou incompleto.</string>
     <string name="update_error_storage">Falta espaço no celular.</string>
-    <string name="update_error_package">Esse arquivo não é uma versão nova do Fio.</string>
-    <string name="update_error_conflict">O Fio instalado foi assinado com outra chave. Desinstale e instale a nova versão.</string>
+    <string name="update_error_package">Esse arquivo não é uma versão nova do Novelo.</string>
+    <string name="update_error_conflict">O Novelo instalado foi assinado com outra chave. Desinstale e instale a nova versão.</string>
     <string name="update_error_install">O Android não concluiu a instalação.</string>
-    <string name="update_notif_available_title">Nova versão do Fio</string>
+    <string name="update_notif_available_title">Nova versão do Novelo</string>
     <string name="update_notif_available_text">A versão %1$s está pronta para instalar.</string>
-    <string name="update_notif_done_title">Fio atualizado</string>
+    <string name="update_notif_done_title">Novelo atualizado</string>
     <string name="update_notif_done_text">Versão %1$s. Toque para abrir.</string>
     <string name="settings_update_check">Procurar atualização</string>
     <string name="settings_update_checking">Procurando…</string>
@@ -27,5 +27,5 @@
     <string name="settings_update_available">Atualizar para %1$s</string>
     <string name="settings_update_going">Atualizando para %1$s</string>
     <string name="update_closed_note">O app fechou no meio da última tentativa. Motivo que o Android registrou: %1$s</string>
-    <string name="update_auto_note">Já baixada: ela se instala sozinha quando você não estiver usando o Fio.</string>
+    <string name="update_auto_note">Já baixada: ela se instala sozinha quando você não estiver usando o Novelo.</string>
 </resources>

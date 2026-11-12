@@ -56,7 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.villamediana.fio.R
 import com.villamediana.fio.FioApplication
-import com.villamediana.fio.ui.components.FioMark
+import com.villamediana.fio.ui.components.NoveloMark
 import com.villamediana.fio.ui.components.formatBytes
 import com.villamediana.fio.ui.components.pressScale
 import com.villamediana.fio.ui.sheets.FioSheet
@@ -159,7 +159,7 @@ internal fun UpdateSheetBody(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 6.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FioMark(size = 52.dp)
+            NoveloMark(size = 52.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.update_title), style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)

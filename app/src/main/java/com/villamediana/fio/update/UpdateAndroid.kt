@@ -262,7 +262,7 @@ class UpdateStatusReceiver : BroadcastReceiver() {
 }
 
 /**
- * The new version, right after Android replaced the app: "Fio atualizado · toque pra abrir"
+ * The new version, right after Android replaced the app: "Novelo atualizado · toque pra abrir"
  * (it goes away once the app is on screen). From the button, Android's installer itself offers
  * "Abrir"; installed by itself while the app was not in use, the app never pops up over anything.
  */

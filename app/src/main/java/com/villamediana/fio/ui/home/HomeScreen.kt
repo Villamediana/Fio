@@ -60,6 +60,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.villamediana.fio.ui.components.IconAction
+import com.villamediana.fio.ui.components.StitchColor
+import com.villamediana.fio.ui.components.paper
+import com.villamediana.fio.ui.components.stitched
 import com.villamediana.fio.ui.components.swipeNav
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.clip
@@ -152,7 +155,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(FioColors.Background)
+            .paper()
             .swipeNav(
                 onLeft = { nav.go(Screen.Library(Filter.TODAY)) },
                 onRight = { nav.go(Screen.Camera) },
@@ -385,8 +388,8 @@ private fun StatusArea(
             when (s) {
                 MindState.Idle -> Text(
                     if (hintSeen) "O que está na sua cabeça?" else "Segure pra falar.\nToque pra deixar ouvindo.",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = FioColors.TextFaint,
+                    style = com.villamediana.fio.ui.theme.FioText.Invite,
+                    color = FioColors.TextMuted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp),
                 )
@@ -591,14 +594,17 @@ private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () 
                 .pressScale(interaction)
                 .clip(CircleShape)
                 .background(FioColors.Surface)
+                .stitched(CircleShape, StitchColor, inset = 5.dp)
                 .clickable(interactionSource = interaction, indication = null, onClick = onToday)
-                .padding(horizontal = 22.dp, vertical = 12.dp),
+                .padding(start = 24.dp, end = if (today > 0) 14.dp else 24.dp, top = 13.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Hoje", style = MaterialTheme.typography.labelLarge, color = FioColors.Text)
+            Text("Hoje", style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
             if (today > 0) {
-                Spacer(Modifier.width(8.dp))
-                Text(today.toString(), style = MaterialTheme.typography.labelLarge, color = FioColors.Accent)
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.size(24.dp).clip(CircleShape).background(FioColors.Accent), contentAlignment = Alignment.Center) {
+                    Text(today.toString(), style = MaterialTheme.typography.labelMedium, color = FioColors.OnAccent)
+                }
             }
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {

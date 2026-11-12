@@ -42,15 +42,31 @@ perde o lembrete.
 
 ## Visual
 
-Papel, tinta e um acento só (vermelhão `#EC4F2A`; `#FF6A43` no escuro, o padrão). Em Ajustes ›
-Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents`, como no
-FreeSong), com uma prévia da tela principal que muda junto; o que vai sobre o acento usa
-`OnAccent` (branco ou tinta, pela luminância da cor). Nada de bloco preto: o
-botão, o ícone e as marcações são do acento. A Home tem o botão e, embaixo, câmera · Hoje · busca;
-a biblioteca tem a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria,
-Tudo) com um ponto do fio sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por
-enquanto: `TABS` em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos redondos só nas pontas), e os
-Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`) em vez de texto explicando.
+Aconchego: linho quente com textura de papel (`Modifier.paper()`, um ladrilho de grão desenhado
+uma vez), tinta marrom e um acento só (terracota `#C2593A`; `#E8875F` no escuro, que é cacau
+sob abajur). Letras: Fraunces (serifa macia, desenhada pro tamanho — `opsz`) nos títulos, nas
+abas, na resposta e no texto do diário; Nunito (redonda) pra ler e fazer; Caveat (à mão) só nas
+datas do diário. Os cartões, a busca e o "Hoje" têm uma costura tracejada por dentro da borda
+(`Modifier.stitched`), as fotos do dia também (linha clara). O botão é um novelo: a bola com as
+voltas de linha, o miolo limpo pro microfone, um ponto de costura em volta e a ponta solta embaixo
+à direita (`drawYarn`, `drawStitchRing`, `drawLooseEnd` em `ui/home/Orb.kt`, os mesmos na prévia
+do Tema). Ícone do app, splash e marca (`NoveloMark`) são o novelo no acento.
+
+Em Ajustes › Tema dá pra trocar o modo (Escuro/Claro/Sistema) e a cor do acento (`FioAccents`:
+Terracota, Framboesa, Caramelo, Oliva, Azul, Sálvia, Ameixa). Os ids são os de antes (a escolha
+salva e as entradas do ícone no launcher continuam valendo): `vermilion` virou terracota,
+`graphite` virou caramelo. O que vai sobre o acento é branco quente ou tinta, o que tiver mais
+contraste (`onAccentFor`). A Home tem o botão e, embaixo, câmera · Hoje · busca; a biblioteca tem
+a busca no alto e uma linha de palavras (Hoje, Tarefas, Notas, Diário, Galeria, Tudo) com uma
+costura sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida por enquanto: `TABS`
+em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos
+redondos só nas pontas), e os Ajustes seguem o mesmo desenho: blocos com seletores (`Segmented`)
+em vez de texto explicando. No diário, as fotos do dia vêm antes do texto, que fica numa página
+costurada.
+
+O nome mudou de Fio pra Novelo na 1.17.0: muda o que aparece (nome, ícone, textos, a pasta do
+backup e a da galeria), o pacote e o repositório seguem `fio`. Uma pasta de backup `Fio` que já
+existia continua sendo a usada.
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
 Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje

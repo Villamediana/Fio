@@ -30,6 +30,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -57,6 +70,7 @@ import com.villamediana.fio.data.Status
 import com.villamediana.fio.mind.Snippet
 import com.villamediana.fio.mind.Steps
 import com.villamediana.fio.ui.theme.FioColors
+import com.villamediana.fio.ui.theme.FioText
 import java.text.DecimalFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -79,21 +93,98 @@ fun formatBytes(bytes: Long): String {
     return if (mb >= 1024) DecimalFormat("0.0").format(mb / 1024) + " GB" else DecimalFormat("0").format(mb) + " MB"
 }
 
-/** The mark: one white thread that loops once and runs on (a thought kept), on vermilion. */
+/** The mark: a ball of yarn with its loose end (Novelo), on the accent. */
 @Composable
-fun FioMark(size: Dp = 40.dp, color: Color = FioColors.OnAccent, background: Color = FioColors.Accent) {
+fun NoveloMark(size: Dp = 40.dp, color: Color = FioColors.OnAccent, background: Color = FioColors.Accent) {
     Canvas(Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(background)) {
-        val w = this.size.width
-        val path = Path().apply {
-            moveTo(w * 0.14f, w * 0.64f)
-            cubicTo(w * 0.34f, w * 0.64f, w * 0.50f, w * 0.62f, w * 0.58f, w * 0.50f)
-            cubicTo(w * 0.66f, w * 0.38f, w * 0.61f, w * 0.24f, w * 0.50f, w * 0.24f)
-            cubicTo(w * 0.39f, w * 0.24f, w * 0.34f, w * 0.38f, w * 0.42f, w * 0.50f)
-            cubicTo(w * 0.50f, w * 0.62f, w * 0.66f, w * 0.64f, w * 0.86f, w * 0.64f)
+        // Drawn on the launcher icon's grid (108, the middle 72 showing), scaled to the tile.
+        val k = this.size.width / 72f
+        fun x(v: Float) = (v - 18f) * k
+        val stroke = Stroke(width = 3.4f * k, cap = StrokeCap.Round)
+        drawCircle(color, radius = 19f * k, center = androidx.compose.ui.geometry.Offset(x(52f), x(52f)), style = stroke)
+        Novelo.ICON_LINES.forEach { c ->
+            val path = Path().apply {
+                moveTo(x(c[0]), x(c[1]))
+                var i = 2
+                while (i + 5 < c.size) { cubicTo(x(c[i]), x(c[i + 1]), x(c[i + 2]), x(c[i + 3]), x(c[i + 4]), x(c[i + 5])); i += 6 }
+            }
+            drawPath(path, color, style = stroke)
         }
-        drawPath(path, color, style = Stroke(width = w * 0.085f, cap = StrokeCap.Round))
     }
 }
+
+/** The yarn's lines on the launcher icon's 108 grid (the same as res/drawable/ic_novelo.xml). */
+object Novelo {
+    val ICON_LINES: List<FloatArray> = listOf(
+        floatArrayOf(36f, 44f, 44f, 38f, 58f, 37f, 68f, 45f),
+        floatArrayOf(33.5f, 53f, 43f, 46f, 60f, 46f, 70.5f, 55f),
+        floatArrayOf(36f, 62f, 45f, 56f, 58f, 57f, 67f, 63f),
+        floatArrayOf(45f, 34.5f, 39f, 43f, 39f, 58f, 47f, 69.5f),
+        floatArrayOf(55f, 33.2f, 49f, 43f, 50f, 59f, 57.5f, 70f),
+        floatArrayOf(65.4f, 65.4f, 70f, 70f, 76f, 71f, 78f, 75f, 80f, 79f, 76f, 81.5f, 73.5f, 79.5f),
+    )
+}
+
+/** The paper the screens sit on: the background with a fine grain (one small tile, drawn once and repeated). */
+fun Modifier.paper(): Modifier = composed {
+    val p = FioColors.palette
+    val density = LocalDensity.current.density
+    val grain = remember(density) { grainTile(density) }
+    val tint = if (p.dark) Color(0xFFF5E1C8).copy(alpha = 0.03f) else Color(0xFF6B4C2E).copy(alpha = 0.045f)
+    background(p.background).drawWithCache {
+        val brush = ShaderBrush(ImageShader(grain, TileMode.Repeated, TileMode.Repeated))
+        val filter = ColorFilter.tint(tint, BlendMode.SrcIn)
+        onDrawBehind { drawRect(brush, colorFilter = filter) }
+    }
+}
+
+/** Specks about a dp wide, some stronger than others, the same every time. */
+private fun grainTile(density: Float): ImageBitmap {
+    val cell = density.roundToInt().coerceAtLeast(1)
+    val cells = 96
+    val side = cells * cell
+    val random = java.util.Random(11)
+    val px = IntArray(side * side)
+    for (cy in 0 until cells) for (cx in 0 until cells) {
+        val v = random.nextFloat()
+        val a = if (v > 0.6f) ((v - 0.6f) / 0.4f * 255f).roundToInt() else 0
+        val argb = (a shl 24) or 0xFFFFFF
+        for (y in 0 until cell) for (x in 0 until cell) px[(cy * cell + y) * side + cx * cell + x] = argb
+    }
+    return android.graphics.Bitmap.createBitmap(px, side, side, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+}
+
+/** The thread's stitch color: the accent, light. */
+val StitchColor: Color @Composable get() = FioColors.Accent.copy(alpha = if (FioColors.palette.dark) 0.36f else 0.34f)
+
+/**
+ * A running stitch just inside [shape]'s edge, the hand-made line of the cards: it follows the
+ * corners [inset] in, so it sits like a seam.
+ */
+fun Modifier.stitched(shape: Shape, color: Color, inset: Dp = 7.dp, width: Dp = 1.3.dp, dash: Dp = 4.dp, gap: Dp = 3.dp): Modifier =
+    drawWithCache {
+        val i = inset.toPx()
+        val stroke = Stroke(width = width.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash.toPx(), gap.toPx())))
+        val path = Path()
+        when (val o = shape.createOutline(size, layoutDirection, this)) {
+            is Outline.Rounded -> {
+                val r = o.roundRect
+                fun CornerRadius.less() = CornerRadius((x - i).coerceAtLeast(0f), (y - i).coerceAtLeast(0f))
+                path.addRoundRect(
+                    RoundRect(
+                        r.left + i, r.top + i, r.right - i, r.bottom - i,
+                        r.topLeftCornerRadius.less(), r.topRightCornerRadius.less(), r.bottomRightCornerRadius.less(), r.bottomLeftCornerRadius.less(),
+                    ),
+                )
+            }
+            is Outline.Rectangle -> path.addRect(o.rect.deflate(i))
+            is Outline.Generic -> path.addPath(o.path)
+        }
+        onDrawWithContent {
+            drawContent()
+            drawPath(path, color, style = stroke)
+        }
+    }
 
 fun kindLabel(kind: Kind): String = when (kind) {
     Kind.TASK -> "Tarefa"
@@ -147,14 +238,14 @@ fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
     }
 }
 
-/** A quiet line above a group. */
+/** A quiet line above a group, in the leaning serif. */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = MaterialTheme.typography.labelLarge,
+        style = FioText.Section,
         color = FioColors.TextMuted,
-        modifier = modifier.padding(start = 4.dp, top = 26.dp, bottom = 10.dp),
+        modifier = modifier.padding(start = 6.dp, top = 24.dp, bottom = 10.dp),
     )
 }
 
@@ -309,8 +400,9 @@ fun EntryCard(
             .pressScale(interaction, 0.985f)
             .clip(shape)
             .background(FioColors.Surface)
+            .stitched(shape, StitchColor)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(start = if (checkable) 4.dp else 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
+            .padding(start = if (checkable) 6.dp else 20.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (checkable) CheckCircle(done, FioColors.Accent, onToggle!!)
@@ -353,8 +445,11 @@ fun EntryCard(
             val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday)
             if (meta.isNotEmpty()) {
                 Spacer(Modifier.height(5.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val steps = remember(entry.steps) { Steps.read(entry.steps) }
+                val stepsText = if (steps.isEmpty()) null else "${steps.count { it.done }}/${steps.size}"
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     meta.forEach { (text, strong) ->
+                        if (text == stepsText && steps.size <= MAX_DOTS) StepDots(steps.count { it.done }, steps.size)
                         Text(text, style = MaterialTheme.typography.labelMedium, color = if (strong) FioColors.Accent else FioColors.TextFaint, maxLines = 1)
                     }
                 }
@@ -397,6 +492,22 @@ fun meta(
         val day = dayOf(r)
         val sameDay = e.dueAt?.let { dayOf(it) == day } == true || (inToday && day == today)
         add(("lembrete " + if (sameDay) Dates.time(r, zone) else Dates.day(r, zone, today) + " · " + Dates.time(r, zone)) to false)
+    }
+}
+
+private const val MAX_DOTS = 6
+
+/** Steps as beads on the thread: the done ones full, the rest just the ring. */
+@Composable
+private fun StepDots(done: Int, total: Int) {
+    val accent = FioColors.Accent
+    Canvas(Modifier.size(width = (total * 12 - 4).dp, height = 8.dp)) {
+        val r = 4.dp.toPx()
+        for (k in 0 until total) {
+            val c = androidx.compose.ui.geometry.Offset(r + k * 12.dp.toPx(), this.size.height / 2)
+            if (k < done) drawCircle(accent, radius = r, center = c)
+            else drawCircle(accent.copy(alpha = 0.5f), radius = r - 0.75.dp.toPx(), center = c, style = Stroke(1.5.dp.toPx()))
+        }
     }
 }
 

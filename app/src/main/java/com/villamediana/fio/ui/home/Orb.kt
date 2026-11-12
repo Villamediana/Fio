@@ -32,7 +32,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,9 +56,10 @@ import kotlin.math.sin
 enum class OrbMode { IDLE, HOLDING, LOCKED, WORKING }
 
 /**
- * The one button. Hold to talk (letting go keeps it), tap to leave it listening (tap again keeps
- * it), drag up while holding to throw it away. While listening it is a living drop that follows
- * the voice; while Fio works, a thread runs around it. Nothing moves when nothing happens.
+ * The one button, a ball of yarn (the novelo) with its loose end. Hold to talk (letting go keeps
+ * it), tap to leave it listening (tap again keeps it), drag up while holding to throw it away.
+ * While listening the ball breathes and wobbles with the voice; while it works, a thread runs
+ * around it. Nothing moves when nothing happens.
  */
 @Composable
 fun Orb(
@@ -118,9 +122,13 @@ fun Orb(
             val lvl = smooth
             val t = time
 
-            // At rest: one fine thread around it. It gives way to the ripples and to the running thread.
+            // At rest: a stitch around it, a fine thread further out and the yarn's loose end.
+            // They give way to the ripples and to the running thread.
             val rest = (1f - listen).coerceIn(0f, 1f) * (1f - work)
-            if (rest > 0.01f) drawCircle(ring.copy(alpha = 0.32f * rest), radius = r * 1.26f, center = c, style = Stroke(width = 1.2.dp.toPx()))
+            if (rest > 0.01f) {
+                drawStitchRing(c, r, ring, rest)
+                drawLooseEnd(c, r, ring.copy(alpha = rest))
+            }
 
             // Ripples going out with the voice.
             if (listen > 0.01f) {
@@ -151,6 +159,9 @@ fun Orb(
             }
             path.close()
             drawPath(path, fill)
+            // The yarn wound inside, and a clean middle for the mic.
+            clipPath(path) { drawYarn(c, r * swell, iconTint.copy(alpha = 0.24f)) }
+            drawCircle(fill, radius = r * swell * 0.36f, center = c)
 
             // Working: a thread running around.
             if (work > 0.01f) {
@@ -244,6 +255,46 @@ fun Orb(
 }
 
 private const val TAP_MS = 320L
+
+/** The yarn's lines across the ball (center [c], radius [r]), as they cross it. */
+fun DrawScope.drawYarn(c: Offset, r: Float, color: Color) {
+    val stroke = Stroke(width = r * 0.022f + 0.6.dp.toPx(), cap = StrokeCap.Round)
+    YARN.forEach { a ->
+        val p = Path().apply {
+            moveTo(c.x + a[0] * r, c.y + a[1] * r)
+            cubicTo(c.x + a[2] * r, c.y + a[3] * r, c.x + a[4] * r, c.y + a[5] * r, c.x + a[6] * r, c.y + a[7] * r)
+        }
+        drawPath(p, color, style = stroke)
+    }
+}
+
+/** The stitch around the ball and the fine thread further out, at [strength]. */
+fun DrawScope.drawStitchRing(c: Offset, r: Float, color: Color, strength: Float) {
+    val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.5.dp.toPx()))
+    drawCircle(color.copy(alpha = 0.42f * strength), radius = r * 1.16f, center = c, style = Stroke(width = 1.4.dp.toPx(), pathEffect = dash))
+    drawCircle(color.copy(alpha = 0.18f * strength), radius = r * 1.40f, center = c, style = Stroke(width = 1.dp.toPx()))
+}
+
+/** The yarn's loose end: out of the ball at the bottom right, a little curl. */
+fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color) {
+    val p = Path().apply {
+        moveTo(c.x + r * 0.62f, c.y + r * 0.66f)
+        cubicTo(c.x + r * 0.92f, c.y + r * 0.96f, c.x + r * 1.20f, c.y + r * 0.94f, c.x + r * 1.24f, c.y + r * 1.20f)
+        cubicTo(c.x + r * 1.28f, c.y + r * 1.44f, c.x + r * 1.02f, c.y + r * 1.50f, c.x + r * 0.98f, c.y + r * 1.34f)
+    }
+    drawPath(p, color, style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round))
+}
+
+/** From the center, in radii: start, two handles, end. */
+private val YARN = listOf(
+    floatArrayOf(-0.82f, -0.28f, -0.36f, -0.62f, 0.40f, -0.64f, 0.86f, -0.16f),
+    floatArrayOf(-0.90f, 0.02f, -0.36f, -0.34f, 0.42f, -0.32f, 0.94f, 0.16f),
+    floatArrayOf(-0.80f, 0.38f, -0.30f, 0.04f, 0.40f, 0.06f, 0.84f, 0.50f),
+    floatArrayOf(-0.56f, 0.78f, -0.18f, 0.50f, 0.28f, 0.52f, 0.60f, 0.80f),
+    floatArrayOf(-0.38f, -0.82f, -0.64f, -0.28f, -0.58f, 0.44f, -0.10f, 0.94f),
+    floatArrayOf(0.04f, -0.92f, -0.22f, -0.32f, -0.16f, 0.42f, 0.32f, 0.96f),
+    floatArrayOf(0.48f, -0.80f, 0.24f, -0.30f, 0.30f, 0.40f, 0.72f, 0.68f),
+)
 
 private fun haptic(view: android.view.View, kind: Int) {
     val k = if (kind == HapticFeedbackConstants.CONTEXT_CLICK && Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else kind
