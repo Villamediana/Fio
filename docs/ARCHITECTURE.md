@@ -154,10 +154,10 @@ Mais na 1.14.0:
 - **Mosaico** (`ui/components/Mosaic`): fotos da mesma câmera têm todas o mesmo formato, então cada uma
   ganha um formato pelo lugar (`Mosaic.shape`, recorte) e as linhas vão de ponta a ponta com larguras
   diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
-- **Descrição da foto**: `photo_description` vem na mesma chamada que organiza (uma resposta só, no idioma
-  dela, sem uma por idioma do app) e aparece no visualizador, embaixo da foto (desde a 1.23.0; antes era
-  só pra busca). O prompt segue dizendo que o que se vê na foto não vai pro diário nem pra item (a foto já
-  está no diário do dia).
+- **Descrição só pra busca**: `photo_description` vem na mesma chamada que organiza (uma resposta só, no
+  idioma dela, sem uma por idioma do app) e `Capture.description` nunca aparece na tela (a 1.23.0 mostrou
+  embaixo da foto; a 1.23.1 tirou a pedido). O prompt diz que o que se vê na foto não vai pro diário nem pra
+  item (a foto já está no diário do dia).
 - **Girar**: no visualizador, um menu leve embaixo gira a foto um quarto pra direita, com animação e escala
   que acompanha; o giro fica em `captures.turn` (banco v5) e o arquivo não é mexido (`uprightBitmap(turn)`).
 - **Câmera da frente**: botão ao lado do disparador quando o celular tem as duas; sem flash na da frente.

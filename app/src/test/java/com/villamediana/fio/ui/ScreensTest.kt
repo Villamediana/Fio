@@ -366,8 +366,8 @@ class ScreensTest {
         shot("22-gallery")
         compose.onNodeWithTag("gallery-photo-0").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
-        // What it is, in the model's words, under the photo (the search finds it by the same words).
-        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isNotEmpty())
+        // What it shows is only for the search: never under the photo.
+        assertTrue(compose.onAllNodesWithText("Pôr do sol na praia de Itacaré, céu laranja").fetchSemanticsNodes().isEmpty())
         // The light menu under it turns the photo, and the turn stays with it.
         compose.onAllNodesWithContentDescription("Girar")[0].performClick() // the page next to it is drawn too
         compose.mainClock.advanceTimeBy(600)
