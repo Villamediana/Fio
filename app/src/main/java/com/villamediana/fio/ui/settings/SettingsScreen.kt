@@ -69,7 +69,7 @@ fun SettingsScreen(nav: Nav) {
         PageTop(t(R.string.settings)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
-            val ai = intelligenceSummary(s, local, graph.localModel.spec.name)
+            val ai = intelligenceSummary(s, local, packName(s))
             val backup = backupSummary(s, busy)
             Group(
                 Modifier,
@@ -114,18 +114,13 @@ fun SettingsScreen(nav: Nav) {
     }
 }
 
-/** Where hearing and thinking happen, in a few words; true when something is missing. */
-internal fun intelligenceSummary(s: FioSettings, local: LocalModel.State, localName: String): Pair<String, Boolean> {
-    val phone = s.hear == Source.LOCAL || s.think == Source.LOCAL
-    val api = s.hear == Source.API || s.think == Source.API
-    return when {
-        phone && !(LocalEngine.available && local is LocalModel.State.Ready) -> "$localName · " + localShort(local) to true
-        api && !s.apiReady -> t(R.string.ai_missing_api) to true
-        (s.hear == Source.API && s.hearModel.isBlank()) || (s.think == Source.API && s.thinkModel.isBlank()) -> t(R.string.ai_missing_model) to true
-        phone && api -> (if (s.hear == Source.LOCAL) t(R.string.ai_mixed_phone_hears, s.thinkModel) else t(R.string.ai_mixed_phone_thinks, s.hearModel)) to false
-        phone -> t(R.string.ai_on_phone_offline) to false
-        else -> s.thinkModel to false
-    }
+/** Who thinks, in a few words (hearing is always on the phone); true when something is missing. */
+internal fun intelligenceSummary(s: FioSettings, local: LocalModel.State, localName: String): Pair<String, Boolean> = when {
+    !(LocalEngine.available && local is LocalModel.State.Ready) -> "$localName · " + localShort(local) to true
+    s.think == Source.API && !s.apiReady -> t(R.string.ai_missing_api) to true
+    s.think == Source.API && s.thinkModel.isBlank() -> t(R.string.ai_missing_model) to true
+    s.think == Source.API -> t(R.string.ai_mixed_phone_hears, s.thinkModel) to false
+    else -> t(R.string.ai_on_phone_offline) to false
 }
 
 /** The backup in a few words; true when it needs her. */
