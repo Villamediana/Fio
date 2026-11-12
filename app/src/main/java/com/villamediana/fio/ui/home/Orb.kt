@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.home
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
@@ -187,7 +189,7 @@ fun Orb(
                 .size(size * 0.62f)
                 .semantics {
                     role = Role.Button
-                    contentDescription = if (listening) "Parar e guardar" else "Falar"
+                    contentDescription = if (listening) t(R.string.orb_stop_keep) else t(R.string.orb_talk)
                 }
                 .pointerInput(Unit) {
                     awaitEachGesture {

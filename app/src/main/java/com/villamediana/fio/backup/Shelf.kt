@@ -1,5 +1,7 @@
 package com.villamediana.fio.backup
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -124,7 +126,7 @@ class TreeShelf private constructor(
         val k = kids()
         k[name]?.let { c -> return if (c.dir) TreeShelf(resolver, tree, c.id, name) else null }
         if (!create) return null
-        val made = DocumentsContract.createDocument(resolver, uri(docId), DocumentsContract.Document.MIME_TYPE_DIR, name) ?: throw IOException("Não consegui criar a pasta $name")
+        val made = DocumentsContract.createDocument(resolver, uri(docId), DocumentsContract.Document.MIME_TYPE_DIR, name) ?: throw IOException(t(R.string.shelf_cant_make_folder, name))
         val id = DocumentsContract.getDocumentId(made)
         k[name] = Child(id, true, 0)
         return TreeShelf(resolver, tree, id, name)
@@ -134,7 +136,7 @@ class TreeShelf private constructor(
     private fun doc(name: String): Pair<Uri, Child> {
         val k = kids()
         k[name]?.let { c -> if (!c.dir) return uri(c.id) to c }
-        val made = DocumentsContract.createDocument(resolver, uri(docId), "application/octet-stream", name) ?: throw IOException("Não consegui criar $name")
+        val made = DocumentsContract.createDocument(resolver, uri(docId), "application/octet-stream", name) ?: throw IOException(t(R.string.shelf_cant_make, name))
         val c = Child(DocumentsContract.getDocumentId(made), false, 0)
         k[name] = c
         return made to c
@@ -143,13 +145,13 @@ class TreeShelf private constructor(
     override fun write(name: String, bytes: ByteArray) {
         val (u, c) = doc(name)
         // "wt": write over and cut what was longer (plain "w" doesn't cut on some Android versions).
-        (resolver.openOutputStream(u, "wt") ?: throw IOException("Não consegui escrever $name")).use { it.write(bytes) }
+        (resolver.openOutputStream(u, "wt") ?: throw IOException(t(R.string.shelf_cant_write, name))).use { it.write(bytes) }
         c.size = bytes.size.toLong()
     }
 
     override fun copyIn(name: String, from: File) {
         val (u, c) = doc(name)
-        (resolver.openOutputStream(u, "wt") ?: throw IOException("Não consegui escrever $name")).use { out -> from.inputStream().use { it.copyTo(out) } }
+        (resolver.openOutputStream(u, "wt") ?: throw IOException(t(R.string.shelf_cant_write, name))).use { out -> from.inputStream().use { it.copyTo(out) } }
         c.size = from.length()
     }
 
@@ -168,7 +170,7 @@ class TreeShelf private constructor(
     }
 
     companion object {
-        const val LOST = "A pasta do backup não está mais acessível. Escolha de novo."
+        val LOST: String get() = t(R.string.shelf_lost)
 
         /** The folder she chose, from the tree uri the picker gave. */
         fun root(resolver: ContentResolver, tree: Uri): TreeShelf {

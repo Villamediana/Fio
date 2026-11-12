@@ -193,6 +193,27 @@ Na 1.15.0:
 Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
 null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
+## Primeiros passos, provedores e idioma (1.18.0)
+
+- **Primeiros passos** (`ui/setup/SetupScreen`), uma vez (`setupDone`; quem já usava passa por eles uma vez,
+  com o que já tem marcado): 1) idioma no topo + permissões (microfone, notificações, câmera) num pedido
+  só; 2) a pasta do backup; 3) quem pensa — "Inteligência do Novelo" (o modelo no celular: no Wi-Fi já
+  começa a baixar; fora dele pergunta "Esperar o Wi-Fi" (`download(wifiOnly = true)`) ou "Baixar assim
+  mesmo") ou "Sua própria inteligência" (`OwnSetup`, o mesmo de Ajustes › Inteligência). Tudo pode
+  ficar pra depois; o que faltar aparece no acento em Ajustes.
+- **Provedores** (`ai/Providers`): OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter e Outro. Os que
+  têm endereço próprio só pedem a chave; Foundry e Outro pedem o endereço. A conexão é testada sozinha
+  (lista de modelos). `Wire.ANTHROPIC` fala a Messages API da própria Anthropic (`x-api-key`,
+  `anthropic-version`, `output_config.effort`, `fallbacks: "default"` nos modelos que aceitam); os
+  outros, o jeito OpenAI. Provedor que não ouve áudio (Anthropic, Kimi, OpenRouter): ouvir fica no
+  celular. Sem provedor salvo (configurado antes) = Outro, com o endereço digitado.
+- **Idioma do app** (`settings/Lang`): português por padrão (seja qual for o idioma do celular), inglês
+  ou espanhol nos primeiros passos e em Ajustes › Idioma; guardado em SharedPreferences pra valer desde
+  o primeiro quadro (`FioActivity.attachBaseContext`). Todo texto vem de `t(R.string.…)`
+  (`values`, `values-en`, `values-es`), datas com `Lang.locale` e padrões por idioma (`fmt_*`). O que vai
+  pro modelo (instruções, contexto) e o Markdown do backup ficam em português; o modelo responde no
+  idioma em que ela fala.
+
 ## Backup (1.14.0; um arquivo só desde a 1.17.1)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada

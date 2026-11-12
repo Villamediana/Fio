@@ -1,5 +1,7 @@
 package com.villamediana.fio
 
+import com.villamediana.fio.settings.Lang
+
 import android.app.Application
 import com.villamediana.fio.backup.BackupWorker
 import com.villamediana.fio.update.ExitReport
@@ -10,6 +12,8 @@ import kotlinx.coroutines.launch
 class FioApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // The app's own words in her language (Portuguese unless she chose another).
+        Lang.init(this)
         // If the app ever closes by a crash, its first lines are kept (the update sheet shows why).
         runCatching { ExitReport.catchCrashes(this) }
         graph = AppGraph(this)

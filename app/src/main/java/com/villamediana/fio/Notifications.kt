@@ -1,5 +1,6 @@
 package com.villamediana.fio
 
+import com.villamediana.fio.settings.t
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -18,10 +19,10 @@ object Notifications {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannels(
             listOf(
-                NotificationChannel(CHANNEL_REMIND, context.getString(R.string.channel_remind), NotificationManager.IMPORTANCE_HIGH),
-                NotificationChannel(CHANNEL_CHECKIN, context.getString(R.string.channel_checkin), NotificationManager.IMPORTANCE_DEFAULT),
-                NotificationChannel(CHANNEL_MIC, context.getString(R.string.channel_mic), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
-                NotificationChannel(CHANNEL_UPDATES, context.getString(R.string.channel_updates), NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_REMIND, t(R.string.channel_remind), NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(CHANNEL_CHECKIN, t(R.string.channel_checkin), NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_MIC, t(R.string.channel_mic), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
+                NotificationChannel(CHANNEL_UPDATES, t(R.string.channel_updates), NotificationManager.IMPORTANCE_DEFAULT),
             ),
         )
     }

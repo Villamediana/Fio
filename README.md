@@ -14,6 +14,10 @@ Pessoas, lugares, projetos e assuntos citados viram nós de um **grafo**. É ele
 
 A **câmera** do app lê o que está na foto (um papel, um quadro, um recibo) e guarda do mesmo jeito.
 
+## Primeiros passos
+
+Na primeira vez o app pede as permissões, a pasta do backup e quem vai pensar: a inteligência do Novelo (no celular) ou a sua (chave da OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter ou outro endereço). O app fala português, inglês ou espanhol.
+
 ## Onde roda
 
 Em Ajustes › Inteligência você escolhe, separadamente, quem **ouve** (transcreve) e quem **pensa** (organiza). O idioma da fala é reconhecido sozinho.

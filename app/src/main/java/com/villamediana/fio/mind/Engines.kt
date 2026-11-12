@@ -1,5 +1,7 @@
 package com.villamediana.fio.mind
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import com.villamediana.fio.ai.Api
 import com.villamediana.fio.ai.ApiAsks
 import com.villamediana.fio.ai.ApiException
@@ -64,13 +66,14 @@ class Hearing(
 ) : Ears {
     fun readiness(s: FioSettings): String? = when (s.hear) {
         Source.LOCAL -> when {
-            !LocalEngine.available -> "o modelo no celular ainda não vem nesta versão — escolha uma API em Ajustes"
-            !model.ready -> "baixe o ${model.spec.name} em Ajustes"
+            !LocalEngine.available -> t(R.string.need_phone_not_in_version)
+            !model.ready -> t(R.string.need_download, model.spec.name)
             else -> null
         }
         Source.API -> when {
-            !s.apiReady -> "configure a API em Ajustes"
-            s.hearModel.isBlank() -> "escolha o modelo que transcreve em Ajustes"
+            !s.apiReady -> t(R.string.need_api)
+            !s.provider.hears -> t(R.string.need_hear_phone, s.provider.name)
+            s.hearModel.isBlank() -> t(R.string.need_hear_model)
             else -> null
         }
     }
@@ -98,7 +101,7 @@ class Hearing(
                 done
             }
             Source.API -> {
-                val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
+                val ep = s.endpoint(settings.apiKey().orEmpty())
                 val parts = if (wav.length() <= 20L * 1024 * 1024) listOf(null) else Pieces.cut(samples, maxSeconds = API_PIECE)
                 for ((i, p) in parts.withIndex()) {
                     if (i < start.pieces) continue
@@ -146,13 +149,13 @@ class Thinking(
 ) : Thinker {
     fun readiness(s: FioSettings): String? = when (s.think) {
         Source.LOCAL -> when {
-            !LocalEngine.available -> "o modelo no celular ainda não vem nesta versão — escolha uma API em Ajustes"
-            !model.ready -> "baixe o ${model.spec.name} em Ajustes"
+            !LocalEngine.available -> t(R.string.need_phone_not_in_version)
+            !model.ready -> t(R.string.need_download, model.spec.name)
             else -> null
         }
         Source.API -> when {
-            !s.apiReady -> "configure a API em Ajustes"
-            s.thinkModel.isBlank() -> "escolha o modelo que organiza em Ajustes"
+            !s.apiReady -> t(R.string.need_api)
+            s.thinkModel.isBlank() -> t(R.string.need_think_model)
             else -> null
         }
     }
@@ -193,12 +196,12 @@ class Thinking(
                 fixed = Brain.chatmlHead(system),
             )
             Source.API -> {
-                val ep = Api.Endpoint(s.apiBase, settings.apiKey().orEmpty())
+                val ep = s.endpoint(settings.apiKey().orEmpty())
                 // Asked with little reasoning (organizing doesn't need more, and it answers much
                 // sooner) and a light look at the photo. A server that refuses something of the
                 // request gets it again without it — and that is remembered, so the next answers
                 // don't pay for the same refusal ([ApiAsks]).
-                val key = s.apiBase + "|" + s.thinkModel
+                val key = s.apiAddress + "|" + s.thinkModel
                 var last: ApiException? = null
                 var refusedAsk: ApiAsks.Ask? = null
                 for (a in asks.plan(key, withImage = image != null)) {

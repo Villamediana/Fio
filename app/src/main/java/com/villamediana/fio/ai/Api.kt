@@ -1,5 +1,7 @@
 package com.villamediana.fio.ai
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.util.Base64
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -29,17 +31,18 @@ class ApiException(val code: Int, message: String) : IOException(message) {
 }
 
 /**
- * Any OpenAI-compatible API (OpenAI, Azure AI Foundry "/openai/v1", OpenRouter, a local server):
- * the list of models, speech to text, and chat. The key goes both as "Authorization: Bearer" and
- * as "api-key" (Azure's header), so the same fields work for all of them.
+ * The provider's API: the list of models, speech to text, and chat. Most speak the OpenAI way
+ * (OpenAI, Kimi, OpenRouter, Azure AI Foundry "/openai/v1", a local server): the key goes both as
+ * "Authorization: Bearer" and as "api-key" (Azure's header), so the same fields work for all of
+ * them. Anthropic is asked in its own Messages API ([Wire.ANTHROPIC]); it doesn't hear audio.
  */
 class Api(private val http: OkHttpClient) {
-    data class Endpoint(val base: String, val key: String)
+    data class Endpoint(val base: String, val key: String, val wire: Wire = Wire.OPENAI)
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     fun models(ep: Endpoint): List<String> {
-        val body = call(ep, Request.Builder().url(url(ep, "models")).get())
+        val body = call(ep, Request.Builder().url(url(ep, if (ep.wire == Wire.ANTHROPIC) "models?limit=1000" else "models")).get())
         val root = json.parseToJsonElement(body).jsonObject
         val list = (root["data"] as? JsonArray) ?: (root["models"] as? JsonArray) ?: JsonArray(emptyList())
         return list.mapNotNull { el ->
@@ -53,6 +56,7 @@ class Api(private val http: OkHttpClient) {
 
     /** One WAV file → its text. [language]: ISO code ("pt"), null to let the model tell. */
     fun transcribe(ep: Endpoint, model: String, wav: File, language: String?): String {
+        if (ep.wire == Wire.ANTHROPIC) throw ApiException(400, t(R.string.api_no_audio))
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("model", model)
             .addFormDataPart("response_format", "json")
@@ -68,6 +72,7 @@ class Api(private val http: OkHttpClient) {
     /** [effort]: the reasoning level for a model that reasons ("low"), left out when null. */
     /** [lowDetail]: the photo looked at lightly (a fraction of the tokens; its text comes read already). */
     fun chat(ep: Endpoint, model: String, system: String, user: String, image: ByteArray? = null, jsonOut: Boolean = true, effort: String? = null, lowDetail: Boolean = false): String {
+        if (ep.wire == Wire.ANTHROPIC) return messages(ep, model, system, user, image, effort)
         val payload = buildJsonObject {
             put("model", model)
             putJsonArray("messages") {
@@ -101,7 +106,50 @@ class Api(private val http: OkHttpClient) {
             is JsonPrimitive -> content.contentOrNull.orEmpty()
             is JsonArray -> content.joinToString("") { (it as? JsonObject)?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty() }
             else -> ""
-        }.ifEmpty { throw ApiException(200, "resposta vazia do modelo") }
+        }.ifEmpty { throw ApiException(200, t(R.string.api_empty)) }
+    }
+
+    /**
+     * Anthropic's Messages API: the instructions as the system, the photo (when there is one)
+     * before the words. JSON comes from the instructions (they ask for it and the answer is read
+     * from its braces). [effort] goes as output_config.effort; a model that refuses it is asked
+     * again without it ([ApiAsks]). On the models that take it, a declined answer is retried by the
+     * server on a fallback model ("fallbacks": "default").
+     */
+    private fun messages(ep: Endpoint, model: String, system: String, user: String, image: ByteArray?, effort: String?): String {
+        val fallback = model in FALLBACK_MODELS
+        val payload = buildJsonObject {
+            put("model", model)
+            put("max_tokens", 16000)
+            put("system", system)
+            putJsonArray("messages") {
+                addJsonObject {
+                    put("role", "user")
+                    putJsonArray("content") {
+                        if (image != null) addJsonObject {
+                            put("type", "image")
+                            putJsonObject("source") {
+                                put("type", "base64")
+                                put("media_type", "image/jpeg")
+                                put("data", Base64.encodeToString(image, Base64.NO_WRAP))
+                            }
+                        }
+                        addJsonObject { put("type", "text"); put("text", user) }
+                    }
+                }
+            }
+            if (effort != null) putJsonObject("output_config") { put("effort", effort) }
+            if (fallback) put("fallbacks", "default")
+        }
+        val builder = Request.Builder().url(url(ep, "messages")).post(payload.toString().toRequestBody(JSON))
+        if (fallback) builder.header("anthropic-beta", FALLBACK_BETA)
+        val root = json.parseToJsonElement(call(ep, builder)).jsonObject
+        if (root["stop_reason"]?.jsonPrimitive?.contentOrNull == "refusal") throw ApiException(200, t(R.string.api_declined))
+        val text = root["content"]?.jsonArray.orEmpty().joinToString("") { block ->
+            val b = block as? JsonObject ?: return@joinToString ""
+            if (b["type"]?.jsonPrimitive?.contentOrNull == "text") b["text"]?.jsonPrimitive?.contentOrNull.orEmpty() else ""
+        }
+        return text.ifEmpty { throw ApiException(200, t(R.string.api_empty)) }
     }
 
     private fun url(ep: Endpoint, path: String) = ep.base.trimEnd('/') + "/" + path
@@ -112,9 +160,11 @@ class Api(private val http: OkHttpClient) {
     }
 
     private fun call(ep: Endpoint, builder: Request.Builder): String {
+        when (ep.wire) {
+            Wire.OPENAI -> builder.header("Authorization", "Bearer ${ep.key}").header("api-key", ep.key)
+            Wire.ANTHROPIC -> builder.header("x-api-key", ep.key).header("anthropic-version", ANTHROPIC_VERSION)
+        }
         val request = builder
-            .header("Authorization", "Bearer ${ep.key}")
-            .header("api-key", ep.key)
             .header("Accept", "application/json")
             .tag(String::class.java, TAG)
             .build()
@@ -138,5 +188,10 @@ class Api(private val http: OkHttpClient) {
     private companion object {
         val JSON = "application/json".toMediaType()
         const val TAG = "fio-ai"
+        const val ANTHROPIC_VERSION = "2023-06-01"
+        const val FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+        /** The Claude models whose declined answers the server can retry on another model. */
+        val FALLBACK_MODELS = setOf("claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5")
     }
 }

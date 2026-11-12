@@ -5,6 +5,8 @@ import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -29,6 +31,41 @@ class ApiTest {
         assertEquals("/openai/v1/models", req.url.encodedPath)
         assertEquals("Bearer k-123", req.headers["Authorization"])
         assertEquals("k-123", req.headers["api-key"])
+    }
+
+    @Test
+    fun anthropicIsAskedInItsOwnMessagesApi() {
+        val a = Api.Endpoint(server.url("/v1").toString(), "sk-ant", Wire.ANTHROPIC)
+        server.enqueue(MockResponse.Builder().body("""{"data":[{"id":"claude-opus-5-5"},{"id":"claude-haiku-5-5"}]}""").build())
+        assertEquals(listOf("claude-haiku-5-5", "claude-opus-5-5"), api.models(a))
+        val list = server.takeRequest()
+        assertEquals("/v1/models", list.url.encodedPath)
+        assertEquals("sk-ant", list.headers["x-api-key"])
+        assertEquals("2023-06-01", list.headers["anthropic-version"])
+        assertNull(list.headers["Authorization"])
+
+        // The answer is its text blocks (a thinking block says nothing to read).
+        server.enqueue(MockResponse.Builder().body("""{"content":[{"type":"thinking","thinking":""},{"type":"text","text":"{\"reply\":\"ok\"}"}],"stop_reason":"end_turn"}""").build())
+        assertEquals("""{"reply":"ok"}""", api.chat(a, "claude-opus-5-5", "sys", "user", image = byteArrayOf(1, 2, 3), effort = "low"))
+        val req = server.takeRequest()
+        assertEquals("/v1/messages", req.url.encodedPath)
+        assertEquals("server-side-fallback-2026-07-01", req.headers["anthropic-beta"])
+        val body = req.body!!.utf8()
+        assertTrue(body, body.contains("\"system\":\"sys\""))
+        assertTrue(body, body.contains("\"type\":\"image\""))
+        assertTrue(body, body.contains("\"output_config\":{\"effort\":\"low\"}"))
+        assertTrue(body, body.contains("\"fallbacks\":\"default\""))
+        assertFalse(body, body.contains("response_format"))
+    }
+
+    @Test
+    fun aModelWithoutServerFallbacksIsAskedPlainly() {
+        val a = Api.Endpoint(server.url("/v1").toString(), "sk-ant", Wire.ANTHROPIC)
+        server.enqueue(MockResponse.Builder().body("""{"content":[{"type":"text","text":"{}"}],"stop_reason":"end_turn"}""").build())
+        api.chat(a, "claude-haiku-4-5", "sys", "user")
+        val req = server.takeRequest()
+        assertNull(req.headers["anthropic-beta"])
+        assertFalse(req.body!!.utf8().contains("fallbacks"))
     }
 
     @Test

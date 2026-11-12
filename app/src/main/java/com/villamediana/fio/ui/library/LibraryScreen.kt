@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.library
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -204,7 +206,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
             SearchBar(
                 searching = searching,
                 query = query,
@@ -227,7 +229,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         val list = entries
         if (hits != null) {
             val nothing = hits.isEmpty() && photoHits.isEmpty()
-            val found = listOf((if (nothing) "Nada com essas palavras" else null) to hits.map { it.entry })
+            val found = listOf((if (nothing) t(R.string.search_nothing) else null) to hits.map { it.entry })
             Entries(Filter.ALL, found, list.orEmpty(), terms = terms, showDone = false, onShowDone = {}, open = open, toggle = toggle, photos = photoHits)
             return@Column
         }
@@ -271,7 +273,7 @@ private fun Entries(
             item { Empty(filter) }
         }
         if (photos.isNotEmpty()) {
-            item(key = "label-photos") { SectionLabel("Fotos", Modifier.animateItem()) }
+            item(key = "label-photos") { SectionLabel(t(R.string.photos), Modifier.animateItem()) }
             item(key = "photos") { PhotoRow(photos, side = 16.dp, height = 150.dp, tag = "found-photo") }
             item(key = "photos-gap") { Spacer(Modifier.height(14.dp)) }
         }
@@ -300,7 +302,7 @@ private fun Entries(
             val done = all.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
             if (done > 0) item(key = "done-toggle") {
                 Text(
-                    if (showDone) "Esconder feitas" else "Ver feitas ($done)",
+                    if (showDone) t(R.string.done_hide) else t(R.string.done_show, done),
                     style = MaterialTheme.typography.labelLarge,
                     color = FioColors.TextMuted,
                     modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable(onClick = onShowDone).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -314,13 +316,13 @@ private fun Entries(
 private val TABS = Filter.entries - Filter.LINKS
 
 private fun title(f: Filter) = when (f) {
-    Filter.TODAY -> "Hoje"
-    Filter.TASKS -> "Tarefas"
-    Filter.NOTES -> "Notas"
-    Filter.DIARY -> "Diário"
-    Filter.GALLERY -> "Galeria"
-    Filter.ALL -> "Tudo"
-    Filter.LINKS -> "Conexões"
+    Filter.TODAY -> t(R.string.today)
+    Filter.TASKS -> t(R.string.tab_tasks)
+    Filter.NOTES -> t(R.string.tab_notes)
+    Filter.DIARY -> t(R.string.tab_diary)
+    Filter.GALLERY -> t(R.string.gallery)
+    Filter.ALL -> t(R.string.tab_all)
+    Filter.LINKS -> t(R.string.tab_links)
 }
 
 /**
@@ -429,7 +431,7 @@ private fun SearchBar(
         Icon(FioIcons.Search, null, tint = FioColors.TextMuted, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) Text(if (searching) "Buscar no que você guardou" else "Buscar", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint, maxLines = 1)
+            if (query.isEmpty()) Text(if (searching) t(R.string.search_kept) else t(R.string.search), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint, maxLines = 1)
             if (searching) {
                 BasicTextField(
                     value = query,
@@ -444,7 +446,7 @@ private fun SearchBar(
         }
         AnimatedVisibility(searching, enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.size(38.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
-                Icon(FioIcons.Close, "Limpar", tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
+                Icon(FioIcons.Close, t(R.string.clear), tint = FioColors.TextMuted, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -463,7 +465,7 @@ private fun Modifier.fadingEdges(scroll: androidx.compose.foundation.ScrollState
         }
     }
 
-private const val DOING = "Em andamento"
+private val DOING: String get() = t(R.string.section_doing)
 
 /** How each tab groups what is kept. */
 fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): List<Pair<String?, List<Entry>>> {
@@ -480,16 +482,16 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
             val doing = open.filter { it.statusEnum == Status.DOING && it !in late && it !in due }
             val said = all.filter { it.createdAt >= startToday && it.kindEnum != Kind.TASK }
             val doneToday = tasks.filter { it.doneAt != null && it.doneAt >= startToday }
-            listOf("Atrasadas" to late, "Pra hoje" to due, DOING to doing, "Guardado hoje" to said, "Feitas hoje" to doneToday)
+            listOf(t(R.string.section_late) to late, t(R.string.section_for_today) to due, DOING to doing, t(R.string.section_kept_today) to said, t(R.string.section_done_today) to doneToday)
         }
         Filter.TASKS -> {
             val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }
             val sortKey: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
             buildList {
-                add("Fazendo" to byStatus[Status.DOING].orEmpty().sortedBy(sortKey))
-                add("A fazer" to byStatus[Status.TODO].orEmpty().sortedBy(sortKey))
-                add("Esperando" to byStatus[Status.WAITING].orEmpty().sortedBy(sortKey))
-                if (showDone) add("Feitas" to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
+                add(t(R.string.status_doing) to byStatus[Status.DOING].orEmpty().sortedBy(sortKey))
+                add(t(R.string.status_todo) to byStatus[Status.TODO].orEmpty().sortedBy(sortKey))
+                add(t(R.string.status_waiting) to byStatus[Status.WAITING].orEmpty().sortedBy(sortKey))
+                if (showDone) add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
             }
         }
         Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
@@ -526,7 +528,7 @@ private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<
                 DayThumbs(photos)
             }
             Spacer(Modifier.height(6.dp))
-            Text(d.format(DateTimeFormatter.ofPattern("EEEE · HH:mm", PT)), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
+            Text(d.format(DateTimeFormatter.ofPattern(t(R.string.fmt_weekday_time), PT)), style = MaterialTheme.typography.labelMedium, color = FioColors.TextFaint)
         }
     }
 }
@@ -562,13 +564,13 @@ private fun Empty(filter: Filter) {
     Column(Modifier.fillMaxWidth().padding(top = 80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             when (filter) {
-                Filter.TODAY -> "Nada pra hoje."
-                Filter.TASKS -> "Nenhuma tarefa aberta."
-                Filter.NOTES -> "Nenhuma nota ainda."
-                Filter.DIARY -> "O diário está em branco."
-                Filter.GALLERY -> "Nenhuma foto ainda."
-                Filter.ALL -> "Nada guardado ainda."
-                Filter.LINKS -> "Nenhuma conexão ainda."
+                Filter.TODAY -> t(R.string.empty_today)
+                Filter.TASKS -> t(R.string.empty_tasks)
+                Filter.NOTES -> t(R.string.empty_notes)
+                Filter.DIARY -> t(R.string.empty_diary)
+                Filter.GALLERY -> t(R.string.empty_gallery)
+                Filter.ALL -> t(R.string.empty_all)
+                Filter.LINKS -> t(R.string.empty_links)
             },
             style = MaterialTheme.typography.titleMedium,
             color = FioColors.TextMuted,
@@ -576,9 +578,9 @@ private fun Empty(filter: Filter) {
         Spacer(Modifier.height(6.dp))
         Text(
             when (filter) {
-                Filter.LINKS -> "Elas aparecem quando você fala de pessoas, lugares e projetos."
-                Filter.GALLERY -> "As fotos que você tira no Novelo ficam aqui e no diário do dia."
-                else -> "Fale no botão da tela inicial."
+                Filter.LINKS -> t(R.string.empty_links_line)
+                Filter.GALLERY -> t(R.string.empty_gallery_line)
+                else -> t(R.string.empty_line)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = FioColors.TextFaint,

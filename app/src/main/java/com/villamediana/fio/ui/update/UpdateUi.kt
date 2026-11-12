@@ -1,5 +1,6 @@
 package com.villamediana.fio.ui.update
 
+import com.villamediana.fio.settings.t
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -162,10 +163,10 @@ internal fun UpdateSheetBody(
             NoveloMark(size = 52.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.update_title), style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
+                Text(t(R.string.update_title), style = MaterialTheme.typography.headlineSmall, color = FioColors.Text)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (release.sizeBytes > 0) stringResource(R.string.update_subtitle, release.version, formatBytes(release.sizeBytes)) else release.version,
+                    if (release.sizeBytes > 0) t(R.string.update_subtitle, release.version, formatBytes(release.sizeBytes)) else release.version,
                     style = MaterialTheme.typography.bodyMedium,
                     color = FioColors.TextMuted,
                 )
@@ -189,11 +190,11 @@ internal fun UpdateSheetBody(
 
         // One line above the button, only when there is something to say.
         val note: String? = when (state) {
-            is UpdateState.NeedsPermission -> stringResource(R.string.update_permission_body)
+            is UpdateState.NeedsPermission -> t(R.string.update_permission_body)
             is UpdateState.Failed -> failureText(state.reason)
             else -> when {
-                closedNote != null -> stringResource(R.string.update_closed_note, closedNote)
-                autoReady -> stringResource(R.string.update_auto_note)
+                closedNote != null -> t(R.string.update_closed_note, closedNote)
+                autoReady -> t(R.string.update_auto_note)
                 else -> null
             }
         }
@@ -224,7 +225,7 @@ internal fun UpdateSheetBody(
         Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
             if (!busy) {
                 Text(
-                    stringResource(R.string.update_later),
+                    t(R.string.update_later),
                     style = MaterialTheme.typography.labelLarge,
                     color = FioColors.TextMuted,
                     modifier = Modifier
@@ -281,11 +282,11 @@ private fun ProgressButton(state: UpdateState, onClick: () -> Unit, modifier: Mo
         1f
     }
     val label = when (state) {
-        is UpdateState.Downloading -> stringResource(R.string.update_downloading, NumberFormat.getPercentInstance().format(state.fraction.toDouble()))
-        is UpdateState.Installing -> stringResource(R.string.update_installing)
-        is UpdateState.NeedsPermission -> stringResource(R.string.update_permission_action)
-        is UpdateState.Failed -> stringResource(R.string.update_retry)
-        else -> stringResource(R.string.update_action)
+        is UpdateState.Downloading -> t(R.string.update_downloading, NumberFormat.getPercentInstance().format(state.fraction.toDouble()))
+        is UpdateState.Installing -> t(R.string.update_installing)
+        is UpdateState.NeedsPermission -> t(R.string.update_permission_action)
+        is UpdateState.Failed -> t(R.string.update_retry)
+        else -> t(R.string.update_action)
     }
     val interaction = remember { MutableInteractionSource() }
     val style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -322,7 +323,7 @@ private fun ProgressButton(state: UpdateState, onClick: () -> Unit, modifier: Mo
 }
 
 @Composable
-private fun failureText(reason: UpdateFailure): String = stringResource(
+private fun failureText(reason: UpdateFailure): String = t(
     when (reason) {
         UpdateFailure.NETWORK -> R.string.update_error_network
         UpdateFailure.INTEGRITY -> R.string.update_error_integrity
@@ -343,15 +344,15 @@ fun UpdateRow(updates: Updates = FioApplication.graph.updates) {
     val downloading = state as? UpdateState.Downloading
     val release = state.release
     val title = when (state) {
-        is UpdateState.Downloading, is UpdateState.Installing -> stringResource(R.string.settings_update_going, release!!.version)
-        else -> if (release != null) stringResource(R.string.settings_update_available, release.version) else stringResource(R.string.settings_update_check)
+        is UpdateState.Downloading, is UpdateState.Installing -> t(R.string.settings_update_going, release!!.version)
+        else -> if (release != null) t(R.string.settings_update_available, release.version) else t(R.string.settings_update_check)
     }
     val subtitle: String? = when (state) {
-        UpdateState.Checking -> stringResource(R.string.settings_update_checking)
-        UpdateState.UpToDate -> stringResource(R.string.settings_update_latest)
-        UpdateState.CheckFailed -> stringResource(R.string.settings_update_failed)
+        UpdateState.Checking -> t(R.string.settings_update_checking)
+        UpdateState.UpToDate -> t(R.string.settings_update_latest)
+        UpdateState.CheckFailed -> t(R.string.settings_update_failed)
         is UpdateState.Downloading -> NumberFormat.getPercentInstance().format((downloading?.fraction ?: 0f).toDouble())
-        is UpdateState.Installing -> stringResource(R.string.update_installing)
+        is UpdateState.Installing -> t(R.string.update_installing)
         else -> null
     }
     Row(

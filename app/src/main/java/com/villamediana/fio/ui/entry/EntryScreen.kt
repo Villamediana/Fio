@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.entry
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import com.villamediana.fio.ui.components.StitchColor
 import com.villamediana.fio.ui.components.paper
 import com.villamediana.fio.ui.components.stitched
@@ -134,19 +136,19 @@ fun EntryScreen(nav: Nav, id: Long) {
         Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(FioIcons.Back, "Voltar", { nav.back() }, alpha = 0.8f)
+            QuietIcon(FioIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
             Spacer(Modifier.weight(1f))
             Box {
-                QuietIcon(FioIcons.More, "Mais", { menu = true }, alpha = 0.7f)
+                QuietIcon(FioIcons.More, t(R.string.more), { menu = true }, alpha = 0.7f)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = FioColors.Surface) {
                     Kind.entries.filter { it != kind }.forEach { k ->
-                        DropdownMenuItem(text = { Text("Virar ${kindLabel(k).lowercase()}") }, onClick = { menu = false; scope.launch { lib.setKind(e.id, k) } })
+                        DropdownMenuItem(text = { Text(t(R.string.turn_into, kindLabel(k).lowercase())) }, onClick = { menu = false; scope.launch { lib.setKind(e.id, k) } })
                     }
                     DropdownMenuItem(
-                        text = { Text(if (e.sensitive) "Não é sensível" else "Marcar como sensível") },
+                        text = { Text(if (e.sensitive) t(R.string.not_sensitive) else t(R.string.mark_sensitive)) },
                         onClick = { menu = false; scope.launch { lib.setSensitive(e.id, !e.sensitive) } },
                     )
-                    DropdownMenuItem(text = { Text("Apagar", color = FioColors.Danger) }, onClick = { menu = false; scope.launch { lib.delete(e.id) } })
+                    DropdownMenuItem(text = { Text(t(R.string.delete), color = FioColors.Danger) }, onClick = { menu = false; scope.launch { lib.delete(e.id) } })
                 }
             }
         }
@@ -190,7 +192,7 @@ fun EntryScreen(nav: Nav, id: Long) {
             ) {
                 val blurred = !revealed && Build.VERSION.SDK_INT >= 31
                 Box(if (blurred) Modifier.blur(10.dp) else Modifier) {
-                    if (body.isEmpty()) Text("Detalhes…", style = bodyStyle, color = FioColors.TextFaint)
+                    if (body.isEmpty()) Text(t(R.string.details_hint), style = bodyStyle, color = FioColors.TextFaint)
                     BasicTextField(
                         value = if (!revealed && Build.VERSION.SDK_INT < 31) "••••••••" else body,
                         onValueChange = { if (revealed) body = it },
@@ -202,7 +204,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                 }
                 if (!revealed) {
                     Text(
-                        "Toque pra ver",
+                        t(R.string.tap_to_see),
                         style = MaterialTheme.typography.labelLarge,
                         color = FioColors.Text,
                         modifier = Modifier.align(Alignment.Center).clip(CircleShape).background(FioColors.Surface2).clickable { revealed = true }.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -239,7 +241,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        when (capture?.source) { "photo" -> "Da foto"; com.villamediana.fio.data.Capture.TEXT -> "O que você escreveu"; else -> "O que você disse" },
+                        when (capture?.source) { "photo" -> t(R.string.said_photo); com.villamediana.fio.data.Capture.TEXT -> t(R.string.said_typed); else -> t(R.string.said_spoken) },
                         style = MaterialTheme.typography.labelLarge,
                         color = FioColors.TextMuted,
                     )
@@ -269,7 +271,7 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
     val newStep = remember { FocusRequester() }
     LaunchedEffect(focusNew) { if (focusNew) runCatching { newStep.requestFocus() } }
     val haptics = LocalHapticFeedback.current
-    SectionLabel(if (steps.isEmpty()) "Etapas" else "Etapas · ${steps.count { it.done }}/${steps.size}")
+    SectionLabel(if (steps.isEmpty()) t(R.string.steps) else t(R.string.steps_count, steps.count { it.done }, steps.size))
     if (steps.isNotEmpty()) {
         val frac = steps.count { it.done }.toFloat() / steps.size
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(FioColors.Surface2)) {
@@ -291,7 +293,7 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
                     .clip(RoundedCornerShape(10.dp))
                     .combinedClickable(
                         onClick = { onToggle(i) },
-                        onLongClickLabel = "Tirar etapa",
+                        onLongClickLabel = t(R.string.step_remove),
                         onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onRemove(i) },
                     )
                     .padding(vertical = 8.dp),
@@ -302,7 +304,7 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
         Icon(FioIcons.Plus, null, tint = FioColors.TextFaint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(14.dp))
         Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
-            if (adding.isEmpty()) Text("Nova etapa", style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
+            if (adding.isEmpty()) Text(t(R.string.step_new), style = MaterialTheme.typography.bodyLarge, color = FioColors.TextFaint)
             BasicTextField(
                 value = adding,
                 onValueChange = { v ->
@@ -314,7 +316,7 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
             )
         }
         if (adding.isNotBlank()) {
-            IconAction(FioIcons.Check, "Pôr etapa", { onAdd(adding); adding = "" }, primary = true, size = 36.dp)
+            IconAction(FioIcons.Check, t(R.string.step_add), { onAdd(adding); adding = "" }, primary = true, size = 36.dp)
         }
     }
 }
@@ -343,7 +345,7 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
             DateChip(
                 icon = FioIcons.Calendar,
                 label = Dates.due(e),
-                name = "Prazo",
+                name = t(R.string.due),
                 onClick = { pick(e.dueAt, withTime = false) { at, t -> onDue(at, t) } },
                 onClear = { onDue(null, false) },
             )
@@ -352,15 +354,15 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
         DateChip(
             icon = FioIcons.Bell,
             label = remind?.let { Dates.dayTime(it) },
-            name = "Lembrete",
+            name = t(R.string.reminder),
             onClick = { pick(remind, withTime = true) { at, _ -> onRemind(at) } },
             onClear = { onRemind(null) },
         )
-        if (onAddStep != null) DateChip(icon = FioIcons.Steps, label = null, name = "Etapas", onClick = onAddStep, onClear = {})
+        if (onAddStep != null) DateChip(icon = FioIcons.Steps, label = null, name = t(R.string.steps), onClick = onAddStep, onClear = {})
     }
     e.checkInAt?.takeIf { it > System.currentTimeMillis() && e.isOpenTask }?.let {
         Spacer(Modifier.height(8.dp))
-        Text("O Novelo vai perguntar como está ${Dates.dayTime(it)}.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
+        Text(t(R.string.checkin_will_ask, Dates.dayTime(it)), style = MaterialTheme.typography.bodySmall, color = FioColors.TextFaint)
     }
 }
 
@@ -382,7 +384,7 @@ private fun DateChip(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
             Spacer(Modifier.width(8.dp))
             Text(label!!, style = MaterialTheme.typography.labelLarge, color = FioColors.Text)
             Box(Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) {
-                Icon(FioIcons.Close, "Tirar", tint = FioColors.TextFaint, modifier = Modifier.size(14.dp))
+                Icon(FioIcons.Close, t(R.string.take_out), tint = FioColors.TextFaint, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -391,6 +393,6 @@ private fun DateChip(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
 /** "quarta-feira, 11 de novembro" (and the year when it is not this one). */
 private fun diaryDay(ms: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val d = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
-    val pattern = if (d.year == LocalDate.now(zone).year) "EEEE, d 'de' MMMM" else "EEEE, d 'de' MMMM 'de' yyyy"
+    val pattern = t(if (d.year == LocalDate.now(zone).year) R.string.fmt_weekday_day_month else R.string.fmt_weekday_day_month_year)
     return d.format(java.time.format.DateTimeFormatter.ofPattern(pattern, com.villamediana.fio.ui.components.PT))
 }

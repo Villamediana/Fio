@@ -1,5 +1,7 @@
 package com.villamediana.fio.ui.entry
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -87,7 +89,7 @@ internal fun SoundRow(c: Capture, modifier: Modifier = Modifier) {
         modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(FioColors.Surface2).padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconAction(if (playing) FioIcons.Pause else FioIcons.Play, if (playing) "Pausar o áudio" else "Ouvir o áudio", { toggle() }, primary = true, size = 40.dp)
+        IconAction(if (playing) FioIcons.Pause else FioIcons.Play, if (playing) t(R.string.sound_pause) else t(R.string.sound_play), { toggle() }, primary = true, size = 40.dp)
         val accent = FioColors.Accent
         val rest = FioColors.TextFaint
         Canvas(Modifier.weight(1f).height(32.dp).padding(horizontal = 12.dp)) {

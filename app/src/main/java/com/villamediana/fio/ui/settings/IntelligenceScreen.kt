@@ -73,14 +73,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.NumberFormat
-
-/** What the API check said: a few words, and whether it went well. */
-private data class Note(val text: String, val ok: Boolean? = null)
+import androidx.compose.ui.res.stringResource
+import com.villamediana.fio.R
+import com.villamediana.fio.ai.Provider
+import com.villamediana.fio.ai.Providers
+import com.villamediana.fio.settings.Lang
+import com.villamediana.fio.settings.t
+import com.villamediana.fio.ui.setup.OwnSetup
 
 /**
- * Ajustes › Inteligência: who hears and who thinks (the phone or an API), and only what that
- * choice needs — the model on the phone, or the API's address and key. The connection is tested
- * by itself when they are filled in or changed.
+ * Ajustes › Inteligência: who hears and who thinks (the phone or her API), and only what that
+ * choice needs — the model on the phone, or whose API and its key (tested by itself, the same as
+ * in the first steps).
  */
 @Composable
 fun IntelligenceScreen(nav: Nav) {
@@ -89,64 +93,37 @@ fun IntelligenceScreen(nav: Nav) {
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
-
-    var base by remember { mutableStateOf(s.apiBase) }
-    var key by remember { mutableStateOf("") }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var note by remember { mutableStateOf<Note?>(null) }
     var picking by remember { mutableStateOf<Pick?>(null) }
     val usesApi = s.hear == Source.API || s.think == Source.API
     val usesPhone = s.hear == Source.LOCAL || s.think == Source.LOCAL
+    val provider = s.provider
 
-    LaunchedEffect(s.apiBase) { if (base.isEmpty()) base = s.apiBase }
-    // What is typed is kept a beat after typing; the key is kept when leaving too.
-    LaunchedEffect(base) { delay(500); if (base.trim().trimEnd('/') != s.apiBase) st.setApiBase(base) }
-    val pendingKey by rememberUpdatedState(key)
-    DisposableEffect(Unit) {
-        onDispose { if (pendingKey.isNotBlank()) graph.scope.launch { st.setApiKey(pendingKey); graph.mind.retryPending() } }
-    }
-
-    /** Keeps what was typed and asks the API for its models: that is the connection test. */
-    suspend fun connect() {
-        loading = true
-        if (base.isNotBlank()) st.setApiBase(base)
-        if (key.isNotBlank()) { st.setApiKey(key); key = "" }
-        val k = st.apiKey()
-        val b = st.current().apiBase
-        if (b.isBlank() || k.isNullOrBlank()) {
-            note = null
-            loading = false
-            return
+    /** The models of her API, for the list. */
+    fun loadModels() {
+        scope.launch {
+            val k = st.apiKey()
+            val now = st.current()
+            if (!now.apiReady || k.isNullOrBlank()) return@launch
+            runCatching { withContext(Dispatchers.IO) { graph.api.models(now.endpoint(k)) } }.onSuccess { models = it }
         }
-        runCatching { withContext(Dispatchers.IO) { graph.api.models(Api.Endpoint(b, k)) } }
-            .onSuccess { models = it; note = if (it.isEmpty()) Note("conectado", ok = true) else Note("conectado · ${it.size} modelos", ok = true) }
-            .onFailure { note = Note("não conectou · ${it.message}", ok = false) }
-        loading = false
-        graph.mind.retryPending()
-    }
-
-    // The test goes by itself: on opening (when the API is in use) and a moment after the address or the key change.
-    LaunchedEffect(usesApi, base, key) {
-        if (!usesApi) return@LaunchedEffect
-        if (base.isBlank() && key.isBlank() && !s.apiReady) return@LaunchedEffect
-        delay(if (key.isBlank() && base.trim().trimEnd('/') == s.apiBase) 0 else 900)
-        connect()
     }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        PageTop("Inteligência") { nav.back() }
+        PageTop(t(R.string.ai_title)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
             Group(
                 Modifier,
                 {
                     WorkLine(
-                        title = "Ouvir",
+                        title = t(R.string.ai_hear),
                         source = s.hear,
                         model = s.hearModel,
                         local = local,
                         localName = graph.localModel.spec.name,
+                        // A provider that doesn't hear: hearing stays on the phone.
+                        apiNote = if (!provider.hears && s.think == Source.API) t(R.string.ai_provider_no_audio, providerName(provider)) else null,
                         onSource = { src ->
                             scope.launch { st.setHear(src) }
                             if (src == Source.API && s.hearModel.isBlank()) picking = Pick.HEAR
@@ -156,7 +133,7 @@ fun IntelligenceScreen(nav: Nav) {
                 },
                 {
                     WorkLine(
-                        title = "Pensar",
+                        title = t(R.string.ai_think),
                         source = s.think,
                         model = s.thinkModel,
                         local = local,
@@ -171,38 +148,13 @@ fun IntelligenceScreen(nav: Nav) {
             )
 
             if (usesPhone) {
-                SectionLabel("No celular")
+                SectionLabel(t(R.string.ai_on_phone))
                 Group(Modifier, { LocalModelLine(graph.localModel, local) })
             }
 
             if (usesApi) {
-                SectionLabel("API")
-                Group(
-                    Modifier,
-                    { FieldLine("Endereço", base, { base = it }, hint = "https://…/v1", keyboard = KeyboardType.Uri) },
-                    {
-                        FieldLine(
-                            "Chave", key, { key = it },
-                            hint = if (s.hasApiKey) "guardada" else "cole a chave",
-                            hintColor = if (s.hasApiKey) FioColors.TextMuted else FioColors.TextFaint,
-                            secret = true,
-                        )
-                    },
-                )
-                Row(Modifier.padding(start = 8.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (loading) CircularProgressIndicator(Modifier.size(12.dp), color = FioColors.Accent, strokeWidth = 1.5.dp)
-                    Text(
-                        when {
-                            loading -> "testando a conexão…"
-                            note != null -> note!!.text
-                            !s.apiReady -> "falta o endereço ou a chave"
-                            else -> ""
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = when (note?.ok) { true -> FioColors.Success; false -> FioColors.Danger; null -> FioColors.TextMuted },
-                        modifier = Modifier.padding(start = if (loading) 8.dp else 0.dp),
-                    )
-                }
+                SectionLabel(t(R.string.ai_api))
+                OwnSetup(showModels = false)
             }
             Spacer(Modifier.height(40.dp))
         }
@@ -210,11 +162,11 @@ fun IntelligenceScreen(nav: Nav) {
 
     picking?.let { job ->
         ModelPicker(
-            title = if (job == Pick.HEAR) "Modelo que transcreve" else "Modelo que organiza",
+            title = t(if (job == Pick.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
             current = if (job == Pick.HEAR) s.hearModel else s.thinkModel,
             models = models,
             settings = s,
-            onLoad = { scope.launch { connect() } },
+            onLoad = { loadModels() },
             onPick = { m ->
                 scope.launch {
                     if (job == Pick.HEAR) st.setHearModel(m) else st.setThinkModel(m)
@@ -227,19 +179,25 @@ fun IntelligenceScreen(nav: Nav) {
     }
 }
 
+/** A provider's name as she reads it ("Outro" / "Other" / "Otro" for an address of her own). */
+internal fun providerName(p: Provider): String = if (p == Providers.OTHER) t(R.string.provider_other) else p.name
+
 private enum class Pick { HEAR, THINK }
 
 /** The model on the phone in a few words: what it needs or how it is. */
 internal fun localShort(state: LocalModel.State): String = when {
-    !LocalEngine.available -> "não vem nesta versão"
-    state is LocalModel.State.Ready -> "pronto"
-    state is LocalModel.State.Downloading -> "baixando " + NumberFormat.getPercentInstance().format(state.fraction.toDouble())
-    state is LocalModel.State.Checking -> "conferindo"
-    state is LocalModel.State.Failed -> "não baixou"
-    else -> "precisa baixar"
+    !LocalEngine.available -> t(R.string.local_not_in_version)
+    state is LocalModel.State.Ready -> t(R.string.local_ready_short)
+    state is LocalModel.State.Downloading -> t(R.string.local_downloading_short, NumberFormat.getPercentInstance(Lang.locale).format(state.fraction.toDouble()))
+    state is LocalModel.State.Checking -> t(R.string.local_checking_short)
+    state is LocalModel.State.Failed -> t(R.string.local_failed_short)
+    else -> t(R.string.local_needs_download)
 }
 
-/** One job (hear or think): where it runs on the right; under the name, the model doing it. */
+/**
+ * One job (hear or think): where it runs on the right; under the name, the model doing it.
+ * [apiNote]: the API can't do this job (its provider doesn't hear) — said instead of the choice.
+ */
 @Composable
 private fun WorkLine(
     title: String,
@@ -249,8 +207,9 @@ private fun WorkLine(
     localName: String,
     onSource: (Source) -> Unit,
     onPick: () -> Unit,
+    apiNote: String? = null,
 ) {
-    val api = source == Source.API
+    val api = source == Source.API && apiNote == null
     Row(
         Modifier.fillMaxWidth().clickable(enabled = api, onClick = onPick).padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -259,21 +218,23 @@ private fun WorkLine(
             Text(title, style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
-                    if (api) model.ifBlank { "escolher modelo" } else "$localName · ${localShort(local)}",
+                    apiNote ?: if (api) model.ifBlank { t(R.string.ai_choose_model) } else "$localName · ${localShort(local)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (api && model.isBlank()) FioColors.Accent else FioColors.TextMuted,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (api) Icon(FioIcons.Chevron, null, tint = FioColors.TextFaint, modifier = Modifier.padding(start = 2.dp).size(14.dp))
             }
         }
-        Segmented(
-            listOf("Celular", "API"),
-            selected = if (api) 1 else 0,
-            onSelect = { i -> onSource(if (i == 1) Source.API else Source.LOCAL) },
-        )
+        if (apiNote == null) {
+            Segmented(
+                listOf(t(R.string.ai_phone), t(R.string.ai_api)),
+                selected = if (api) 1 else 0,
+                onSelect = { i -> onSource(if (i == 1) Source.API else Source.LOCAL) },
+            )
+        }
     }
 }
 
@@ -281,60 +242,31 @@ private fun WorkLine(
 @Composable
 private fun LocalModelLine(model: LocalModel, state: LocalModel.State) {
     val total = model.totalBytes
-    val percent = NumberFormat.getPercentInstance()
+    val percent = NumberFormat.getPercentInstance(Lang.locale)
     Column(Modifier.fillMaxWidth().animateContentSize()) {
         Line(
             title = model.spec.name,
             subtitle = when {
-                !LocalEngine.available -> "não vem nesta versão"
-                state is LocalModel.State.Ready -> "pronto · funciona sem internet"
-                state is LocalModel.State.Downloading -> percent.format(state.fraction.toDouble()) + " de " + formatBytes(total)
-                state is LocalModel.State.Checking -> "conferindo o arquivo…"
+                !LocalEngine.available -> t(R.string.local_not_in_version)
+                state is LocalModel.State.Ready -> t(R.string.local_ready)
+                state is LocalModel.State.Downloading -> t(R.string.local_progress, percent.format(state.fraction.toDouble()), formatBytes(total))
+                state is LocalModel.State.Checking -> t(R.string.local_checking)
                 state is LocalModel.State.Failed -> state.message
-                else -> formatBytes(total) + " · funciona sem internet"
+                else -> t(R.string.local_size_offline, formatBytes(total))
             },
             subtitleColor = if (state is LocalModel.State.Failed) FioColors.Danger else FioColors.TextMuted,
         ) {
             if (LocalEngine.available) when (state) {
-                LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(FioIcons.Download, "Baixar", { model.download() }, primary = true, size = 40.dp)
-                is LocalModel.State.Downloading -> IconAction(FioIcons.Stop, "Parar o download", { model.cancel() }, size = 40.dp)
+                LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(FioIcons.Download, t(R.string.local_download), { model.download() }, primary = true, size = 40.dp)
+                is LocalModel.State.Downloading -> IconAction(FioIcons.Stop, t(R.string.local_stop_download), { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = FioColors.Accent, strokeWidth = 2.dp)
-                LocalModel.State.Ready -> IconAction(FioIcons.Trash, "Apagar do celular", { model.delete() }, size = 40.dp)
+                LocalModel.State.Ready -> IconAction(FioIcons.Trash, t(R.string.local_delete), { model.delete() }, size = 40.dp)
             }
         }
         if (state is LocalModel.State.Downloading) {
             Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(FioColors.Surface2)) {
                 Box(Modifier.fillMaxWidth(state.fraction.coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(FioColors.Accent))
             }
-        }
-    }
-}
-
-/** A name and what is typed for it, on one line. */
-@Composable
-private fun FieldLine(
-    label: String,
-    value: String,
-    onChange: (String) -> Unit,
-    hint: String,
-    hintColor: Color = FioColors.TextFaint,
-    secret: Boolean = false,
-    keyboard: KeyboardType = KeyboardType.Text,
-) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.titleMedium, color = FioColors.Text, modifier = Modifier.width(92.dp))
-        Box(Modifier.weight(1f).padding(vertical = 16.dp)) {
-            if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = hintColor, maxLines = 1)
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = FioColors.Text),
-                cursorBrush = SolidColor(FioColors.Accent),
-                visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions = KeyboardOptions(keyboardType = if (secret) KeyboardType.Password else keyboard, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
@@ -355,8 +287,9 @@ private fun Field(value: String, onChange: (String) -> Unit, hint: String) {
     }
 }
 
+/** The model for a job: typed, or picked from her API's list (filtered by what is typed). */
 @Composable
-private fun ModelPicker(
+internal fun ModelPicker(
     title: String,
     current: String,
     models: List<String>,
@@ -371,13 +304,13 @@ private fun ModelPicker(
         Text(title, style = MaterialTheme.typography.headlineSmall, color = FioColors.Text, modifier = Modifier.padding(horizontal = 24.dp))
         Spacer(Modifier.height(12.dp))
         Row(Modifier.padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Field(value = typed, onChange = { typed = it }, hint = "Nome do modelo ou deployment") }
+            Box(Modifier.weight(1f)) { Field(value = typed, onChange = { typed = it }, hint = t(R.string.ai_model_name_hint)) }
             AnimatedVisibility(typed.isNotBlank()) {
-                IconAction(FioIcons.Check, "Usar", { onPick(typed.trim()) }, modifier = Modifier.padding(start = 8.dp), primary = true)
+                IconAction(FioIcons.Check, t(R.string.ai_use), { onPick(typed.trim()) }, modifier = Modifier.padding(start = 8.dp), primary = true)
             }
         }
         if (!settings.apiReady) {
-            Text("Preencha o endereço e a chave da API pra carregar a lista.", style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted, modifier = Modifier.padding(24.dp))
+            Text(t(R.string.ai_fill_to_load), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted, modifier = Modifier.padding(24.dp))
         }
         val filtered = models.filter { typed.isBlank() || it.contains(typed.trim(), ignoreCase = true) || it == current }
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 380.dp).padding(top = 8.dp)) {

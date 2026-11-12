@@ -1,5 +1,7 @@
 package com.villamediana.fio.local
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
@@ -85,7 +87,14 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
 
     val totalBytes: Long get() = parts.sumOf { it.size }
 
-    fun download() {
+    /** Whether the phone is on a network that doesn't count data (Wi-Fi, usually). */
+    fun onWifi(): Boolean = runCatching {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+    }.getOrDefault(false)
+
+    /** The model to the phone; [wifiOnly]: it waits for Wi-Fi (Android's download goes by itself when it comes). */
+    fun download(wifiOnly: Boolean = false) {
         if (_state.value is State.Downloading || _state.value == State.Ready || _state.value == State.Checking) return
         scope.launch(Dispatchers.IO) {
             parts.forEach { part ->
@@ -98,7 +107,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                     .setDescription(part.name)
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                     .setDestinationUri(Uri.fromFile(file))
-                    .setAllowedOverMetered(true)
+                    .setAllowedOverMetered(!wifiOnly)
                 val id = manager.enqueue(request)
                 File(dir, part.name + ".id").writeText(id.toString())
             }
@@ -159,7 +168,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                             when (status) {
                                 DownloadManager.STATUS_SUCCESSFUL -> { File(dir, part.name + ".id").delete(); done += part.size }
                                 DownloadManager.STATUS_FAILED -> {
-                                    failed = "o download parou (${c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))})"
+                                    failed = t(R.string.local_download_stopped, c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)))
                                     File(dir, part.name + ".id").delete()
                                 }
                                 else -> { running = true; done += got }
@@ -191,7 +200,7 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
             _state.value = State.Ready
         } else {
             File(dir, bad.name).delete()
-            _state.value = State.Failed("o arquivo ${bad.name} chegou com defeito; baixe de novo")
+            _state.value = State.Failed(t(R.string.local_file_damaged, bad.name))
         }
     }
 

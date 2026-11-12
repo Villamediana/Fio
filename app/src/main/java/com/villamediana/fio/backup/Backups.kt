@@ -1,5 +1,8 @@
 package com.villamediana.fio.backup
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.tn
+import com.villamediana.fio.settings.t
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -64,7 +67,7 @@ class Backups(
             val r = core.save(root, key = folder)
             // Where it is now (a folder chosen before the backup became one file showed another place).
             core.place(root).let { if (it != settings.current().backupPlace) settings.setBackupPlace(it) }
-            settings.setBackupDone(System.currentTimeMillis(), if (r.empty) "nada pra guardar ainda" else note(r.entries, r.photos, r.sounds))
+            settings.setBackupDone(System.currentTimeMillis(), if (r.empty) t(R.string.backup_nothing_yet) else note(r.entries, r.photos, r.sounds))
             true
         } catch (e: Throwable) {
             settings.setBackupFailed(message(e))
@@ -84,8 +87,8 @@ class Backups(
 
     /** Puts the backup [name] back in place of everything. */
     suspend fun restore(name: String): Result<Backup.Restored> {
-        val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return Result.failure(IOException("Escolha a pasta do backup."))
-        if (!mind.idle) return Result.failure(IOException("Espere o Novelo terminar o que está fazendo e tente de novo."))
+        val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return Result.failure(IOException(t(R.string.backup_choose_folder)))
+        if (!mind.idle) return Result.failure(IOException(t(R.string.backup_wait_busy)))
         _busy.value = IMPORTING
         val r = try {
             Result.success(core.restore(root(folder), name))
@@ -113,9 +116,9 @@ class Backups(
         const val IMPORTING = "Importando…"
 
         fun note(entries: Int, photos: Int, sounds: Int = 0): String = buildString {
-            append(if (entries == 1) "1 item" else "$entries itens")
-            if (photos > 0) append(" · ").append(if (photos == 1) "1 foto" else "$photos fotos")
-            if (sounds > 0) append(" · ").append(if (sounds == 1) "1 áudio" else "$sounds áudios")
+            append(tn(R.plurals.items, entries))
+            if (photos > 0) append(" · ").append(tn(R.plurals.photos, photos))
+            if (sounds > 0) append(" · ").append(tn(R.plurals.sounds, sounds))
         }
     }
 }

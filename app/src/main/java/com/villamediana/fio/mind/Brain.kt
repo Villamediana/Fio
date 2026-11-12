@@ -109,6 +109,7 @@ Ela também pode:
 Como preencher:
 - Use as palavras dela. Título curto (até ~8 palavras) que diz do que se trata — nunca o tipo do item. Corpo com os detalhes ditos, sem inventar nada.
 - Diário é dela: escreva em primeira pessoa, no idioma, no jeito e no tom em que ela falou, como se ela mesma tivesse escrito. Só tire repetições e hesitações; não reescreva no seu estilo nem resuma o que ela contou.
+- A fala chega transcrita por máquina, e a transcrição às vezes ouve uma palavra errado (um nome de comida, de lugar, de pessoa, uma marca, um termo de outra língua que vira uma palavra parecida ou sem sentido). Quando o resto da frase deixa claro qual era a palavra que ela disse, escreva a certa; quando não dá pra ter certeza, deixe como veio — nunca invente.
 - Datas relativas (amanhã, sexta, daqui a duas semanas, às 3 da tarde) viram data absoluta a partir de AGORA, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM. Sem data dita, null.
 - remind_at: quando ela pede pra ser lembrada, ou quando algo tem hora marcada (lembre um pouco antes).
 - check_in_at: em tarefas que levam dias ou têm etapas, escolha um bom momento pra perguntar como está. Pode ser null.

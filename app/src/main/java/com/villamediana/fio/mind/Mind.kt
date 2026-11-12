@@ -1,5 +1,7 @@
 package com.villamediana.fio.mind
 
+import com.villamediana.fio.R
+import com.villamediana.fio.settings.t
 import com.villamediana.fio.audio.Recorder
 import com.villamediana.fio.data.Capture
 import com.villamediana.fio.data.Entry
@@ -179,7 +181,7 @@ class Mind(
         if (_state.value is MindState.Listening) return true
         val file = File(dir, "voice-${clock()}.wav")
         if (!recorder.start(file)) {
-            _state.value = MindState.Problem(null, null, "Não consegui abrir o microfone.")
+            _state.value = MindState.Problem(null, null, t(R.string.mic_failed))
             return false
         }
         mic.hold()
@@ -453,14 +455,14 @@ class Mind(
                 c.audioPath?.let { File(it).delete() }
                 db.captures().delete(id)
                 letGo(id)
-                say(MindState.Problem(null, null, "Não ouvi nada. Tente de novo, um pouco mais perto."))
+                say(MindState.Problem(null, null, t(R.string.heard_nothing)))
                 return
             }
             if (photo && said.isBlank() && !thinking.seesImages()) {
                 // Nothing to read and a model that can't look: there is nothing to keep.
                 c.imagePath?.let { File(it).delete() }
                 db.captures().delete(id)
-                say(MindState.Problem(null, null, "Não consegui ler nada na foto. Tente de mais perto, com mais luz."))
+                say(MindState.Problem(null, null, t(R.string.read_nothing)))
                 return
             }
             c = c.copy(state = Capture.THINKING).also { db.captures().update(it) }
@@ -509,8 +511,8 @@ class Mind(
             // Anything at all (an error of the model on the phone too) ends here, on the screen:
             // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
-                is com.villamediana.fio.ai.ApiException -> "A API respondeu ${e.code}: ${e.message}"
-                is IOException -> "Sem conexão agora. Guardei; tento de novo depois."
+                is com.villamediana.fio.ai.ApiException -> t(R.string.api_answered, e.code, e.message.orEmpty())
+                is IOException -> t(R.string.offline_kept)
                 else -> e.message ?: e.javaClass.simpleName
             }
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
@@ -557,7 +559,7 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos)
-        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException("O modelo respondeu fora do formato. Tente de novo.")
+        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
@@ -626,10 +628,10 @@ class Mind(
         /** The last things kept, shown to the model so "aquilo que acabei de falar" has a face. */
         const val RECENT = 5
 
-        private const val NOTHING_FOUND = "Não achei nada sobre isso."
+        private val NOTHING_FOUND: String get() = t(R.string.nothing_found)
 
         private val WHAT = mapOf(Outcome.CREATED to "criado", Outcome.UPDATED to "mudou", Outcome.DONE to "feito")
 
-        private const val STOPPED_MESSAGE = "Parei. O que você disse ficou guardado."
+        private val STOPPED_MESSAGE: String get() = t(R.string.stopped)
     }
 }
