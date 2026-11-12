@@ -60,15 +60,29 @@ class AppGraph(context: Context) {
             scope.launch { model.state.collect { if (it == LocalModel.State.Ready) mind.retryPending() } }
         }
     }
+    /** Where the Novelo's server is (the build's; a test points it at its own before first use). */
+    var noveloServer: String = BuildConfig.NOVELO_SERVER
+
     /** The Novelo's own intelligence, through the Novelo's server (no key in the app; today's limits there). */
     val novelo: NoveloServer by lazy {
         NoveloServer(
             http,
             appContext.getSharedPreferences("novelo-server", Context.MODE_PRIVATE),
-            base = BuildConfig.NOVELO_SERVER,
+            base = { noveloServer },
             agent = "Novelo/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})",
+            device = { phone() },
         )
     }
+
+    /**
+     * This phone for the Novelo's server, so the trial is one per phone (reinstalled or not): the
+     * Android ID (the same for this app's signature on this phone and user, until a factory reset),
+     * hashed here and again on the server. Never used for anything else.
+     */
+    private fun phone(): String? = runCatching {
+        val id = android.provider.Settings.Secure.getString(appContext.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        id?.takeIf { it.isNotBlank() }?.let { java.security.MessageDigest.getInstance("SHA-256").digest("novelo:$it".toByteArray()).joinToString("") { b -> "%02x".format(b) } }
+    }.getOrNull()
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }

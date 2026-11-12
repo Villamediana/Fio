@@ -21,7 +21,8 @@ import java.io.File
 /** Something is missing before Novelo can hear or think (the button still records: nothing is lost). */
 class NotReady(val what: Need, message: String) : Exception(message)
 
-enum class Need { HEAR, THINK }
+/** What is missing: the ears (download), who thinks (set up), or a plan (the trial is over). */
+enum class Need { HEAR, THINK, PLAN }
 
 /** What was heard so far of a recording: the text of its first [pieces] pieces, cut the [by] way. */
 data class Heard(val text: String = "", val pieces: Int = 0, val by: String? = null)

@@ -125,6 +125,8 @@ test('a new phone is on the trial, which starts at the first use, with the free 
   assert.equal(s.status.trial_ends, null);
   assert.deepEqual(s.status.talk, { day: { used: 0, limit: 15 }, week: { used: 0, limit: 60 } });
   assert.deepEqual(s.status.photo, { day: { used: 0, limit: 5 }, week: { used: 0, limit: 20 } });
+  // What Novelo+ would give, for the plans screen.
+  assert.deepEqual(s.status.offer.limits.talk, { day: 60, week: 250 });
   const n = net();
   const r = await organize(e, s.token, 1, 'talk', NOW, n);
   assert.equal(r.status, 200);

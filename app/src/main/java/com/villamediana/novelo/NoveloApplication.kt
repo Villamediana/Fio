@@ -21,6 +21,8 @@ class NoveloApplication : Application() {
         // The automatic backup, as Ajustes has it (kept when it is already scheduled).
         graph.scope.launch { runCatching { BackupWorker.schedule(this@NoveloApplication, graph.settings.current(), replace = false) } }
         Store.started(this)
+        // The plan and what is left of the day, fresh for the screens (the Novelo's intelligence only).
+        graph.scope.launch { if (graph.settings.current().think == com.villamediana.novelo.settings.Source.NOVELO) runCatching { graph.novelo.refresh() } }
     }
 
     companion object {

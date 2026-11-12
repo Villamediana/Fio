@@ -246,6 +246,11 @@
     <string name="limit_photos">Hoy ya fueron las %1$d fotos del día. Lo guardé; lo organizo después de la medianoche.</string>
     <string name="novelo_busy">La inteligencia de Novelo está llena ahora. Lo guardé; vuelvo a intentarlo en un rato.</string>
     <string name="novelo_unavailable">La inteligencia de Novelo no respondió ahora. Lo guardé; inténtalo de nuevo en un rato.</string>
+    <string name="limit_week_talks">Ya fueron las %1$d frases de la semana. Lo guardé; lo organizo cuando empiece la semana.</string>
+    <string name="limit_week_photos">Ya fueron las %1$d fotos de la semana. Lo guardé; lo organizo cuando empiece la semana.</string>
+    <string name="limit_trial_talks">Ya fueron las %1$d frases de la prueba. Lo guardé: con Novelo+ lo organizo al instante.</string>
+    <string name="limit_trial_photos">Ya fueron las %1$d fotos de la prueba. Lo guardé: con Novelo+ lo organizo al instante.</string>
+    <string name="no_plan_kept">Tu prueba terminó. Guardé lo que dijiste: con Novelo+, o con tu propia inteligencia, lo organizo.</string>
     <string name="bad_format">El modelo respondió fuera del formato. Intenta de nuevo.</string>
     <string name="nothing_found">No encontré nada sobre eso.</string>
     <string name="stopped">Paré. Lo que dijiste quedó guardado.</string>
@@ -301,5 +306,43 @@
     <plurals name="sounds">
         <item quantity="one">%d audio</item>
         <item quantity="other">%d audios</item>
+    </plurals>
+    <string name="plans_title">Novelo+</string>
+    <string name="plans_trial">Prueba gratis</string>
+    <string name="plans_trial_fresh">%1$d días gratis, desde el primer uso</string>
+    <string name="plans_trial_over">Tu prueba terminó</string>
+    <string name="plans_plus_renews">Se renueva el %1$s</string>
+    <string name="plans_plus_until">Hasta el %1$s</string>
+    <string name="plans_active">Activo</string>
+    <string name="plans_monthly">Mensual</string>
+    <string name="plans_per_month">/mes</string>
+    <string name="plans_daily">%1$d frases y %2$d fotos por día</string>
+    <string name="plans_weekly">Hasta %1$d frases y %2$d fotos por semana</string>
+    <string name="plans_better_models">Mejores modelos, más rápidos</string>
+    <string name="plans_cancel">Cancela cuando quieras</string>
+    <string name="plans_subscribe">Suscribirme</string>
+    <string name="plans_subscribed">Ya estás suscrito</string>
+    <string name="plans_subscribe_plus">Suscribirme a Novelo+</string>
+    <string name="plans_test_note">Versión de prueba: la suscripción es simulada, no se cobra nada.</string>
+    <string name="plans_test_price">R$ 14,90</string>
+    <string name="plans_own">Tu propia inteligencia</string>
+    <string name="plans_free">Gratis</string>
+    <string name="plans_own_line">Con la clave de una IA tuya, sin límites de Novelo.</string>
+    <string name="plans_see">Ver planes</string>
+    <string name="usage_today">Hoy</string>
+    <string name="usage_week">Esta semana</string>
+    <string name="usage_trial">En la prueba</string>
+    <string name="usage_talks">Frases</string>
+    <string name="usage_photos">Fotos</string>
+    <string name="usage_of">%1$d de %2$d</string>
+    <string name="usage_unlimited">%1$d · sin límite</string>
+    <string name="usage_resets_midnight">se reinicia a medianoche</string>
+    <string name="usage_resets_monday">se reinicia el lunes</string>
+    <string name="usage_until">hasta el %1$s</string>
+    <string name="purchase_done">Listo: tienes Novelo+.</string>
+    <string name="purchase_failed">No se pudo suscribir ahora. No se cobró nada.</string>
+    <plurals name="plans_trial_left">
+        <item quantity="one">Queda %d día de prueba gratis</item>
+        <item quantity="other">Quedan %d días de prueba gratis</item>
     </plurals>
 </resources>

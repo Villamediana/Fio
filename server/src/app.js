@@ -114,7 +114,8 @@ async function situation(env, acc, cfg, now) {
     photo: { day: count('photo', 'day'), week: count('photo', 'week') },
     day_resets: dayEnd(now),
     week_resets: windowEnd(plan, acc, cfg, now),
-    offer: { product: cfg.play.product, base_plan: cfg.play.base_plan, test_purchases: cfg.test_purchases },
+    // O que o Novelo+ dá (pra tela de planos, de quem ainda não assinou).
+    offer: { product: cfg.play.product, base_plan: cfg.play.base_plan, test_purchases: cfg.test_purchases, limits: cfg.limits.plus },
   };
 }
 

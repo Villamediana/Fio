@@ -41,8 +41,8 @@ android {
         applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
-        versionCode = 38
-        versionName = "1.25.1"
+        versionCode = 39
+        versionName = "1.26.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NOVELO_SERVER", "\"" + noveloServer + "\"")
@@ -197,6 +197,8 @@ dependencies {
     implementation(libs.work.runtime)
     implementation(libs.datastore.preferences)
     implementation(libs.okhttp)
+    // Google Play Billing: só a versão da Play (a do GitHub simula a compra).
+    "playImplementation"(libs.billing.ktx)
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
 

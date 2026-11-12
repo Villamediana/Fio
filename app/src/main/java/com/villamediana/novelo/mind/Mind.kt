@@ -558,12 +558,17 @@ class Mind(
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
         } catch (e: CancellationException) {
             throw e
+        } catch (e: com.villamediana.novelo.ai.NoPlan) {
+            // The trial is over: kept, and the screen offers Novelo+ or her own intelligence.
+            val msg = t(R.string.no_plan_kept)
+            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
+            say(MindState.Problem(id, Need.PLAN, msg, c.transcript ?: c.heard))
         } catch (e: Throwable) {
             // Anything at all (an error of the model on the phone too) ends here, on the screen:
             // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
-                // Today's organizing is used up (or the server's day is full): it waits and goes by itself.
-                is com.villamediana.novelo.ai.DailyLimit -> (if (e.photo) t(R.string.limit_photos, e.limit ?: 0) else t(R.string.limit_talks, e.limit ?: 0)).also { later(e.resetAt) }
+                // A limit reached (the day's, the week's, the trial's): it waits and goes by itself then.
+                is com.villamediana.novelo.ai.Limit -> limitMessage(e).also { later(e.resetAt) }
                 is com.villamediana.novelo.ai.ServerBusy -> t(R.string.novelo_busy).also { later(minOf(e.resetAt.takeIf { it > 0 } ?: Long.MAX_VALUE, clock() + BUSY_RETRY_MS)) }
                 is com.villamediana.novelo.ai.NoveloUnavailable -> t(R.string.novelo_unavailable)
                 is com.villamediana.novelo.ai.ApiException -> t(R.string.api_answered, e.code, e.message.orEmpty())
@@ -571,7 +576,9 @@ class Mind(
                 else -> e.message ?: e.javaClass.simpleName
             }
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
-            say(MindState.Problem(id, null, msg, c.transcript ?: c.heard))
+            // The trial's limit reached: the screen offers Novelo+ too.
+            val need = if (e is com.villamediana.novelo.ai.Limit && e.trial) Need.PLAN else null
+            say(MindState.Problem(id, need, msg, c.transcript ?: c.heard))
         }
     }
 
@@ -661,6 +668,16 @@ class Mind(
         // A new recording on screen wins over the background work's progress.
         if (_state.value is MindState.Listening) return
         _state.value = state
+    }
+
+    /** What a limit reached says: of the day, of the week, or of the whole trial; talks or photos. */
+    private fun limitMessage(e: com.villamediana.novelo.ai.Limit): String {
+        val n = e.limit ?: 0
+        return when {
+            !e.weekly -> t(if (e.photo) R.string.limit_photos else R.string.limit_talks, n)
+            e.trial -> t(if (e.photo) R.string.limit_trial_photos else R.string.limit_trial_talks, n)
+            else -> t(if (e.photo) R.string.limit_week_photos else R.string.limit_week_talks, n)
+        }
     }
 
     companion object {
