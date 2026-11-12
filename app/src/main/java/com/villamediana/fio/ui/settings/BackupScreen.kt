@@ -64,7 +64,7 @@ import java.util.Locale
  * day; a backup now is one touch away), and the import back from that folder.
  */
 @Composable
-fun BackupScreen(nav: Nav) {
+fun BackupSection() {
     val graph = FioApplication.graph
     val backups = graph.backups
     val s by graph.settings.now.collectAsStateWithLifecycle()
@@ -82,12 +82,8 @@ fun BackupScreen(nav: Nav) {
     val hasFolder = s.backupFolder.isNotBlank()
     fun choose() = pick.launch(s.backupFolder.takeIf { it.isNotBlank() }?.let(Uri::parse))
 
-    Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding()) {
-    PageTop(t(R.string.backup)) { nav.back() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-    Spacer(Modifier.height(10.dp))
     Group(
-        Modifier.padding(horizontal = 16.dp),
+        Modifier,
         {
             Line(
                 title = t(R.string.backup_folder),
@@ -123,9 +119,6 @@ fun BackupScreen(nav: Nav) {
             }
         },
     )
-
-    }
-    }
 
     if (importing) ImportSheet(waitFor = choosing, onDismiss = { importing = false })
 }
