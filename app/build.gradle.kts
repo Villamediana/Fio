@@ -58,8 +58,8 @@ android {
         applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
-        versionCode = 49
-        versionName = "1.31.2"
+        versionCode = 50
+        versionName = "1.31.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NV_NOTICE", "\"" + listOf(

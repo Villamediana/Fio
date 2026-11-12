@@ -378,11 +378,11 @@ private fun WriteSheet(about: Entry?, onSend: (String) -> Unit, onDismiss: () ->
 }
 
 @Composable
-fun QuietIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, alpha: Float = 0.62f) {
+fun QuietIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, alpha: Float = 0.62f, size: androidx.compose.ui.unit.Dp = 48.dp) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         Modifier
-            .size(48.dp)
+            .size(size)
             .pressScale(interaction, 0.88f)
             .clip(CircleShape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
@@ -632,40 +632,60 @@ private fun ProblemView(s: MindState.Problem, onRetry: (Long) -> Unit, onDiscard
 @Composable
 private fun BottomBar(entries: List<Entry>, onCamera: () -> Unit, onGallery: () -> Unit, onFile: () -> Unit, onToday: () -> Unit, onSearch: () -> Unit) {
     val today = remember(entries) { todayCount(entries) }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Both sides as wide, so "Hoje" stays in the middle.
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(NoveloIcons.PhotoCamera, t(R.string.camera), onCamera)
-            QuietIcon(NoveloIcons.Gallery, t(R.string.gallery), onGallery)
-        }
-        val interaction = remember { MutableInteractionSource() }
-        Row(
-            Modifier
-                .pressScale(interaction)
-                .clip(CircleShape)
-                .background(NoveloColors.Surface)
-                .stitched(CircleShape, StitchColor, inset = 5.dp)
-                .clickable(interactionSource = interaction, indication = null, onClick = onToday)
-                .padding(start = 24.dp, end = if (today > 0) 14.dp else 24.dp, top = 13.dp, bottom = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(t(R.string.today), style = MaterialTheme.typography.titleLarge, color = NoveloColors.Text)
-            if (today > 0) {
-                Spacer(Modifier.width(10.dp))
-                Box(Modifier.size(24.dp).clip(CircleShape).background(NoveloColors.Accent), contentAlignment = Alignment.Center) {
-                    Text(today.toString(), style = MaterialTheme.typography.labelMedium, color = NoveloColors.OnAccent)
+    val gap = 6.dp
+    // What brings things in on the left (camera, gallery, files), the search on the right, and "Hoje"
+    // in the middle — moved over only as much as it takes not to touch the left ones on a narrow phone.
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // A bit narrower than elsewhere, so three fit beside "Hoje" without pushing it off the middle.
+                QuietIcon(NoveloIcons.PhotoCamera, t(R.string.camera), onCamera, size = BAR_ICON)
+                QuietIcon(NoveloIcons.Gallery, t(R.string.gallery), onGallery, size = BAR_ICON)
+                QuietIcon(NoveloIcons.File, t(R.string.attach_file), onFile, size = BAR_ICON)
+            }
+            val interaction = remember { MutableInteractionSource() }
+            Row(
+                Modifier
+                    .pressScale(interaction)
+                    .clip(CircleShape)
+                    .background(NoveloColors.Surface)
+                    .stitched(CircleShape, StitchColor, inset = 5.dp)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onToday)
+                    .padding(start = 24.dp, end = if (today > 0) 14.dp else 24.dp, top = 13.dp, bottom = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(t(R.string.today), style = MaterialTheme.typography.titleLarge, color = NoveloColors.Text)
+                if (today > 0) {
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.size(24.dp).clip(CircleShape).background(NoveloColors.Accent), contentAlignment = Alignment.Center) {
+                        Text(today.toString(), style = MaterialTheme.typography.labelMedium, color = NoveloColors.OnAccent)
+                    }
                 }
             }
-        }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            QuietIcon(NoveloIcons.File, t(R.string.attach_file), onFile)
-            QuietIcon(NoveloIcons.Search, t(R.string.search), onSearch)
+            QuietIcon(NoveloIcons.Search, t(R.string.search), onSearch, size = BAR_ICON)
+        },
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
+    ) { parts, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val left = parts[0].measure(loose)
+        val middle = parts[1].measure(loose)
+        val right = parts[2].measure(loose)
+        val w = constraints.maxWidth
+        val h = maxOf(left.height, middle.height, right.height)
+        val space = gap.roundToPx()
+        val x = ((w - middle.width) / 2)
+            .coerceAtMost(w - right.width - space - middle.width)
+            .coerceAtLeast(left.width + space)
+        layout(w, h) {
+            left.place(0, (h - left.height) / 2)
+            middle.place(x, (h - middle.height) / 2)
+            right.place(w - right.width, (h - right.height) / 2)
         }
     }
 }
+
+/** The bottom bar's icons: room enough for a finger, three of them beside "Hoje". */
+private val BAR_ICON = 44.dp
 
 /** Open tasks due today or late, and reminders still to come today. */
 fun todayCount(entries: List<Entry>, zone: ZoneId = ZoneId.systemDefault()): Int {
