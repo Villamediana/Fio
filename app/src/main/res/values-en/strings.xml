@@ -341,4 +341,9 @@
     <string name="file_gone">This file is no longer on the phone</string>
     <string name="file_no_app">No app on the phone opens this file</string>
     <string name="file_not_brought">Couldn\'t bring: %1$s</string>
+    <string name="stage_hearing_part">Transcribing… part %1$d of %2$d</string>
+    <string name="stage_seeing">Looking at the photo…</string>
+    <string name="stage_seeing_many">Looking at the photos… %1$d of %2$d</string>
+    <string name="stage_files">Seeing what the file is…</string>
+    <string name="stage_files_many">Seeing what the files are… %1$d of %2$d</string>
 </resources>

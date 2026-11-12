@@ -341,4 +341,9 @@
     <string name="file_gone">Este archivo ya no está en el celular</string>
     <string name="file_no_app">Ninguna app del celular abre este archivo</string>
     <string name="file_not_brought">No se pudo traer: %1$s</string>
+    <string name="stage_hearing_part">Transcribiendo… parte %1$d de %2$d</string>
+    <string name="stage_seeing">Mirando la foto…</string>
+    <string name="stage_seeing_many">Mirando las fotos… %1$d de %2$d</string>
+    <string name="stage_files">Viendo qué es el archivo…</string>
+    <string name="stage_files_many">Viendo los archivos… %1$d de %2$d</string>
 </resources>

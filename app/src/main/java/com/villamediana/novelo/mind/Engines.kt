@@ -24,7 +24,8 @@ class NotReady(val what: Need, message: String) : Exception(message)
 enum class Need { HEAR, THINK }
 
 /** What was heard so far of a recording: the text of its first [pieces] pieces, cut the [by] way. */
-data class Heard(val text: String = "", val pieces: Int = 0, val by: String? = null)
+/** What was heard so far: the text, the pieces done, how they were cut, and how many pieces there are in all (0: not known yet). */
+data class Heard(val text: String = "", val pieces: Int = 0, val by: String? = null, val total: Int = 0)
 
 /** Speech → text. */
 interface Ears {
@@ -85,13 +86,15 @@ class Hearing(
         var done = start.text
         if (done.isNotEmpty()) onPartial(done)
         val parts = Pieces.cut(samples, maxSeconds = PIECE)
+        // How many pieces there are, so the screen can say which one it is on.
+        if (parts.size > 1 && start.pieces < parts.size) onPiece(Heard(done, start.pieces, by, parts.size))
         for ((i, p) in parts.withIndex()) {
             if (i < start.pieces) continue
             val before = done
             val text = engine.transcribe(model.files, p, null) { partial -> onPartial(join(before, partial)) }
             done = join(before, text)
             onPartial(done)
-            onPiece(Heard(done, i + 1, by))
+            onPiece(Heard(done, i + 1, by, parts.size))
         }
         done
     }

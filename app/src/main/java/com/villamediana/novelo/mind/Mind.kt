@@ -39,7 +39,8 @@ sealed interface MindState {
     /** The microphone is open. [locked]: tapped (stays open until tapped again), not held. */
     data class Listening(val startedAt: Long, val locked: Boolean, val focusId: Long?) : MindState
 
-    data class Working(val captureId: Long, val stage: Stage, val text: String, val photo: Boolean = false, val typed: Boolean = false) : MindState
+    /** [step] of [of]: which piece, photo or file it is on (0: just the stage). */
+    data class Working(val captureId: Long, val stage: Stage, val text: String, val photo: Boolean = false, val typed: Boolean = false, val step: Int = 0, val of: Int = 0) : MindState
 
     data class Answer(
         val captureId: Long,
@@ -57,7 +58,8 @@ sealed interface MindState {
     data class Problem(val captureId: Long?, val need: Need?, val message: String, val said: String? = null) : MindState
 }
 
-enum class Stage { HEARING, READING, THINKING, LOOKING }
+/** Hearing what she said, reading a photo's text, looking at photos, seeing what files are, organizing, looking things up. */
+enum class Stage { HEARING, READING, SEEING, FILES, THINKING, LOOKING }
 
 /** Turns the photo into what the model reads: its text, and the picture itself for a model that sees. */
 interface PhotoReader {
@@ -567,12 +569,20 @@ class Mind(
                     said = photos.text(File(c.imagePath!!))
                 } else {
                     say(MindState.Working(id, Stage.HEARING, c.heard.orEmpty()))
+                    // Which piece of how many, on the screen while it goes.
+                    var piece = 0
+                    var pieces = 0
                     // Each piece heard is kept: after a fall it goes on from there, not from the start.
                     said = hearing.transcribe(
                         File(c.audioPath!!),
                         from = Heard(c.heard.orEmpty(), c.heardPieces, c.heardBy),
-                        onPiece = { h -> c = c.copy(heard = h.text, heardPieces = h.pieces, heardBy = h.by).also { db.captures().update(it) } },
-                    ) { partial -> say(MindState.Working(id, Stage.HEARING, partial)) }
+                        onPiece = { h ->
+                            c = c.copy(heard = h.text, heardPieces = h.pieces, heardBy = h.by).also { db.captures().update(it) }
+                            pieces = h.total
+                            piece = (h.pieces + 1).coerceAtMost(h.total)
+                            say(MindState.Working(id, Stage.HEARING, h.text, step = piece, of = pieces))
+                        },
+                    ) { partial -> say(MindState.Working(id, Stage.HEARING, partial, step = piece, of = pieces)) }
                 }
                 c = c.copy(transcript = said).also { db.captures().update(it) }
             }
@@ -586,8 +596,12 @@ class Mind(
             // Photos sent with it: what is written in each, read once, and what each one shows, said by
             // Omni on the phone (each its own: they may be of different things) — kept for the search
             // and given to the model that thinks, whichever. The photo never goes to it.
-            val sent = if (photo || file) emptyList() else db.captures().attachedTo(id).mapIndexed { i, p0 ->
+            val attached = if (photo || file) emptyList() else db.captures().attachedTo(id)
+            val sent = attached.mapIndexed { i, p0 ->
                 var p = p0
+                if (p.transcript == null || (p.description == null && i < MAX_SENT_SEEN)) {
+                    say(MindState.Working(id, Stage.SEEING, said, step = i + 1, of = attached.size.coerceAtMost(MAX_SENT_SEEN).coerceAtLeast(i + 1)))
+                }
                 if (p.transcript == null) p = p.copy(transcript = runCatching { photos.text(File(p.imagePath!!)) }.getOrDefault("")).also { db.captures().update(it) }
                 if (p.description == null && i < MAX_SENT_SEEN) {
                     look(File(p.imagePath!!))?.let { d -> p = p.copy(description = d).also { db.captures().update(it) } }
@@ -595,6 +609,7 @@ class Mind(
                 p
             }
             // A photo alone: the same, once.
+            if (photo && c.description == null) say(MindState.Working(id, Stage.SEEING, said, photo = true))
             val shows = if (!photo) null else c.description ?: look(File(c.imagePath!!))?.also { d -> c = c.copy(description = d).also { db.captures().update(it) } }
             if (photo && said.isBlank() && shows == null && !thinking.seesImages()) {
                 // Nothing to read, nothing seen, and a model that can't look: there is nothing to keep.
@@ -608,7 +623,12 @@ class Mind(
             // Files: the one sent alone, or those sent with it — Omni says what each is (from its
             // name, its start and what she said); the model gets that, never the file.
             val sentFiles = if (file) emptyList() else db.captures().filesWith(id)
-            val seen = (if (file) listOf(c) else sentFiles).map { f -> described(f, if (file) null else said) }
+            val toSee = if (file) listOf(c) else sentFiles
+            val seen = toSee.mapIndexed { i, f ->
+                if (f.description == null) say(MindState.Working(id, Stage.FILES, if (file) f.fileName.orEmpty() else said, step = i + 1, of = toSee.size))
+                described(f, if (file) null else said)
+            }
+            say(MindState.Working(id, Stage.THINKING, if (file) c.fileName.orEmpty() else said, photo, typed))
             if (file) c = db.captures().get(id) ?: c
             val plan = think(c, said, photo, typed, sent, seen, fileAlone = file, shows = shows)
             // The numbers the model gave each photo and file are theirs, in the order it saw them.
