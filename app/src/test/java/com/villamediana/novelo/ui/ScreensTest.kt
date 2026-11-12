@@ -542,6 +542,7 @@ class ScreensTest {
 
     @Test
     fun settingsIsOnePageThatOpensInPlace() {
+        runBlocking { graph.settings.setBackupFolder("", "") }
         val nav = Nav()
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(nav) } }
         // One page: each part a line, closed, saying how it is.
@@ -648,10 +649,22 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(500)
         shot("32-setup-permissions")
         compose.onNodeWithText("Agora não").performClick()
+        // Right after the permissions, the ears: they come only when she agrees (Baixar), and go on in
+        // the background while she goes on. (This build has no engine: it can't have them, so it lets
+        // her go; with the engine, Continuar waits for her Baixar.)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("O ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("33a-setup-ears")
+        compose.onNodeWithText("Continuar").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Onde guardar seu backup?").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("33-setup-backup")
-        compose.onNodeWithText("Depois").performClick()
+        // The folder is a must (nothing to skip), with the tip to pick a cloud drive.
+        assertTrue(compose.onAllNodesWithText("Depois").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("Dica:", substring = true).assertExists()
+        runBlocking { graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Novelo backup.zip") }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Continuar").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Sua própria inteligência").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("34-setup-intelligence")
@@ -670,19 +683,14 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Coloque a chave").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("35-setup-own")
-        // Back to the Novelo's: nothing to fill, it goes on.
+        // Back to the Novelo's: nothing to fill. The last step: Começar (with the engine, it waits
+        // for the ears to be on the phone).
         compose.onNodeWithText("Inteligência do Novelo").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isNotEmpty() }
-        // Last, the ears: whoever thinks, they have to be on the phone before the app opens. (This
-        // build has no engine, so it can't have them and lets her go; with the engine, "Começar"
-        // waits for them.)
-        compose.onNodeWithText("Continuar").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("O ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
-        compose.mainClock.advanceTimeBy(800)
-        shot("36-setup-ears")
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Começar").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Começar").performClick()
         compose.waitUntil(5_000) { done }
         runBlocking {
+            graph.settings.setBackupFolder("", "")
             graph.settings.setApiProvider("")
             graph.settings.setThink(com.villamediana.novelo.settings.Source.API)
         }

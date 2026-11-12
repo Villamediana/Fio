@@ -314,4 +314,7 @@
     <string name="local_use_mobile">Use mobile data</string>
     <string name="ai_provider_title">Whose AI</string>
     <string name="ai_provider_choose">Choose</string>
+    <string name="setup_backup_cloud">Tip: if a drive shows up in the list (OneDrive, Dropbox…), pick a folder there. Then the backup lives off the phone and nothing is lost, whatever happens.</string>
+    <string name="setup_ears_agree">Download the ears to go on</string>
+    <string name="setup_ears_waiting">Waiting for the ears · %1$s</string>
 </resources>

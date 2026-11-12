@@ -216,6 +216,12 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
 ## Primeiros passos, provedores e idioma (1.18.0)
 
+- **1.29.1**: ordem permissões → **ouvido** → backup → quem pensa. O ouvido **nunca baixa sozinho**: ela concorda
+  (Baixar no Wi-Fi; fora dele, esperar o Wi-Fi ou usar dados móveis); com o download andando ela segue, e o
+  "Começar" do último passo espera o ouvido no celular ("Esperando o ouvido · 63%"). A pasta do backup é
+  **obrigatória** (sem "Depois"), com a dica de escolher um drive que apareça na lista (o app do Google Drive em
+  geral não aparece no seletor de pastas do Android).
+
 - **1.29.0**: na inteligência própria o botão só segue com tudo pronto (de quem é a IA → chave → conectado →
   modelo; `OwnReady`), dizendo o que falta; de quem é a IA é uma linha que abre a lista (`ChoiceLine`), nada
   marcado antes de ela escolher, e os campos só depois. O ouvido: só baixa sozinho no Wi-Fi (nunca dados
