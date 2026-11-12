@@ -460,6 +460,8 @@ class ScreensTest {
         val nav = Nav()
         // The main screen kept on (as when she comes back before its way out ended).
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        compose.waitForIdle()
+        val before = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x
         compose.onRoot().performTouchInput {
             val y = height * 0.72f
             swipe(Offset(width * 0.85f, y), Offset(width * 0.15f, y), durationMillis = 250)
@@ -469,9 +471,8 @@ class ScreensTest {
         nav.back()
         compose.mainClock.advanceTimeBy(1_500)
         compose.waitForIdle()
-        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
-        val hint = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot
-        assertEquals(root.center.x, hint.center.x, 2f)
+        val after = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x
+        assertEquals(before, after, 2f)
     }
 
     @Test
