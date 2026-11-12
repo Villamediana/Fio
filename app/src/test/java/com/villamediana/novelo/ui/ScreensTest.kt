@@ -609,6 +609,17 @@ class ScreensTest {
     }
 
     @Test
+    fun theWorkSaysWhereItIs() {
+        fun w(stage: com.villamediana.novelo.mind.Stage, step: Int = 0, of: Int = 0) = com.villamediana.novelo.ui.home.stageText(MindState.Working(1, stage, "", step = step, of = of))
+        assertEquals("Transcrevendo… parte 2 de 4", w(com.villamediana.novelo.mind.Stage.HEARING, 2, 4))
+        assertEquals("Transcrevendo…", w(com.villamediana.novelo.mind.Stage.HEARING, 1, 1))
+        assertEquals("Olhando as fotos… 1 de 3", w(com.villamediana.novelo.mind.Stage.SEEING, 1, 3))
+        assertEquals("Olhando a foto…", w(com.villamediana.novelo.mind.Stage.SEEING))
+        assertEquals("Vendo o que é o arquivo…", w(com.villamediana.novelo.mind.Stage.FILES, 1, 1))
+        assertEquals("Organizando…", w(com.villamediana.novelo.mind.Stage.THINKING))
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()

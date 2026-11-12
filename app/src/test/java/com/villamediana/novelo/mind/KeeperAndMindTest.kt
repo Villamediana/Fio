@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -531,6 +532,23 @@ class KeeperAndMindTest {
         val day = DayDiary.bounds(now, zone)
         assertTrue(lib.dayFiles(day).first().isEmpty())
         assertEquals(1, db.entries().diariesBetween(day.first, day.last).size)
+    }
+
+    @Test
+    fun theScreenIsToldWhichPhotoAndFileItIsOn() = runBlocking {
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Guardei."}""")))
+        val m = mind(FakeEars(""), thinker, about = Says("algo", "um arquivo"))
+        val seen = java.util.Collections.synchronizedList(mutableListOf<MindState>())
+        val watch = launch(Dispatchers.Default) { m.state.collect { seen += it } }
+        m.stage(listOf(jpegFile("x.jpg") to now, jpegFile("y.jpg") to now))
+        m.stageFiles(listOf(picked("z") to "z.pdf"))
+        m.write("guarda isso")
+        answered(m)
+        watch.cancel()
+        val steps = seen.filterIsInstance<MindState.Working>().map { Triple(it.stage, it.step, it.of) }.distinct()
+        assertTrue("$steps", Triple(Stage.SEEING, 1, 2) in steps && Triple(Stage.SEEING, 2, 2) in steps)
+        assertTrue("$steps", Triple(Stage.FILES, 1, 1) in steps)
+        assertTrue("$steps", steps.any { it.first == Stage.THINKING })
     }
 
     @Test

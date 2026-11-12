@@ -488,16 +488,23 @@ internal fun ListeningText(s: MindState.Listening, inCancelZone: Boolean, onCanc
 
 @Composable
 private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
-    Text(
-        when (s.stage) {
-            Stage.HEARING -> t(R.string.stage_hearing)
-            Stage.READING -> t(R.string.stage_reading)
-            Stage.THINKING -> t(R.string.stage_thinking)
-            Stage.LOOKING -> t(R.string.stage_looking)
-        },
-        style = MaterialTheme.typography.labelLarge,
-        color = NoveloColors.Accent,
-    )
+    Text(stageText(s), style = MaterialTheme.typography.labelLarge, color = NoveloColors.Accent)
+    // Where it is in it (a piece of the recording, a photo, a file): a stitch each, the done ones filled.
+    if (s.of in 2..MAX_STEP_DOTS) {
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            repeat(s.of) { i ->
+                val on = i < s.step
+                Box(
+                    Modifier
+                        .width(if (i == s.step - 1) 16.dp else 6.dp)
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(if (on) NoveloColors.Accent else NoveloColors.Accent.copy(alpha = 0.22f)),
+                )
+            }
+        }
+    }
     if (s.text.isNotBlank()) {
         Spacer(Modifier.height(12.dp))
         // While it comes, the newest words: the beginning is already known, the end shows it is going.
@@ -509,6 +516,22 @@ private fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
         IconAction(NoveloIcons.Stop, t(R.string.stop), onStop, size = 40.dp)
     }
 }
+
+/** What it is doing, in words: the stage, and which piece, photo or file of how many. */
+internal fun stageText(s: MindState.Working): String {
+    val counted = s.of > 1 && s.step in 1..s.of
+    return when (s.stage) {
+        Stage.HEARING -> if (counted) t(R.string.stage_hearing_part, s.step, s.of) else t(R.string.stage_hearing)
+        Stage.READING -> t(R.string.stage_reading)
+        Stage.SEEING -> if (counted) t(R.string.stage_seeing_many, s.step, s.of) else t(R.string.stage_seeing)
+        Stage.FILES -> if (counted) t(R.string.stage_files_many, s.step, s.of) else t(R.string.stage_files)
+        Stage.THINKING -> t(R.string.stage_thinking)
+        Stage.LOOKING -> t(R.string.stage_looking)
+    }
+}
+
+/** More than this many and the stitches would crowd the line: only the words say it. */
+private const val MAX_STEP_DOTS = 9
 
 /** The end of a long text, from a whole word, after "…". */
 fun tail(text: String, max: Int = 340): String {
