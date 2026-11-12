@@ -1,5 +1,10 @@
 package com.villamediana.novelo.ui.entry
 
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.layout.onSizeChanged
 import com.villamediana.novelo.ui.lock.screen
 
 import com.villamediana.novelo.ui.lock.Unlock
@@ -135,13 +140,29 @@ fun EntryScreen(nav: Nav, id: Long) {
         else scope.launch { if (Unlock.ask(activity)) revealed = true }
     }
     var menu by remember { mutableStateOf(false) }
+    // Deleting asks once more, saying what goes with it (the photos and files that live only in it).
+    var askDelete by remember { mutableStateOf(false) }
+    if (askDelete) {
+        val inside by produceState<Pair<List<Long>, List<Long>>?>(null, e.id) { value = lib.onlyIn(e.id) }
+        com.villamediana.novelo.ui.sheets.ConfirmSheet(
+            title = t(R.string.delete_item_title),
+            line = inside?.takeIf { (p, f) -> p.isNotEmpty() || f.isNotEmpty() }?.let { t(R.string.delete_item_with) },
+            yes = t(R.string.delete),
+            onYes = { askDelete = false; scope.launch { lib.delete(e.id) } },
+            onDismiss = { askDelete = false },
+        )
+    }
     // Steps only take room when there are some (or one is being written); what was said, folded.
     var addingStep by remember(e.id) { mutableStateOf(false) }
     var showSaid by remember(e.id) { mutableStateOf(false) }
     val hasSteps = remember(e.steps) { Steps.read(e.steps).isNotEmpty() }
     // Saved as it is typed (a beat after), and when leaving.
     LaunchedEffect(title, body) { delay(600); lib.edit(e.id, title, body) }
-    DisposableEffect(e.id) { onDispose { graph.scope.launch { lib.edit(e.id, title, body) } } }
+    // Made by hand (opened empty): the title is where she starts; left with nothing written, it isn't kept.
+    val fresh = remember(e.id) { e.title.isBlank() && e.body.isBlank() }
+    val titleField = remember { FocusRequester() }
+    LaunchedEffect(e.id) { if (fresh) runCatching { titleField.requestFocus() } }
+    DisposableEffect(e.id) { onDispose { graph.scope.launch { lib.edit(e.id, title, body); if (fresh) lib.dropIfEmpty(e.id) } } }
 
     val kind = e.kindEnum
     Column(
@@ -160,7 +181,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                         text = { Text(if (e.sensitive) t(R.string.not_sensitive) else t(R.string.mark_sensitive)) },
                         onClick = { menu = false; scope.launch { lib.setSensitive(e.id, !e.sensitive) } },
                     )
-                    DropdownMenuItem(text = { Text(t(R.string.delete), color = NoveloColors.Danger) }, onClick = { menu = false; scope.launch { lib.delete(e.id) } })
+                    DropdownMenuItem(text = { Text(t(R.string.delete), color = NoveloColors.Danger) }, onClick = { menu = false; askDelete = true })
                 }
             }
         }
@@ -171,16 +192,19 @@ fun EntryScreen(nav: Nav, id: Long) {
             if (diary) Text(diaryDay(e.createdAt), style = NoveloText.Hand.copy(fontSize = 22.sp, lineHeight = 26.sp), color = NoveloColors.TextMuted)
             else Text(kindLabel(kind) + " · " + Dates.dayTime(e.createdAt), style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextFaint)
             Spacer(Modifier.height(if (diary) 6.dp else 10.dp))
-            BasicTextField(
-                value = title,
-                onValueChange = { title = it },
-                textStyle = MaterialTheme.typography.headlineMedium.copy(
-                    color = if (e.statusEnum == Status.DONE) NoveloColors.TextMuted else NoveloColors.Text,
-                    textDecoration = if (e.statusEnum == Status.DONE) TextDecoration.LineThrough else null,
-                ),
-                cursorBrush = SolidColor(NoveloColors.Accent),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Box {
+                if (title.isEmpty()) Text(t(R.string.title_hint), style = MaterialTheme.typography.headlineMedium, color = NoveloColors.TextFaint)
+                BasicTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(
+                        color = if (e.statusEnum == Status.DONE) NoveloColors.TextMuted else NoveloColors.Text,
+                        textDecoration = if (e.statusEnum == Status.DONE) TextDecoration.LineThrough else null,
+                    ),
+                    cursorBrush = SolidColor(NoveloColors.Accent),
+                    modifier = Modifier.fillMaxWidth().focusRequester(titleField).testTag("entry-title"),
+                )
+            }
 
             if (kind == Kind.TASK) {
                 Spacer(Modifier.height(16.dp))
@@ -239,6 +263,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                     onToggle = { i -> scope.launch { lib.toggleStep(e.id, i) } },
                     onAdd = { t -> scope.launch { lib.addStep(e.id, t) } },
                     onRemove = { i -> scope.launch { lib.removeStep(e.id, i) } },
+                    onMove = { from, to -> scope.launch { lib.moveStep(e.id, from, to) } },
                 )
             }
 
@@ -280,7 +305,7 @@ fun EntryScreen(nav: Nav, id: Long) {
 }
 
 @Composable
-private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit) {
+private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, onRemove: (Int) -> Unit, onMove: (Int, Int) -> Unit = { _, _ -> }) {
     val steps = remember(e.steps) { Steps.read(e.steps) }
     var adding by remember { mutableStateOf("") }
     val newStep = remember { FocusRequester() }
@@ -294,8 +319,26 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
         }
         Spacer(Modifier.height(6.dp))
     }
+    // Dragged by its handle: the step follows the finger and lands where it is let go.
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    var dragY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val heights = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
+    fun target(from: Int): Int {
+        var to = from
+        var left = dragY
+        while (left > 0 && to < steps.lastIndex) { val h = heights[to + 1] ?: break; if (left < h / 2f) break; left -= h; to++ }
+        while (left < 0 && to > 0) { val h = heights[to - 1] ?: break; if (-left < h / 2f) break; left += h; to-- }
+        return to
+    }
     steps.forEachIndexed { i, s ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .onSizeChanged { heights[i] = it.height }
+                .zIndex(if (dragging == i) 1f else 0f)
+                .graphicsLayer { if (dragging == i) { translationY = dragY; scaleX = 1.02f; scaleY = 1.02f } }
+                .then(if (dragging == i) Modifier.clip(RoundedCornerShape(12.dp)).background(NoveloColors.Surface) else Modifier),
+        ) {
             CheckCircle(s.done, NoveloColors.Accent, onClick = { onToggle(i) }, size = 20.dp)
             // Tap ticks it; holding takes the step away.
             Text(
@@ -313,6 +356,21 @@ private fun StepsBlock(e: Entry, focusNew: Boolean, onToggle: (Int) -> Unit, onA
                     )
                     .padding(vertical = 8.dp),
             )
+            if (steps.size > 1) Box(
+                Modifier
+                    .size(36.dp)
+                    .semantics { contentDescription = t(R.string.step_move) }
+                    .pointerInput(i, steps.size) {
+                        detectDragGestures(
+                            onDragStart = { dragging = i; dragY = 0f; haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+                            onDragEnd = { val to = target(i); dragging = null; dragY = 0f; if (to != i) onMove(i, to) },
+                            onDragCancel = { dragging = null; dragY = 0f },
+                        ) { change, amount -> change.consume(); dragY += amount.y }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(NoveloIcons.Drag, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
+            }
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, top = 2.dp)) {
@@ -391,10 +449,15 @@ private fun DateChip(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
             .background(if (set) NoveloColors.Surface else NoveloColors.Surface2)
             .clickable(onClick = onClick)
             .semantics { contentDescription = if (set) "$name: $label" else name }
-            .padding(start = if (set) 12.dp else 11.dp, end = if (set) 4.dp else 11.dp),
+            .padding(start = if (set) 12.dp else 11.dp, end = if (set) 4.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = if (set) NoveloColors.Accent else NoveloColors.TextMuted, modifier = Modifier.size(18.dp))
+        // Not set yet: its name beside the icon, quiet (a bell alone said nothing).
+        if (!set) {
+            Spacer(Modifier.width(6.dp))
+            Text(name, style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextMuted)
+        }
         if (set) {
             Spacer(Modifier.width(8.dp))
             Text(label!!, style = MaterialTheme.typography.labelLarge, color = NoveloColors.Text)
