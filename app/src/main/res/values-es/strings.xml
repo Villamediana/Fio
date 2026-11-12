@@ -319,9 +319,8 @@
     <string name="setup_ears_waiting">Esperando el oído · %1$s</string>
     <string name="unlock_title">Ver lo sensible</string>
     <string name="privacy">Privacidad</string>
-    <string name="privacy_on">pide la huella para ver lo sensible</string>
-    <string name="privacy_off">toca para ver lo sensible</string>
-    <string name="privacy_lock">Pedir la huella para ver lo sensible</string>
-    <string name="privacy_lock_line">Huella, rostro o el PIN del celular</string>
+    <string name="privacy_on">Biometría activada</string>
+    <string name="privacy_off">Biometría desactivada</string>
+    <string name="privacy_lock">Biometría para datos sensibles</string>
     <string name="privacy_no_lock">El celular no tiene bloqueo: configura un PIN o una huella en los ajustes de Android</string>
 </resources>
