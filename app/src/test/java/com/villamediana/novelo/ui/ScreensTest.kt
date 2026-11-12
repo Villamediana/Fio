@@ -669,6 +669,21 @@ class ScreensTest {
     }
 
     @Test
+    fun aNoteHasNoReminderBellATaskHas() {
+        val (note, task) = runBlocking {
+            graph.db.entries().insert(Entry(kind = "note", title = "Senha do wifi", createdAt = now, updatedAt = now)) to
+                graph.db.entries().insert(Entry(kind = "task", title = "Ligar pro Pedro", status = "todo", createdAt = now, updatedAt = now))
+        }
+        val screen = androidx.compose.runtime.mutableStateOf(note)
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { androidx.compose.runtime.key(screen.value) { EntryScreen(Nav(), screen.value) } } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Senha do wifi").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Lembrete").fetchSemanticsNodes().isEmpty())
+        screen.value = task
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ligar pro Pedro").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Lembrete").assertExists()
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()

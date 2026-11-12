@@ -424,7 +424,8 @@ private fun DatesBlock(e: Entry, onDue: (Long?, Boolean) -> Unit, onRemind: (Lon
             )
         }
         val remind = e.remindAt?.takeIf { it > System.currentTimeMillis() }
-        DateChip(
+        // A reminder is a task's; a diary or a note shows one only when it already has it (to see it, or take it off).
+        if (e.kindEnum == Kind.TASK || remind != null) DateChip(
             icon = NoveloIcons.Bell,
             label = remind?.let { Dates.dayTime(it) },
             name = t(R.string.reminder),

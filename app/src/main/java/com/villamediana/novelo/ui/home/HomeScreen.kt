@@ -514,7 +514,7 @@ internal fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
     // Taking too long: a stop. What was said stays, to try again or discard.
     if (s.captureId != 0L) {
         Spacer(Modifier.height(14.dp))
-        IconAction(NoveloIcons.Stop, t(R.string.stop), onStop, size = 40.dp)
+        StopPill(onStop)
         // It goes on with the app minimized or closed (and says when it is done).
         Spacer(Modifier.height(12.dp))
         Text(
@@ -524,6 +524,26 @@ internal fun WorkingText(s: MindState.Working, onStop: () -> Unit) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp),
         )
+    }
+}
+
+/** "Parar": a quiet pill — a small solid square and the word, never an empty box on its own. */
+@Composable
+private fun StopPill(onStop: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        Modifier
+            .pressScale(interaction, 0.95f)
+            .clip(CircleShape)
+            .background(NoveloColors.Surface2)
+            .clickable(interactionSource = interaction, indication = null, onClickLabel = t(R.string.stop), onClick = onStop)
+            .semantics { contentDescription = t(R.string.stop) }
+            .padding(start = 14.dp, end = 16.dp, top = 9.dp, bottom = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(9.dp).clip(RoundedCornerShape(2.dp)).background(NoveloColors.TextMuted))
+        Spacer(Modifier.width(8.dp))
+        Text(t(R.string.stop), style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextMuted)
     }
 }
 
