@@ -153,18 +153,14 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 
-    suspend fun setStatus(id: Long, status: Status) {
+    suspend fun setStatus(id: Long, status: Status, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) {
         val e = db.entries().get(id) ?: return
         if (e.statusEnum == status) return
         val now = clock()
         db.entries().update(
-            e.copy(
-                status = status.key,
-                doneAt = if (status == Status.DONE) now else null,
-                checkInAt = if (status == Status.DONE) null else e.checkInAt,
-                remindAt = if (status == Status.DONE) null else e.remindAt, // done: nothing left to remind
-                updatedAt = now,
-            ),
+            // Done: nothing left to remind — unless it repeats: then this time is done and it comes back.
+            if (status == Status.DONE) com.villamediana.novelo.remind.Repeat.done(e, now, zone)
+            else e.copy(status = status.key, doneAt = null, updatedAt = now),
         )
         db.progress().insert(Progress(entryId = id, at = now, text = "", status = status.key))
         reminders.sync(listOf(id))
@@ -219,9 +215,10 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         reminders.sync(listOf(id))
     }
 
-    suspend fun setReminder(id: Long, at: Long?) {
+    /** Its reminder at [at] (null: none), coming back as [repeat] says (null: once). */
+    suspend fun setReminder(id: Long, at: Long?, repeat: com.villamediana.novelo.remind.Repeat? = null) {
         val e = db.entries().get(id) ?: return
-        db.entries().update(e.copy(remindAt = at, updatedAt = clock()))
+        db.entries().update(e.copy(remindAt = at, repeat = if (at == null) null else com.villamediana.novelo.remind.Repeat.write(repeat), updatedAt = clock()))
         reminders.sync(listOf(id))
     }
 

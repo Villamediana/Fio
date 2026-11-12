@@ -358,4 +358,17 @@
     <string name="done_kept">Guardei</string>
     <string name="done_waiting">Ficou esperando</string>
     <string name="work_away">Pode minimizar ou fechar o app: o Novelo continua e te avisa quando terminar.</string>
+    <string name="repeat_daily_at">todo dia às %1$s</string>
+    <string name="repeat_days_at">%1$s às %2$s</string>
+    <string name="repeat_monthly_at">todo mês no dia %1$d às %2$s</string>
+    <string name="and">e</string>
+    <string name="repeat">Repetir</string>
+    <string name="repeat_none">Não repete</string>
+    <string name="repeat_day">Todo dia</string>
+    <string name="repeat_week">Dias da semana</string>
+    <string name="repeat_month">Todo mês</string>
+    <string name="reminder_day">Dia</string>
+    <string name="reminder_time">Hora</string>
+    <string name="reminder_save">Salvar</string>
+    <string name="reminder_remove">Tirar lembrete</string>
 </resources>

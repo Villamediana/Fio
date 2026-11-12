@@ -67,6 +67,7 @@ class Keeper(
             }
             val due = Brain.time(item.due, z)
             val status = if (kind == Kind.TASK) (Status.of(item.status) ?: Status.TODO) else null
+            val (repeat, remindAt) = repeating(item.repeat, Brain.remindTime(item.remindAt, z)?.takeIf { it > now }, now, z)
             val entry = Entry(
                 kind = kind.key,
                 title = item.title.trim().take(140),
@@ -76,7 +77,8 @@ class Keeper(
                 tags = Tags.write(item.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(8)),
                 dueAt = due?.first,
                 dueHasTime = due?.second ?: false,
-                remindAt = Brain.remindTime(item.remindAt, z)?.takeIf { it > now },
+                remindAt = remindAt,
+                repeat = repeat,
                 checkInAt = if (kind == Kind.TASK) Brain.remindTime(item.checkInAt, z)?.takeIf { it > now } else null,
                 sensitive = item.sensitive,
                 createdAt = now,
@@ -121,8 +123,15 @@ class Keeper(
             Brain.time(change.due, z)?.let { (ms, hasTime) -> e = e.copy(dueAt = ms, dueHasTime = hasTime) }
             Brain.remindTime(change.remindAt, z)?.takeIf { it > now }?.let { e = e.copy(remindAt = it) }
             Brain.remindTime(change.checkInAt, z)?.takeIf { it > now }?.let { e = e.copy(checkInAt = it) }
-            // Done: nothing left to ask about.
-            if (e.statusEnum == Status.DONE) e = e.copy(checkInAt = null, remindAt = e.remindAt?.takeIf { old.statusEnum == Status.DONE })
+            // It comes back from now on (from its reminder, or from now), or not any more.
+            change.repeat?.let { ask ->
+                if (ask.every.trim().lowercase() in STOP) e = e.copy(repeat = null)
+                else repeating(ask, e.remindAt?.takeIf { it > now }, now, z).let { (r, at) -> if (r != null) e = e.copy(repeat = r, remindAt = at) }
+            }
+            // Done: nothing left to ask about — or, when it repeats, this time is done and it comes back for the next.
+            if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE && com.villamediana.novelo.remind.Repeat.read(e.repeat) != null) {
+                e = com.villamediana.novelo.remind.Repeat.done(e, now, z)
+            } else if (e.statusEnum == Status.DONE) e = e.copy(checkInAt = null, remindAt = e.remindAt?.takeIf { old.statusEnum == Status.DONE })
             val changed = e != old
             // Photos or files joined to it are news too: it comes up as changed now.
             val joins = change.photos.isNotEmpty() || change.files.isNotEmpty()
@@ -140,6 +149,20 @@ class Keeper(
         Result(outcomes.distinctBy { it.entryId to it.action }, touched.distinct())
     }
 
+    /**
+     * A rule the model gave (every day, week on days, month) and the reminder it comes with: the
+     * rule (JSON) and its first time — the reminder said, or the next time from now at 9:00. Null
+     * rule: no repeat (none asked, or one that says nothing).
+     */
+    private fun repeating(ask: RepeatAsk?, remind: Long?, now: Long, z: ZoneId): Pair<String?, Long?> {
+        val every = ask?.every?.trim()?.lowercase()?.takeIf { it.isNotEmpty() && it !in STOP } ?: return null to remind
+        val base = remind ?: java.time.LocalDate.now(z).atTime(9, 0).atZone(z).toInstant().toEpochMilli()
+        val rule = com.villamediana.novelo.remind.Repeat.from(every, ask.days, base, z) ?: return null to remind
+        // The first time is the reminder said, when it falls on the rule; otherwise the rule's next.
+        val first = rule.next(maxOf(base, now + 1) - 1, z) ?: return null to remind
+        return com.villamediana.novelo.remind.Repeat.write(rule) to first
+    }
+
     private suspend fun tieTopics(entryId: Long, topics: List<NamedTopic>) {
         for (t in topics) {
             val name = t.name.trim().take(60)
@@ -153,6 +176,9 @@ class Keeper(
         }
     }
 }
+
+/** What the model says to stop a repeat. */
+private val STOP = setOf("none", "never", "no", "nunca", "nenhum", "")
 
 /** [body] and what is new about it, a blank line between them. */
 fun joined(body: String, news: String): String = listOf(body.trim(), news.trim()).filter { it.isNotEmpty() }.joinToString("\n\n")

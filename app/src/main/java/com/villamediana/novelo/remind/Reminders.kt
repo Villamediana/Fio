@@ -107,10 +107,8 @@ class ReminderReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     Reminders.ACTION_FIRE -> fire(context, db, e, kind, intent.getLongExtra(Reminders.EXTRA_AT, 0))
                     Reminders.ACTION_DONE -> {
-                        val now = System.currentTimeMillis()
-                        db.entries().update(e.copy(status = Status.DONE.key, doneAt = now, updatedAt = now, checkInAt = null, remindAt = null))
-                        db.progress().insert(Progress(entryId = e.id, at = now, text = "", status = Status.DONE.key))
-                        graph.reminders.sync(listOf(e.id))
+                        // The same as ticking it in the app (one that repeats comes back for the next time).
+                        graph.library.setStatus(e.id, Status.DONE)
                         NotificationManagerCompat.from(context).cancel(Reminders.notificationId(e.id, kind))
                     }
                     Reminders.ACTION_SNOOZE -> {
@@ -132,7 +130,12 @@ class ReminderReceiver : BroadcastReceiver() {
         if (current == null || (at != 0L && current != at)) return
         if (kind == Reminders.CHECK_IN && !e.isOpenTask) return
         if (kind == Reminders.CHECK_IN) db.entries().update(e.copy(checkInAt = null)) // asked once; the answer may set the next
-        else db.entries().update(e.copy(remindAt = null))
+        else {
+            // One that repeats is armed again for its next time; any other is done reminding.
+            val next = Repeat.read(e.repeat)?.next(maxOf(current, System.currentTimeMillis()), java.time.ZoneId.systemDefault())
+            db.entries().update(e.copy(remindAt = next))
+            if (next != null) NoveloApplication.graph.reminders.sync(listOf(e.id))
+        }
         notify(context, e, kind)
     }
 

@@ -684,6 +684,26 @@ class ScreensTest {
     }
 
     @Test
+    fun aReminderThatComesBackSetByHand() {
+        val id = runBlocking { graph.db.entries().insert(Entry(kind = "task", title = "Academia", status = "todo", createdAt = now, updatedAt = now)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Academia").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Lembrete").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dias da semana").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Dias da semana").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithTag("repeat-day-1").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("repeat-day-1").performClick()
+        compose.onNodeWithTag("repeat-day-3").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        shot("58-reminder-repeat")
+        compose.onNodeWithTag("reminder-save").performClick()
+        val rule = runBlocking { withTimeout(5_000) { var r: com.villamediana.novelo.remind.Repeat? = null; while (r == null) { r = com.villamediana.novelo.remind.Repeat.read(graph.db.entries().get(id)!!.repeat); if (r == null) kotlinx.coroutines.delay(20) }; r } }
+        assertEquals(com.villamediana.novelo.remind.Repeat.WEEK, rule.every)
+        assertTrue("${rule.days}", 1 in rule.days && 3 in rule.days)
+        assertTrue(runBlocking { graph.db.entries().get(id)!!.remindAt!! } > System.currentTimeMillis())
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()

@@ -55,6 +55,8 @@ data class Entry(
     val doneAt: Long? = null,
     /** The capture (what was said or photographed) it came from. */
     val captureId: Long? = null,
+    /** How its reminder comes back (JSON of [com.villamediana.novelo.remind.Repeat]); null: once. */
+    val repeat: String? = null,
 ) {
     val kindEnum: Kind get() = Kind.of(kind) ?: Kind.NOTE
     val statusEnum: Status? get() = Status.of(status)
