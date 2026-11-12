@@ -56,9 +56,11 @@ manifest=$(find app/build/intermediates -path "*playRelease*" -name AndroidManif
 [[ -f $manifest ]] || die "manifesto final da versão play não encontrado"
 grep -q "package=\"$PACKAGE\"" "$manifest" || die "pacote não é $PACKAGE"
 grep -q "android:versionCode=\"$code\"" "$manifest" || die "versionCode não é $code"
-for banned in REQUEST_INSTALL_PACKAGES USE_EXACT_ALARM ".update.UpdateService" "application/vnd.android.package-archive"; do
-  grep -q "$banned" "$manifest" && die "a versão play não pode ter $banned"
+# (o nome exato entre aspas: os comentários do manifesto citam essas palavras)
+for banned in '"android.permission.REQUEST_INSTALL_PACKAGES"' '"android.permission.USE_EXACT_ALARM"' '".update.UpdateService"' '"application/vnd.android.package-archive"'; do
+  grep -qF "$banned" "$manifest" && die "a versão play não pode ter $banned"
 done
+grep -qF '"android.permission.SCHEDULE_EXACT_ALARM"' "$manifest" || die "a versão play precisa de SCHEDULE_EXACT_ALARM (lembretes)"
 unzip -l "$aab" | grep -q "com/villamediana/novelo/update/" && die "o código do atualizador entrou no bundle"
 
 # 3. Bibliotecas nativas alinhadas em 16 KB (exigência da Play pra quem mira Android 15+).
