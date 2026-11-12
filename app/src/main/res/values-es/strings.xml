@@ -242,6 +242,10 @@
     <string name="read_nothing">No pude leer nada en la foto. Intenta más cerca, con más luz.</string>
     <string name="api_answered">La API respondió %1$d: %2$s</string>
     <string name="offline_kept">Sin conexión ahora. Lo guardé; se va solo cuando vuelva internet.</string>
+    <string name="limit_talks">Hoy ya fueron las %1$d frases del día. Lo guardé; lo organizo después de la medianoche.</string>
+    <string name="limit_photos">Hoy ya fueron las %1$d fotos del día. Lo guardé; lo organizo después de la medianoche.</string>
+    <string name="novelo_busy">La inteligencia de Novelo está llena ahora. Lo guardé; vuelvo a intentarlo en un rato.</string>
+    <string name="novelo_unavailable">La inteligencia de Novelo no respondió ahora. Lo guardé; inténtalo de nuevo en un rato.</string>
     <string name="bad_format">El modelo respondió fuera del formato. Intenta de nuevo.</string>
     <string name="nothing_found">No encontré nada sobre eso.</string>
     <string name="stopped">Paré. Lo que dijiste quedó guardado.</string>

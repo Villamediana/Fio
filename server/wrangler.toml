@@ -1,0 +1,21 @@
+# O servidor do Novelo. Deploy: tools/server.sh (lê CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID de
+# ~/.config/novelo/cloudflare.env). Segredos: wrangler secret put OPENROUTER_KEY | TOKEN_SECRET | ADMIN_KEY.
+name = "novelo-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+# O modelo que organiza, e os de reserva (separados por vírgula) quando ele falha.
+MODEL = "openai/gpt-6-luna"
+FALLBACK_MODELS = ""
+# O teto de gasto do dia pra todo mundo junto (menos o dono), em dólares.
+DAILY_BUDGET_USD = "5"
+# Instalações novas por endereço de internet por dia.
+MAX_NEW_PER_IP = "20"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "novelo"
+database_id = "TO_BE_SET"
+migrations_dir = "migrations"

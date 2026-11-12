@@ -110,6 +110,8 @@ class Mind(
     private val clock: () -> Long = System::currentTimeMillis,
     /** A capture stopped for lack of network: what was waiting goes by itself when it comes back. */
     private val offline: () -> Unit = {},
+    /** What waits for a time (today's limit used up) goes by itself then: schedules a retry at that time (ms). */
+    private val later: (Long) -> Unit = {},
 ) {
     private val _state = MutableStateFlow<MindState>(MindState.Idle)
     val state: StateFlow<MindState> = _state
@@ -560,6 +562,10 @@ class Mind(
             // Anything at all (an error of the model on the phone too) ends here, on the screen:
             // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
+                // Today's organizing is used up (or the server's day is full): it waits and goes by itself.
+                is com.villamediana.novelo.ai.DailyLimit -> (if (e.photo) t(R.string.limit_photos, e.limit ?: 0) else t(R.string.limit_talks, e.limit ?: 0)).also { later(e.resetAt) }
+                is com.villamediana.novelo.ai.ServerBusy -> t(R.string.novelo_busy).also { later(minOf(e.resetAt.takeIf { it > 0 } ?: Long.MAX_VALUE, clock() + BUSY_RETRY_MS)) }
+                is com.villamediana.novelo.ai.NoveloUnavailable -> t(R.string.novelo_unavailable)
                 is com.villamediana.novelo.ai.ApiException -> t(R.string.api_answered, e.code, e.message.orEmpty())
                 is IOException -> t(R.string.offline_kept).also { offline() }
                 else -> e.message ?: e.javaClass.simpleName
@@ -608,7 +614,9 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos)
-        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException(t(R.string.bad_format))
+        // One thing she said (or a photo alone): counted once by the Novelo's server, however many looks.
+        val turn = Turn(c.id.toString(), photo)
+        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image, turn)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
@@ -624,7 +632,7 @@ class Mind(
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
             val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos)
-            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
+            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image, turn))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.
@@ -664,6 +672,9 @@ class Mind(
 
         /** Runs that never ended (the app fell in the middle) before it waits for a hand. */
         const val MAX_TRIES = 3
+
+        /** The Novelo's server with its day full: tried again after this much (or at its midnight, if sooner). */
+        const val BUSY_RETRY_MS = 30 * 60_000L
 
         /** How many times the model may ask to look something up for one thing said. */
         const val MAX_LOOKUPS = 2

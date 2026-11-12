@@ -242,6 +242,10 @@
     <string name="read_nothing">I couldn\'t read anything in the photo. Try closer, with more light.</string>
     <string name="api_answered">The API answered %1$d: %2$s</string>
     <string name="offline_kept">No connection right now. I kept it; it goes by itself when the internet is back.</string>
+    <string name="limit_talks">That\'s today\'s %1$d talks. I kept it; I\'ll organize it after midnight.</string>
+    <string name="limit_photos">That\'s today\'s %1$d photos. I kept it; I\'ll organize it after midnight.</string>
+    <string name="novelo_busy">Novelo\'s intelligence is full right now. I kept it; I\'ll try again in a while.</string>
+    <string name="novelo_unavailable">Novelo\'s intelligence didn\'t answer just now. I kept it; try again in a while.</string>
     <string name="bad_format">The model answered in the wrong format. Try again.</string>
     <string name="nothing_found">I didn\'t find anything about that.</string>
     <string name="stopped">Stopped. What you said is kept.</string>

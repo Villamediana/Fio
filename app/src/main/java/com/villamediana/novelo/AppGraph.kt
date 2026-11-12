@@ -22,7 +22,7 @@ import com.villamediana.novelo.mind.Mind
 import com.villamediana.novelo.mind.MlKitPhotoReader
 import com.villamediana.novelo.mind.Thinking
 import com.villamediana.novelo.mind.WhenOnline
-import com.villamediana.novelo.ai.NoveloModels
+import com.villamediana.novelo.ai.NoveloServer
 import com.villamediana.novelo.remind.Reminders
 import com.villamediana.novelo.settings.Settings
 import kotlinx.coroutines.CoroutineScope
@@ -60,8 +60,15 @@ class AppGraph(context: Context) {
             scope.launch { model.state.collect { if (it == LocalModel.State.Ready) mind.retryPending() } }
         }
     }
-    /** The Novelo's own intelligence: free models online, picked and swapped by themselves. */
-    val novelo: NoveloModels by lazy { NoveloModels(http, appContext.getSharedPreferences("novelo-models", Context.MODE_PRIVATE)) }
+    /** The Novelo's own intelligence, through the Novelo's server (no key in the app; today's limits there). */
+    val novelo: NoveloServer by lazy {
+        NoveloServer(
+            http,
+            appContext.getSharedPreferences("novelo-server", Context.MODE_PRIVATE),
+            base = BuildConfig.NOVELO_SERVER,
+            agent = "Novelo/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})",
+        )
+    }
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
@@ -85,6 +92,7 @@ class AppGraph(context: Context) {
             mic = AndroidMicHolder(appContext),
             dir = captures,
             offline = { WhenOnline.schedule(appContext) },
+            later = { at -> WhenOnline.scheduleAt(appContext, at) },
         )
     }
 
