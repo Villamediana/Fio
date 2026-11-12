@@ -56,11 +56,8 @@ fun PrivacySection() {
             ) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(t(R.string.privacy_lock), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
-                    Text(
-                        if (can) t(R.string.privacy_lock_line) else t(R.string.privacy_no_lock),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (can) NoveloColors.TextMuted else NoveloColors.Accent,
-                    )
+                    // Only a phone with no lock gets a line (why it can't turn on).
+                    if (!can) Text(t(R.string.privacy_no_lock), style = MaterialTheme.typography.bodySmall, color = NoveloColors.Accent)
                 }
                 Switch(
                     checked = s.lockSensitive && can,

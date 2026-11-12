@@ -319,9 +319,8 @@
     <string name="setup_ears_waiting">Waiting for the ears · %1$s</string>
     <string name="unlock_title">See what is sensitive</string>
     <string name="privacy">Privacy</string>
-    <string name="privacy_on">asks for your fingerprint to see sensitive things</string>
-    <string name="privacy_off">tap to see sensitive things</string>
-    <string name="privacy_lock">Ask for your fingerprint to see sensitive things</string>
-    <string name="privacy_lock_line">Fingerprint, face or the phone\'s PIN</string>
+    <string name="privacy_on">Biometrics on</string>
+    <string name="privacy_off">Biometrics off</string>
+    <string name="privacy_lock">Biometrics for sensitive data</string>
     <string name="privacy_no_lock">The phone has no lock: set a PIN or fingerprint in Android\'s settings</string>
 </resources>

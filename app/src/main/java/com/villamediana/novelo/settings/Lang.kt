@@ -49,7 +49,11 @@ object Lang {
     private fun read(context: Context): AppLang =
         AppLang.of(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null))
 
-    val current: AppLang get() = chosen ?: app?.let(::read) ?: AppLang.PT
+    /** On a screen, read like a word: what shows the language (the picker) moves with it. */
+    val current: AppLang get() {
+        changes.intValue
+        return chosen ?: app?.let(::read) ?: AppLang.PT
+    }
 
     /** Dates and numbers in the app's language. */
     val locale: Locale get() = current.locale

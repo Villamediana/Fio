@@ -22,6 +22,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.geometry.Offset
 import com.villamediana.novelo.NoveloApplication
 import com.villamediana.novelo.audio.Wav
@@ -546,12 +548,9 @@ class ScreensTest {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()
         compose.mainClock.advanceTimeBy(600)
-        compose.onNodeWithText("Pedir a digital pra ver o que é sensível").assertExists()
-        // With a lock it says which; a phone with none says so (and can't turn it on).
-        assertTrue(
-            compose.onAllNodesWithText("Digital, rosto ou a senha do celular").fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithText("O celular não tem bloqueio", substring = true).fetchSemanticsNodes().isNotEmpty(),
-        )
+        compose.onNodeWithText("Biometria para dados sensíveis").assertExists()
+        // No line explaining what biometrics is (she knows).
+        assertTrue(compose.onAllNodesWithText("Digital, rosto", substring = true).fetchSemanticsNodes().isEmpty())
         shot("51-settings-privacy")
     }
 
@@ -746,6 +745,23 @@ class ScreensTest {
             compose.onNodeWithText("English").assertExists()
             compose.mainClock.advanceTimeBy(500)
             shot("36-settings-english")
+        } finally {
+            com.villamediana.novelo.settings.Lang.set(context, com.villamediana.novelo.settings.AppLang.PT)
+        }
+    }
+
+    @Test
+    fun thePickerMovesWithTheLanguage() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        try {
+            compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
+            compose.onNodeWithText("Idioma").performScrollTo().performClick()
+            compose.mainClock.advanceTimeBy(600)
+            compose.onNodeWithText("English").performScrollTo().performClick()
+            compose.mainClock.advanceTimeBy(600)
+            compose.onNodeWithText("Language").assertExists()
+            compose.onNodeWithText("English").assertIsSelected()
+            compose.onNodeWithText("Português").assertIsNotSelected()
         } finally {
             com.villamediana.novelo.settings.Lang.set(context, com.villamediana.novelo.settings.AppLang.PT)
         }
