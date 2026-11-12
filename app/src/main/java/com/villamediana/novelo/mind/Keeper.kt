@@ -40,9 +40,10 @@ class Keeper(
                     // A diary only begun by a photo (the date for a name, nothing told) takes the name told.
                     val title = if (today.body.isBlank() && item.title.isNotBlank()) item.title.trim().take(140) else today.title
                     val e = today.copy(title = title, body = body)
-                    if (e != today) {
+                    // A file or photo that lives in the day's diary is news of it too.
+                    if (e != today || item.photos || item.files) {
                         db.entries().update(e.copy(updatedAt = now))
-                        outcomes += Outcome(today.id, Outcome.UPDATED)
+                        outcomes += Outcome(today.id, Outcome.UPDATED, photos = item.photos, files = item.files)
                     }
                     known += today.id
                     tieTopics(today.id, item.entities)
@@ -77,7 +78,7 @@ class Keeper(
             item.related.filter { it != id && db.entries().get(it) != null }.forEach { other ->
                 db.graph().link(Link(minOf(id, other), maxOf(id, other)))
             }
-            outcomes += Outcome(id, if (status == Status.DONE) Outcome.DONE else Outcome.CREATED, photos = item.photos)
+            outcomes += Outcome(id, if (status == Status.DONE) Outcome.DONE else Outcome.CREATED, photos = item.photos, files = item.files)
             if (entry.remindAt != null || entry.checkInAt != null) touched += id
         }
 
@@ -111,14 +112,15 @@ class Keeper(
             // Done: nothing left to ask about.
             if (e.statusEnum == Status.DONE) e = e.copy(checkInAt = null, remindAt = e.remindAt?.takeIf { old.statusEnum == Status.DONE })
             val changed = e != old
-            // Photos joined to it are news too: it comes up as changed now.
-            if (changed || change.photos) db.entries().update(e.copy(updatedAt = now))
+            // Photos or files joined to it are news too: it comes up as changed now.
+            val joins = change.photos || change.files
+            if (changed || joins) db.entries().update(e.copy(updatedAt = now))
             if (newStatus != null && newStatus != old.statusEnum) {
                 db.progress().insert(Progress(entryId = e.id, at = now, text = "", status = newStatus.key))
             }
             tieTopics(e.id, change.entities)
-            if (changed || change.photos) {
-                outcomes += Outcome(e.id, if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE) Outcome.DONE else Outcome.UPDATED, photos = change.photos)
+            if (changed || joins) {
+                outcomes += Outcome(e.id, if (e.statusEnum == Status.DONE && old.statusEnum != Status.DONE) Outcome.DONE else Outcome.UPDATED, photos = change.photos, files = change.files)
                 if (e.remindAt != old.remindAt || e.checkInAt != old.checkInAt) touched += e.id
             }
         }

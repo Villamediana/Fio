@@ -67,7 +67,7 @@ data class Entry(
 data class Capture(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val createdAt: Long,
-    /** "voice", "photo" or "text" (written instead of said). */
+    /** "voice", "photo", "text" (written instead of said) or "file" (a document she attached). */
     val source: String,
     val audioPath: String? = null,
     val imagePath: String? = null,
@@ -101,6 +101,11 @@ data class Capture(
     @ColumnInfo(defaultValue = "0") val sound: Boolean = false,
     /** A photo sent together with something said or written (that capture's id): it goes where that went. */
     val partOf: Long? = null,
+    /** A document she attached ([FILE]): the copy kept in the app, its own name, type and size. Never read whole. */
+    val filePath: String? = null,
+    val fileName: String? = null,
+    val fileMime: String? = null,
+    @ColumnInfo(defaultValue = "0") val fileSize: Long = 0,
 ) {
     companion object {
         const val RECORDED = "recorded"
@@ -114,6 +119,9 @@ data class Capture(
 
         /** [source] of something written instead of said. */
         const val TEXT = "text"
+
+        /** [source] of a document she attached (any type). */
+        const val FILE = "file"
     }
 }
 
@@ -123,6 +131,8 @@ data class Outcome(
     val action: String,
     /** The photos sent with what was said stay with this entry. */
     val photos: Boolean = false,
+    /** The files sent (alone, or with what was said) live in this entry. */
+    val files: Boolean = false,
 ) {
     companion object {
         const val CREATED = "created"

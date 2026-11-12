@@ -2,4 +2,6 @@
 <paths>
     <!-- A nova versão baixada, entregue ao instalador do Android -->
     <cache-path name="update" path="update/" />
+    <!-- Um arquivo guardado, aberto no app que ela escolher -->
+    <files-path name="captures" path="captures/" />
 </paths>

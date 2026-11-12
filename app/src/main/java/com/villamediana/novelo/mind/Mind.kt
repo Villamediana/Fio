@@ -70,8 +70,13 @@ interface PhotoReader {
     suspend fun jpeg(files: List<File>, side: Int = 1600): ByteArray = jpeg(files.first(), side)
 }
 
-/** A photo waiting on the main screen: it goes alone, or with what she says or writes next. */
-data class Staged(val file: File, val takenAt: Long)
+/**
+ * A photo or a file waiting on the main screen: it goes alone, or with what she says or writes next.
+ * [name]: a file's own name (a photo has none).
+ */
+data class Staged(val file: File, val takenAt: Long, val name: String? = null) {
+    val isFile: Boolean get() = name != null
+}
 
 /** Keeps reminders in step with the entries (AlarmManager in the app; a fake in the tests). */
 interface ReminderSync {
@@ -110,6 +115,8 @@ class Mind(
     private val clock: () -> Long = System::currentTimeMillis,
     /** A capture stopped for lack of network: what was waiting goes by itself when it comes back. */
     private val offline: () -> Unit = {},
+    /** The beginning of a file sent (never the whole of it), for the model to know what it is. */
+    private val peek: FilePeek = NoPeek,
 ) {
     private val _state = MutableStateFlow<MindState>(MindState.Idle)
     val state: StateFlow<MindState> = _state
@@ -117,10 +124,12 @@ class Mind(
     /** Kept in a folder of their own: a photo waiting is still there after the app closes. */
     private val stagedDir = File(dir, ".staged")
     private val _staged = MutableStateFlow(
-        stagedDir.listFiles().orEmpty().mapNotNull { f -> STAGED.matchEntire(f.name)?.let { Staged(f, it.groupValues[1].toLong()) } }
-            .sortedWith(compareBy<Staged> { it.file.name.substringAfter('-').substringAfter('-').substringBefore('.').toLongOrNull() ?: 0L }),
+        stagedDir.listFiles().orEmpty().mapNotNull { f ->
+            STAGED.matchEntire(f.name)?.let { Staged(f, it.groupValues[1].toLong()) to it.groupValues[2].toLong() }
+                ?: STAGED_FILE.matchEntire(f.name)?.let { Staged(f, it.groupValues[1].toLong(), it.groupValues[3]) to it.groupValues[2].toLong() }
+        }.sortedBy { it.second }.map { it.first },
     )
-    /** The photos waiting to go (see [stage]). */
+    /** The photos and files waiting to go (see [stage], [stageFiles]). */
     val staged: StateFlow<List<Staged>> = _staged
 
     private val _pending = MutableStateFlow(0)
@@ -321,34 +330,65 @@ class Mind(
         synchronized(_staged) { _staged.value = _staged.value + added }
     }
 
-    /** One photo out of the waiting ones (it is let go). */
+    /**
+     * Files she attached ([file] to its own name), waiting on the main screen like the photos: sent
+     * as they are, or with what she says or writes next. Each is dated when she attached it.
+     */
+    fun stageFiles(files: List<Pair<File, String>>) {
+        if (files.isEmpty()) return
+        stagedDir.mkdirs()
+        val at = clock()
+        val added = files.mapNotNull { (f, name) ->
+            val clean = name.replace('/', '-').filter { !it.isISOControl() }.trim().take(120).ifEmpty { "arquivo" }
+            val to = File(stagedDir, "d-$at-${stagedSeq.incrementAndGet() + at}-$clean")
+            if (f.renameTo(to)) Staged(to, at, clean) else null
+        }
+        synchronized(_staged) { _staged.value = _staged.value + added }
+    }
+
+    /** One photo or file out of the waiting ones (it is let go). */
     fun unstage(photo: Staged) {
         synchronized(_staged) { _staged.value = _staged.value - photo }
         photo.file.delete()
     }
 
-    /** The photos waiting go as they are, each the way of a photo taken here. */
-    fun sendStaged() = photos(takeStaged())
+    /** What waits goes as it is: each photo the way of a photo taken here, each file on its own. */
+    fun sendStaged() {
+        val all = takeStaged()
+        photos(all.filterNot { it.isFile }.map { it.file to it.takenAt })
+        files(all.filter { it.isFile })
+    }
 
-    /** The waiting photos, out of the wait and into the photos' folder. */
-    private fun takeStaged(): List<Pair<File, Long>> {
+    /** What was waiting, out of the wait and into the app's folder (photos and files apart). */
+    private fun takeStaged(): List<Staged> {
         val list = synchronized(_staged) { _staged.value.also { _staged.value = emptyList() } }
         return list.mapNotNull { s ->
-            val to = File(dir, "photo-${s.takenAt}-${stagedSeq.incrementAndGet()}.${s.file.extension.ifBlank { "jpg" }}")
-            if (s.file.renameTo(to)) to to s.takenAt else null
+            // A file keeps its own name (in a folder of its own): the app that opens it shows that name.
+            val to = if (s.isFile) File(File(dir, "files/${s.takenAt}-${stagedSeq.incrementAndGet()}").apply { mkdirs() }, s.name!!)
+            else File(dir, "photo-${s.takenAt}-${stagedSeq.incrementAndGet()}.${s.file.extension.ifBlank { "jpg" }}")
+            if (s.file.renameTo(to)) s.copy(file = to) else null
         }
     }
 
-    /** The photos waiting go with capture [id] (what she said or wrote): read with it, kept where it goes. */
+    /** A file kept: its copy in the app, its own name, type and size. */
+    private fun fileCapture(s: Staged, state: String, partOf: Long?) = Capture(
+        createdAt = s.takenAt, source = Capture.FILE, filePath = s.file.path, fileName = s.name, fileMime = mimeOf(s.name!!),
+        fileSize = s.file.length(), state = state, partOf = partOf,
+    )
+
+    /** What was waiting goes with capture [id] (what she said or wrote): seen with it, kept where it goes. */
     private suspend fun attach(id: Long) {
-        for ((file, at) in takeStaged()) {
-            db.captures().insert(Capture(createdAt = at, source = "photo", imagePath = file.path, state = Capture.DONE, partOf = id))
+        for (s in takeStaged()) {
+            db.captures().insert(
+                if (s.isFile) fileCapture(s, Capture.DONE, id)
+                else Capture(createdAt = s.takenAt, source = "photo", imagePath = s.file.path, state = Capture.DONE, partOf = id),
+            )
         }
     }
 
-    /** What she said went nowhere (nothing heard, dropped): the photos sent with it go on their own. */
+    /** What she said went nowhere (nothing heard, dropped): the photos and files sent with it go on their own. */
     private suspend fun letGo(id: Long) {
-        for (p in db.captures().attachedTo(id)) {
+        for (p in db.captures().partsOf(id)) {
             db.captures().update(p.copy(partOf = null, state = Capture.RECORDED))
             enqueue(p.id)
         }
@@ -374,6 +414,23 @@ class Mind(
         }
     }
 
+    /** Files sent alone: each goes on its own (the model sees its name and the start of it, and finds its place). */
+    private fun files(list: List<Staged>) {
+        if (list.isEmpty()) return
+        begin()
+        scope.launch {
+            try {
+                list.forEachIndexed { i, s ->
+                    val id = db.captures().insert(fileCapture(s, Capture.RECORDED, null))
+                    if (i == 0) show(MindState.Working(id, Stage.THINKING, s.name.orEmpty()))
+                    enqueue(id)
+                }
+            } finally {
+                end()
+            }
+        }
+    }
+
     /** Nothing going through or waiting in line, the microphone closed: an import can replace everything. */
     val idle: Boolean
         get() = current == null && synchronized(queued) { queued.isEmpty() } && _state.value !is MindState.Listening && work.get() == 0
@@ -389,7 +446,12 @@ class Mind(
         scope.launch {
             var c = db.captures().get(captureId) ?: return@launch
             if (c.tries > 0 && !busy(c.id)) c = c.copy(tries = 0).also { db.captures().update(it) }
-            show(MindState.Working(c.id, if (c.transcript == null) (if (c.source == "photo") Stage.READING else Stage.HEARING) else Stage.THINKING, c.transcript ?: c.heard.orEmpty(), c.source == "photo", c.source == Capture.TEXT))
+            val stage = when {
+                c.source == Capture.FILE -> Stage.THINKING
+                c.transcript == null -> if (c.source == "photo") Stage.READING else Stage.HEARING
+                else -> Stage.THINKING
+            }
+            show(MindState.Working(c.id, stage, c.transcript ?: c.fileName ?: c.heard.orEmpty(), c.source == "photo", c.source == Capture.TEXT))
             enqueue(captureId)
         }
     }
@@ -439,6 +501,7 @@ class Mind(
             db.captures().get(captureId)?.let { c ->
                 c.audioPath?.let { File(it).delete() }
                 c.imagePath?.let { File(it).delete() }
+                c.filePath?.let { File(it).delete(); File(it).parentFile?.delete() }
                 db.captures().delete(c.id)
                 letGo(c.id)
             }
@@ -479,11 +542,17 @@ class Mind(
         if (c.state == Capture.DONE) return
         val photo = c.source == "photo"
         val typed = c.source == Capture.TEXT
+        // A file sent alone: nothing to hear or read — its name is what is "said", the model sees the rest.
+        val file = c.source == Capture.FILE
         // A run that starts counts until it ends by itself (an answer, a problem on the screen, a
         // stop); one that never ends is an app that closed or fell in the middle.
         c = c.copy(tries = c.tries + 1).also { db.captures().update(it) }
         try {
             var said = c.transcript
+            if (said == null && file) {
+                said = c.fileName.orEmpty().ifBlank { "arquivo" }
+                c = c.copy(transcript = said).also { db.captures().update(it) }
+            }
             if (said == null) {
                 c = c.copy(state = Capture.TRANSCRIBING, error = null).also { db.captures().update(it) }
                 if (photo) {
@@ -517,10 +586,13 @@ class Mind(
             c = c.copy(state = Capture.THINKING).also { db.captures().update(it) }
             say(MindState.Working(id, Stage.THINKING, said, photo, typed))
             // Photos sent with it: what is written in each, read once (kept for the search too).
-            val sent = if (photo) emptyList() else db.captures().attachedTo(id).map { p ->
+            val sent = if (photo || file) emptyList() else db.captures().attachedTo(id).map { p ->
                 if (p.transcript != null) p else p.copy(transcript = runCatching { photos.text(File(p.imagePath!!)) }.getOrDefault("")).also { db.captures().update(it) }
             }
-            val plan = think(c, said, photo, typed, sent)
+            // Files: the one sent alone, or those sent with it — the model sees their names and only the start of each.
+            val sentFiles = if (file) emptyList() else db.captures().filesWith(id)
+            val seen = (if (file) listOf(c) else sentFiles).map { f -> seen(f) }
+            val plan = think(c, said, photo, typed, sent, seen, fileAlone = file)
             val result = keeper.apply(plan, id)
             // A photo is the day's too: it shows in the day's diary (begun now when there is none).
             if (photo) diaryFor(c.createdAt)
@@ -528,6 +600,15 @@ class Mind(
                 val about = plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() }
                 for (p in sent) if (about != null) db.captures().get(p.id)?.let { db.captures().update(it.copy(description = about)) }
                 sent.map { it.createdAt }.distinctBy { DayDiary.bounds(it, zone()).first }.forEach { diaryFor(it) }
+            }
+            // A file lives in one place: the item the model put it in, or else the day's diary.
+            val held = result.outcomes.any { it.files && it.action != Outcome.DELETED }
+            if (file && !held) diaryFor(c.createdAt)
+            if (sentFiles.isNotEmpty()) {
+                sentFiles.forEachIndexed { i, f ->
+                    plan.fileDescriptions.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }?.let { d -> db.captures().get(f.id)?.let { db.captures().update(it.copy(description = d)) } }
+                }
+                if (!held) sentFiles.map { it.createdAt }.distinctBy { DayDiary.bounds(it, zone()).first }.forEach { diaryFor(it) }
             }
             runCatching { reminders.sync(result.touched) }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
@@ -544,7 +625,11 @@ class Mind(
                     shown = ids.encodeToString(ListSerializer(Long.serializer()), shown),
                     shownPhotos = ids.encodeToString(ListSerializer(Long.serializer()), shownPhotos),
                     // What the photo is, in her words: what the search finds it by (never on screen).
-                    description = if (photo) plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() } ?: c.description else c.description,
+                    description = when {
+                        photo -> plan.photoDescription?.trim()?.takeIf { it.isNotEmpty() } ?: c.description
+                        file -> plan.fileDescriptions.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: c.description
+                        else -> c.description
+                    },
                     audioPath = if (keep) c.audioPath else null,
                     sound = keep,
                 ),
@@ -569,11 +654,18 @@ class Mind(
         }
     }
 
+    /** A file as the model sees it: its name, type, size and the start of its first page. */
+    private suspend fun seen(f: Capture): FileSeen {
+        val name = f.fileName.orEmpty().ifBlank { "arquivo" }
+        val start = f.filePath?.let { p -> File(p).takeIf { it.isFile }?.let { runCatching { peek.peek(it, name, f.fileMime) }.getOrDefault("") } }.orEmpty()
+        return FileSeen(name, f.fileMime, f.fileSize, start)
+    }
+
     /**
      * One look at the context; while the model asks to look something up (words, a stretch of
      * days), another look with everything found so far — [MAX_LOOKUPS] times at most.
      */
-    private suspend fun think(c: Capture, said: String, photo: Boolean, typed: Boolean = false, sent: List<Capture> = emptyList()): Plan {
+    private suspend fun think(c: Capture, said: String, photo: Boolean, typed: Boolean = false, sent: List<Capture> = emptyList(), files: List<FileSeen> = emptyList(), fileAlone: Boolean = false): Plan {
         val now = clock()
         val z = zone()
         val all = db.entries().all()
@@ -603,11 +695,11 @@ class Mind(
         // being described needs no others), a few at first; more when the model asks to look.
         var photoIndex: PhotoRecall? = null
         suspend fun pictures(): PhotoRecall = photoIndex ?: PhotoRecall(db.captures().allPhotos().filter { it.id != c.id && it.partOf != c.id }.mapNotNull(Photo::of)).also { photoIndex = it }
-        val photoHits = if (photo) emptyList() else pictures().search(said, FIRST_PHOTO_HITS)
+        val photoHits = if (photo || fileAlone) emptyList() else pictures().search(said, FIRST_PHOTO_HITS)
 
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
@@ -623,7 +715,7 @@ class Mind(
             foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures().search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
@@ -639,7 +731,7 @@ class Mind(
         val items = runCatching { ids.decodeFromString(ListSerializer(Outcome.serializer()), last.outcomes) }.getOrDefault(emptyList())
             .filter { it.action != Outcome.DELETED }
             .mapNotNull { o -> byId[o.entryId]?.let { it to WHAT[o.action].orEmpty().ifEmpty { "mudou" } } }
-        return Before(last.createdAt, last.transcript.orEmpty(), last.reply.orEmpty(), photo = last.source == "photo", items = items)
+        return Before(last.createdAt, last.transcript.orEmpty(), last.reply.orEmpty(), photo = last.source == "photo", items = items, file = last.fileName?.takeIf { last.source == Capture.FILE })
     }
 
     /** The diary of the day [at] falls in, made (named by the date, nothing written yet) when the day has none. */
@@ -676,6 +768,11 @@ class Mind(
         const val MAX_SENT_SEEN = 9
 
         private val STAGED = Regex("""s-(\d+)-(\d+)\.\w+""")
+        private val STAGED_FILE = Regex("""d-(\d+)-(\d+)-(.+)""")
+
+        /** A file's type from its name ("application/pdf"…), when Android knows it. */
+        fun mimeOf(name: String): String? =
+            FileKind.ext(name)?.let { runCatching { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }.getOrNull() }
 
         /** The last things kept, shown to the model so "aquilo que acabei de falar" has a face. */
         const val RECENT = 5

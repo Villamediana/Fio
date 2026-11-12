@@ -544,6 +544,70 @@ class ScreensTest {
     }
 
     @Test
+    fun filesLiveInTheirItemAndInTheFilesTab() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val id = runBlocking {
+            val e = graph.db.entries().insert(Entry(kind = "note", title = "Meu currículo", body = "A versão de 2026.", createdAt = now, updatedAt = now))
+            val f = File(File(context.filesDir, "captures/files/1-1").apply { mkdirs() }, "CV Miguel 2026.pdf").apply { writeBytes(ByteArray(240_000)) }
+            graph.db.captures().insert(
+                Capture(
+                    createdAt = now, source = Capture.FILE, filePath = f.path, fileName = "CV Miguel 2026.pdf", fileMime = "application/pdf", fileSize = f.length(),
+                    description = "currículo do Miguel", state = Capture.DONE, outcomes = """[{"entryId":$e,"action":"created","files":true}]""",
+                ),
+            )
+            e
+        }
+        val nav = Nav()
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Entry(id))
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val s = screen.value) {
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    else -> {}
+                }
+            }
+        }
+        // In its note: one line with its name, kind and size.
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("CV Miguel 2026.pdf").assertExists()
+        compose.onNodeWithText("PDF · 234 KB").assertExists()
+        compose.mainClock.advanceTimeBy(600)
+        shot("52-entry-file")
+        // The Arquivos tab: the file and where it lives.
+        screen.value = Screen.Library(Filter.FILES)
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("files-list").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Arquivos").assertExists()
+        compose.onNodeWithText("PDF · 234 KB · Meu currículo").assertExists()
+        compose.mainClock.advanceTimeBy(600)
+        shot("53-files-tab")
+        // The search finds it by what it is.
+        screen.value = Screen.Library(Filter.ALL, search = true, query = "curriculo")
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("found-file-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(600)
+        shot("54-files-search")
+    }
+
+    @Test
+    fun theMainScreenAttachesFiles() {
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.home.HomeScreen(Nav(), null) {} } }
+        compose.onNodeWithContentDescription("Anexar arquivo").assertExists()
+        // A file waiting shows as a small sheet with its kind, and goes with what she says next.
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val f = File(context.cacheDir, "picked-x").apply { writeBytes(ByteArray(100)) }
+        graph.mind.stageFiles(listOf(f to "Contrato aluguel.pdf"))
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("staged-0").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Fale ou escreva o que é esse arquivo, ou envie assim").assertExists()
+            compose.onNodeWithText("PDF").assertExists()
+            compose.mainClock.advanceTimeBy(600)
+            shot("55-staged-file")
+        } finally {
+            graph.mind.staged.value.forEach(graph.mind::unstage)
+        }
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()

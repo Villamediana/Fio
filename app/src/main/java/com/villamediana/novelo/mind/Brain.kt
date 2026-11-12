@@ -34,6 +34,8 @@ data class Plan(
     @SerialName("photo_description") val photoDescription: String? = null,
     /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
     @SerialName("keep_audio") val keepAudio: Boolean = false,
+    /** The files she sent, in order: what each one is, in a short sentence — what the search finds it by. */
+    @SerialName("file_descriptions") val fileDescriptions: List<String> = emptyList(),
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
@@ -58,6 +60,8 @@ data class NewItem(
     val related: List<Long> = emptyList(),
     /** The photos sent with what she said stay with this item. */
     val photos: Boolean = false,
+    /** The files she sent live in this item. */
+    val files: Boolean = false,
 )
 
 @Serializable
@@ -81,10 +85,18 @@ data class Change(
     val delete: Boolean = false,
     /** The photos sent with what she said go to this item too. */
     val photos: Boolean = false,
+    /** The files she sent live in this item. */
+    val files: Boolean = false,
 )
 
+/**
+ * A file she sent, as the model sees it: its name, type and size, and at most the beginning of its
+ * first page ([peek], empty when there is none to read) — never the whole of it.
+ */
+data class FileSeen(val name: String, val mime: String?, val size: Long, val peek: String = "")
+
 /** The last exchange: what she said (or that it was a photo), Novelo's answer, the items it made or changed ("criado"…). */
-data class Before(val at: Long, val said: String, val reply: String, val photo: Boolean = false, val items: List<Pair<Entry, String>> = emptyList())
+data class Before(val at: Long, val said: String, val reply: String, val photo: Boolean = false, val items: List<Pair<Entry, String>> = emptyList(), val file: String? = null)
 
 /** The model's side of Novelo: the instructions, the context it sees, and reading what it answers. */
 object Brain {
@@ -120,6 +132,7 @@ Como preencher:
 - photo_description: quando ela tirou uma foto, diga o que é e o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
 - A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
 - Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho. Em photo_description, o que são e o que se vê nelas, só pra busca.
+- Arquivos (O ARQUIVO QUE ELA MANDOU, OS ARQUIVOS QUE ELA MANDOU JUNTO): você vê só o nome, o tipo e, às vezes, o começo da primeira página — nunca o arquivo inteiro. Cada arquivo fica num lugar só: marque "files": true no item a que ele pertence — em geral uma nota sobre ele (crie uma, com um título que diz o que ele é, quando não há), ou o item de que ele faz parte (a tarefa de mandar o currículo). Quando ele é só parte do dia dela, não marque nenhum: ele fica no diário do dia. Não copie o conteúdo do arquivo pros itens. Em file_descriptions, um por arquivo e na ordem: o que ele é, numa frase curta no idioma dela, com as palavras que ela usaria pra procurá-lo — pelo nome, pelo começo, pelo que ela disse e pelo contexto; sem inventar.
 - keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
@@ -129,9 +142,9 @@ Responda somente com um objeto JSON. Um exemplo do jeito (só o que foi usado):
 {"reply": "...", "create": [{"kind": "task", "title": "...", "due": "AAAA-MM-DD"}], "update": [{"id": 12, "add_steps": ["..."]}]}
 Os campos que existem:
 - reply
-- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos}]
-- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos}]
-- search, period {from, to}, show, show_photos, photo_description, keep_audio
+- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos, files}]
+- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos, files}]
+- search, period {from, to}, show, show_photos, photo_description, file_descriptions, keep_audio
 """.trim()
 
     /**
@@ -157,6 +170,9 @@ Os campos que existem:
         before: Before? = null,
         /** Photos she sent together with what she said (in the image, in this order): what they read. */
         sent: List<Photo> = emptyList(),
+        /** The files she sent: with what she said, or alone ([fileAlone]: nothing said, only the file). */
+        files: List<FileSeen> = emptyList(),
+        fileAlone: Boolean = false,
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -213,7 +229,13 @@ Os campos que existem:
         }
         if (before != null) {
             append("\nANTES DISSO (a última conversa, ").append(stamp(before.at, zone)).append("):\n")
-            append("ela: ").append(if (before.photo) "(mandou uma foto)" else "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\"").append('\n')
+            append("ela: ").append(
+                when {
+                    before.file != null -> "(mandou o arquivo \"" + before.file.take(80) + "\")"
+                    before.photo -> "(mandou uma foto)"
+                    else -> "\"" + before.said.trim().take(BEFORE_SAID).replace('\n', ' ') + "\""
+                },
+            ).append('\n')
             if (before.reply.isNotBlank()) append("você: \"").append(before.reply.trim().take(BEFORE_REPLY)).append("\"\n")
             before.items.take(MAX_BEFORE_ITEMS).forEach { (e, what) ->
                 append(what).append(": ").append(if (e.id in listed) "#" + e.id + " (acima)" else line(e, zone, now)).append('\n')
@@ -230,6 +252,16 @@ Os campos que existem:
                 p.text?.let { append(" · texto: ").append(it.take(160).replace('\n', ' ')) }
                 append('\n')
             }
+        }
+        if (fileAlone) {
+            // Nothing said: the file is the whole of it.
+            append("\nO ARQUIVO QUE ELA MANDOU (sem dizer nada):\n")
+            files.forEach { append(fileLine(it)).append('\n') }
+            return@buildString
+        }
+        if (files.isNotEmpty()) {
+            append("\nOS ARQUIVOS QUE ELA MANDOU JUNTO (").append(files.size).append(if (files.size == 1) "):\n" else ", em ordem):\n")
+            files.forEachIndexed { i, f -> append(i + 1).append(". ").append(fileLine(f)).append('\n') }
         }
         append(
             when {
@@ -248,6 +280,14 @@ Os campos que existem:
         return entries
             .filter { it.kindEnum == Kind.DIARY && Instant.ofEpochMilli(it.createdAt).atZone(zone).toLocalDate() == today }
             .maxByOrNull { it.createdAt }
+    }
+
+    /** A file as the model sees it: name, type, size and the beginning of its first page (when there is one). */
+    fun fileLine(f: FileSeen): String = buildString {
+        append('"').append(f.name.take(120)).append('"')
+        FileKind.label(f.name, f.mime)?.let { append(" · ").append(it) }
+        if (f.size > 0) append(" · ").append(FileKind.size(f.size))
+        f.peek.trim().takeIf { it.isNotEmpty() }?.let { append("\n   começo da primeira página: \"").append(it.take(PEEK).replace('\n', ' ')).append('"') }
     }
 
     /** One photo in a line the model can point to (foto#id): when, what it shows, what is written in it. */
@@ -368,6 +408,9 @@ ws     ::= [ \t\n]{0,20}
     private const val BEFORE_REPLY = 200
     private const val MAX_BEFORE_ITEMS = 6
     private const val FOCUS_BODY = 800
+
+    /** The most of a file's first page the model gets (a peek, never the document). */
+    const val PEEK = 800
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")

@@ -305,6 +305,33 @@ class BackupTest {
     }
 
     @Test
+    fun aFileGoesWithItsNoteUnderItsOwnNameAndComesBack() = runBlocking {
+        val note = db.entries().insert(Entry(kind = "note", title = "Meu currículo", createdAt = now, updatedAt = now))
+        val folder = File(app, "files/1-1").apply { mkdirs() }
+        val pdf = File(folder, "CV Miguel 2026.pdf").apply { writeBytes(ByteArray(4000) { it.toByte() }) }
+        val id = db.captures().insert(
+            Capture(
+                createdAt = now, source = Capture.FILE, filePath = pdf.path, fileName = "CV Miguel 2026.pdf", fileMime = "application/pdf", fileSize = 4000,
+                transcript = "CV Miguel 2026.pdf", description = "currículo do Miguel", state = Capture.DONE,
+                outcomes = """[{"entryId":$note,"action":"created","files":true}]""",
+            ),
+        )
+        backup().save(root, "k")
+        val rel = "Arquivos/2026/2026-11-11 14.32.05 ($id) CV Miguel 2026.pdf"
+        assertEquals(4000, inside().getValue(rel).size)
+        val md = text("Notas/Meu currículo.md")
+        assertTrue(md, md.contains("[CV Miguel 2026.pdf](../Arquivos/2026/2026-11-11%2014.32.05%20%28$id%29%20CV%20Miguel%202026.pdf)"))
+
+        // Gone from the phone, back with the import, under its own name.
+        pdf.delete()
+        backup().restore(root, Backup.FILE)
+        val back = db.captures().get(id)!!
+        assertEquals("CV Miguel 2026.pdf", File(back.filePath!!).name)
+        assertEquals(4000L, File(back.filePath!!).length())
+        assertEquals("currículo do Miguel", back.description)
+    }
+
+    @Test
     fun photosATaskHoldsAreInItsFile() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Comprar o tênis da Alma", status = "todo", createdAt = now, updatedAt = now))
         val said = db.captures().insert(Capture(createdAt = now, source = "text", transcript = "comprar isso pra Alma", state = Capture.DONE, outcomes = """[{"entryId":$task,"action":"created","photos":true}]"""))

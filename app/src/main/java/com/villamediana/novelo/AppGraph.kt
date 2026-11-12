@@ -87,6 +87,7 @@ class AppGraph(context: Context) {
             mic = AndroidMicHolder(appContext),
             dir = captures,
             offline = { WhenOnline.schedule(appContext) },
+            peek = com.villamediana.novelo.mind.PhonePeek(appContext, MlKitPhotoReader(appContext)),
         )
     }
 
@@ -137,6 +138,32 @@ class AppGraph(context: Context) {
             }
             // They wait on the main screen: sent as they are, or with what she says next.
             mind.stage(picked)
+        }
+    }
+
+    /**
+     * Files picked from the phone (any type): copied into the app with their own names, then they
+     * wait on the main screen like photos — sent as they are, or with what she says next.
+     */
+    fun fromFiles(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        scope.launch(Dispatchers.IO) {
+            val resolver = appContext.contentResolver
+            val picked = uris.mapNotNull { uri ->
+                val name = runCatching {
+                    resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
+                }.getOrNull()?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "arquivo"
+                val file = File(captures.apply { mkdirs() }, "incoming-${System.currentTimeMillis()}-${photoCount.incrementAndGet()}")
+                val copied = runCatching {
+                    (resolver.openInputStream(uri) ?: error("no stream")).use { input -> file.outputStream().use { input.copyTo(it) } }
+                }.isSuccess
+                if (!copied) {
+                    file.delete()
+                    return@mapNotNull null
+                }
+                file to name
+            }
+            mind.stageFiles(picked)
         }
     }
 

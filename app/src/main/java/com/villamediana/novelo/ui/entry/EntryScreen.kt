@@ -221,6 +221,8 @@ fun EntryScreen(nav: Nav, id: Long) {
                     }
                     // The day's photos live in the day's diary (above its text); an item's, under its text.
                     if (!diary) EntryPhotos(e, side = 24.dp, hidden = !revealed, onReveal = reveal)
+                    // Its files (on the day's diary, the day's too): a line each, a tap opens it.
+                    EntryFiles(e, hidden = !revealed, onReveal = reveal)
                     // A sound kept with it (a melody she sang): to hear again.
                     EntrySounds(e)
                 }
@@ -248,7 +250,7 @@ fun EntryScreen(nav: Nav, id: Long) {
             )
 
             // What was said stays folded: it is the source, not the thing kept.
-            capture?.transcript?.takeIf { it.isNotBlank() }?.let { said ->
+            capture?.takeIf { it.source != com.villamediana.novelo.data.Capture.FILE }?.transcript?.takeIf { it.isNotBlank() }?.let { said ->
                 Row(
                     Modifier.padding(top = 18.dp).clip(RoundedCornerShape(10.dp)).clickable { showSaid = !showSaid }.padding(vertical = 8.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,

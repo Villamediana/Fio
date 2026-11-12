@@ -399,6 +399,29 @@ do motor); abrir a busca já carrega o Omni (`warm`). Mudou a busca, o pedido an
 (`LocalEngine.cancel(tag)` só para o trabalho daquele pedido, nunca uma transcrição). Respostas ficam numa
 memória de 50 buscas. Sem o ouvido baixado, só palavras.
 
+## Arquivos (1.31.0)
+
+O ícone de folha na barra de baixo (ao lado da busca) anexa arquivos de qualquer tipo
+(`OpenMultipleDocuments`). `AppGraph.fromFiles` copia cada um pro app e eles esperam na bandeja das fotos
+(`Mind.stageFiles`, `Staged.name` ≠ null): enviados assim, cada um vai sozinho (`Capture.FILE`); com o que
+ela fala ou escreve, vão junto (`partOf`). O arquivo fica em `captures/files/<quando>-<n>/<nome dele>`, com
+nome, tipo e tamanho na captura (Room v7: `filePath`, `fileName`, `fileMime`, `fileSize`).
+
+O app não lê o arquivo: o modelo vê o nome, o tipo, o tamanho e, quando dá, só o começo da primeira página
+(`mind/FilePeek`, até `Brain.PEEK` = 800 caracteres): texto puro; Word/Excel/PowerPoint/OpenDocument pelo
+XML de dentro do zip (primeira página, palavras da planilha, primeiro slide); PDF com a primeira página
+desenhada (`PdfRenderer`) e lida pelo ML Kit; imagem pelo ML Kit. Tudo no celular. Na mesma chamada ele
+devolve `file_descriptions` (o que cada arquivo é, pra busca) e marca `"files": true` no único item onde o
+arquivo mora — em geral uma nota sobre ele. Sem item marcado (ou com o item apagado depois), o arquivo é do
+diário do dia (`Attached.fileHomes`: o primeiro item marcado que ainda existe, senão nenhum).
+
+Na tela: o item mostra seus arquivos debaixo do texto (`ui/entry/Files.kt`, um toque abre no app que ela
+escolher, via `FileProvider` em `captures/`); o diário do dia mostra os soltos do dia. Aba **Arquivos**
+(`Filter.FILES`): todos, por dia, dizendo onde moram; os de item sensível ficam fora da aba e da busca (no
+item, borrados como o resto). A busca acha pelo nome e pela descrição (`FileRecall`, com as palavras do Omni
+também). Backup: `Snapshot.files` → `Arquivos/<ano>/<data hora> (<id>) <nome>`, link no Markdown do item, e
+o import devolve com o nome dele.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

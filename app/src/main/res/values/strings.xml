@@ -323,4 +323,17 @@
     <string name="privacy_off">Biometria desligada</string>
     <string name="privacy_lock">Biometria para dados sensíveis</string>
     <string name="privacy_no_lock">O celular não tem bloqueio: configure uma senha ou digital nas configurações do Android</string>
+    <!-- Arquivos -->
+    <string name="attach_file">Anexar arquivo</string>
+    <string name="staged_file_one">Fale ou escreva o que é esse arquivo, ou envie assim</string>
+    <string name="staged_file_many">Fale ou escreva o que são esses arquivos, ou envie assim</string>
+    <string name="file_take_out">Tirar o arquivo</string>
+    <string name="send_file">Enviar o arquivo</string>
+    <string name="send_files">Enviar os arquivos</string>
+    <string name="tab_files">Arquivos</string>
+    <string name="empty_files">Nenhum arquivo ainda.</string>
+    <string name="empty_files_line">Os arquivos que você anexa ficam aqui e no lugar a que pertencem.</string>
+    <string name="file_in_diary">no diário do dia</string>
+    <string name="file_gone">Esse arquivo não está mais no celular</string>
+    <string name="file_no_app">Nenhum app do celular abre esse arquivo</string>
 </resources>
