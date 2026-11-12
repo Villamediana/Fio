@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.geometry.Offset
 import com.villamediana.novelo.NoveloApplication
 import com.villamediana.novelo.audio.Wav
@@ -491,6 +492,33 @@ class ScreensTest {
     }
 
     @Test
+    fun aPhotoZoomsInAndThenHoldsTheFinger() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val photos = (0..1).map { i ->
+            val f = File(context.filesDir, "zoom-$i.jpg")
+            Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888).apply { eraseColor(if (i == 0) 0xFFE8A87C.toInt() else 0xFF7CA8E8.toInt()) }
+                .let { b -> f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) } }
+            com.villamediana.novelo.mind.Photo(i + 1L, f.path, now - i * day, null, null)
+        }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.components.PhotoViewer(photos, 0, onClose = {}) } }
+        compose.waitUntil(3_000) { compose.onAllNodesWithText("1 / 2").fetchSemanticsNodes().isNotEmpty() }
+        fun swipe() = compose.onAllNodesWithContentDescription("photo-viewer")[0].performTouchInput {
+            swipe(Offset(width * 0.8f, height * 0.4f), Offset(width * 0.2f, height * 0.4f), durationMillis = 200)
+        }
+        // Two taps: zoomed in — a swipe now moves around in the photo, not to the next one.
+        compose.onAllNodesWithContentDescription("photo-viewer")[0].performTouchInput { doubleClick(center) }
+        compose.mainClock.advanceTimeBy(600)
+        swipe()
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("1 / 2").assertExists()
+        // Two taps again: whole again, and a swipe is the next photo.
+        compose.onAllNodesWithContentDescription("photo-viewer")[0].performTouchInput { doubleClick(center) }
+        compose.mainClock.advanceTimeBy(600)
+        swipe()
+        compose.waitUntil(3_000) { compose.onAllNodesWithText("2 / 2").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
     fun theme() {
         val nav = Nav()
         // (mode, accent, the main screen instead of Tema)
@@ -530,7 +558,8 @@ class ScreensTest {
         shot("12b-settings-intelligence-open")
         compose.onNodeWithText("Backup").performScrollTo().performClick()
         compose.mainClock.advanceTimeBy(600)
-        compose.onNodeWithText("Importar backup").assertExists()
+        // Backup is only the folder now (it goes by itself; a folder with a backup brings it back).
+        compose.onNodeWithText("Pasta").assertExists()
         assertTrue(compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isEmpty())
         shot("12c-settings-backup-open")
     }
@@ -565,21 +594,22 @@ class ScreensTest {
                 }
             }
         }
-        // No folder yet: one line to choose it, and the import.
-        compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
-        runBlocking {
-            graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Novelo backup.zip")
-            graph.settings.setBackupDone(System.currentTimeMillis(), "120 itens · 34 fotos")
-        }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Novelo backup.zip").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Importar backup").performScrollTo()
-        // It goes by itself every day: nothing to choose about how often.
-        assertTrue(compose.onAllNodesWithText("Automático").fetchSemanticsNodes().isEmpty())
-        assertTrue(compose.onAllNodesWithText("último: hoje", substring = true).fetchSemanticsNodes().isNotEmpty())
-        compose.mainClock.advanceTimeBy(500)
-        shot("18-settings-backup")
-        runBlocking {
-            graph.settings.setBackupFolder("", "")
+        try {
+            // No folder yet: the one line, to choose it.
+            compose.onNodeWithText("escolher onde guardar").performScrollTo().assertExists()
+            runBlocking {
+                graph.settings.setBackupFolder("content://com.android.externalstorage.documents/tree/primary%3ADocuments", "Documents/Novelo backup.zip")
+                graph.settings.setBackupDone(System.currentTimeMillis(), "120 itens · 34 fotos")
+            }
+            // The folder, and when the last backup went (it goes by itself after every change): nothing
+            // to do by hand, nothing to import (choosing a folder with a backup brings it back).
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Documents/Novelo backup.zip").fetchSemanticsNodes().isNotEmpty() }
+            assertTrue(compose.onAllNodesWithText("último: hoje", substring = true).fetchSemanticsNodes().isNotEmpty())
+            for (gone in listOf("Importar backup", "Fazer agora", "Automático")) assertTrue(gone, compose.onAllNodesWithText(gone).fetchSemanticsNodes().isEmpty())
+            compose.mainClock.advanceTimeBy(500)
+            shot("18-settings-backup")
+        } finally {
+            runBlocking { graph.settings.setBackupFolder("", "") }
         }
     }
 
@@ -603,6 +633,15 @@ class ScreensTest {
 
     @Test
     fun theFirstStepsGoOneByOne() {
+        // A new phone: nothing of her own intelligence set up yet.
+        runBlocking {
+            graph.settings.setApiProvider("")
+            graph.settings.setApiBase("")
+            graph.settings.setApiKey("")
+            graph.settings.setThinkModel("")
+            graph.settings.setBackupFolder("", "")
+            graph.settings.setThink(com.villamediana.novelo.settings.Source.NOVELO)
+        }
         var done = false
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.setup.SetupScreen(onDone = { done = true }) } }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Microfone").fetchSemanticsNodes().isNotEmpty() }
@@ -617,10 +656,23 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(800)
         shot("34-setup-intelligence")
         compose.onNodeWithText("Sua própria inteligência").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("provider-line").fetchSemanticsNodes().isNotEmpty() }
+        // Her own goes on only when it is whole, and the button says what is missing: whose it is…
+        compose.onNodeWithText("Escolha de quem é a IA").assertExists()
+        assertTrue(compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isEmpty())
+        // (one line that opens the list, not a row of names)
+        compose.onNodeWithTag("provider-line").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(500)
+        shot("34b-setup-provider")
         compose.onNodeWithText("Anthropic").performClick()
+        // …then the key (the fields only once she chose whose).
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Coloque a chave").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("35-setup-own")
+        // Back to the Novelo's: nothing to fill, it goes on.
+        compose.onNodeWithText("Inteligência do Novelo").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isNotEmpty() }
         // Last, the ears: whoever thinks, they have to be on the phone before the app opens. (This
         // build has no engine, so it can't have them and lets her go; with the engine, "Começar"
         // waits for them.)

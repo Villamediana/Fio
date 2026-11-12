@@ -82,6 +82,12 @@ class Backups(
 
     /** The folder chosen in the picker: kept, the old one let go, the automatic backup set, and a backup right away. */
     fun choose(uri: Uri): Job = scope.launch {
+        link(uri)
+        save()
+    }
+
+    /** The folder kept (its permission across restarts), the old one let go, the daily backup set. */
+    private suspend fun link(uri: Uri) {
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         val old = settings.current().backupFolder
         runCatching { resolver.takePersistableUriPermission(uri, flags) }
@@ -89,20 +95,33 @@ class Backups(
         val place = runCatching { core.place(root(uri.toString())) }.getOrDefault("")
         settings.setBackupFolder(uri.toString(), place)
         BackupWorker.schedule(context, settings.current(), replace = true)
-        save()
     }
 
     /**
-     * The first steps' folder: chosen like [choose]; and when it already has a backup and the app has
-     * nothing yet, the newest one comes back right away — the folder stays linked to it. What came
-     * back, or null (no backup there, or the app already has something: nothing is replaced).
+     * A folder chosen (the first steps, Ajustes). One with a Novelo backup in it is hers: that backup
+     * comes back — and what the app has now, if anything, is first kept beside it with its date, so
+     * nothing is lost. A new folder (or the same one again): the backups go on there. What came back,
+     * or null.
      */
     suspend fun chooseAndBringBack(uri: Uri): Pair<Backup.Kept, Backup.Restored>? {
-        val empty = core.empty()
-        choose(uri).join()
-        if (!empty) return null
-        val newest = runCatching { kept() }.getOrDefault(emptyList()).firstOrNull() ?: return null
-        return restore(newest.name).getOrNull()?.let { newest to it }
+        val same = settings.current().backupFolder == uri.toString()
+        link(uri)
+        val root = root(uri.toString())
+        val there = runCatching { core.kept(root) }.getOrDefault(emptyList()).firstOrNull { it.name == Backup.FILE }
+        if (same || there == null) {
+            save()
+            return null
+        }
+        if (!core.empty()) {
+            val aside = runCatching { core.saveAside(root) }.getOrNull()
+            if (aside == null) {
+                // What the app has couldn't be kept beside: nothing is replaced (the backup there
+                // is kept beside instead, by the next backup).
+                save()
+                return null
+            }
+        }
+        return restore(Backup.FILE).getOrNull()?.let { there to it }
     }
 
     fun now(): Job = scope.launch { save() }

@@ -50,6 +50,13 @@ import com.villamediana.novelo.data.ToGallery
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -165,8 +172,15 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
         BackHandler(onBack = onClose)
         val pager = rememberPagerState(initialPage = start.coerceIn(0, photos.lastIndex)) { photos.size }
         Box(Modifier.fillMaxSize().background(Color.Black).semantics { contentDescription = "photo-viewer" }) {
-            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { photos[it].id }) { page ->
+            // A photo zoomed in keeps the finger to itself (moving around in it); not zoomed, a swipe is the next one.
+            var zoomedIn by remember { mutableStateOf<Long?>(null) }
+            HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { photos[it].id }, userScrollEnabled = zoomedIn == null) { page ->
                 val p = photos[page]
+                // Pinched (or double-tapped) in: how much, and where in it. Back to whole on another page.
+                var zoom by remember(p.id) { mutableFloatStateOf(1f) }
+                var pan by remember(p.id) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                LaunchedEffect(zoom > 1f) { zoomedIn = if (zoom > 1f) p.id else zoomedIn.takeIf { it != p.id } }
+                LaunchedEffect(pager.currentPage) { if (pager.currentPage != page) { zoom = 1f; pan = androidx.compose.ui.geometry.Offset.Zero } }
                 // Drawn as it stands in the file and turned on screen, so a turn moves smoothly
                 // (and forward: 270 → 360, never back); the turn is kept with the photo.
                 val bitmap = rememberPhoto(p.path, FULL_PX)
@@ -185,7 +199,45 @@ fun PhotoViewer(photos: List<Photo>, start: Int, onClose: () -> Unit) {
                             b.asImageBitmap(),
                             null,
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = shown; scaleX = scale; scaleY = scale },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(p.id) {
+                                    // Two taps: in (where she tapped) or back to whole.
+                                    detectTapGestures(onDoubleTap = { at ->
+                                        if (zoom > 1f) {
+                                            zoom = 1f
+                                            pan = androidx.compose.ui.geometry.Offset.Zero
+                                        } else {
+                                            zoom = DOUBLE_TAP_ZOOM
+                                            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                            pan = clampPan((center - at) * (DOUBLE_TAP_ZOOM - 1f), zoom, size.width.toFloat(), size.height.toFloat())
+                                        }
+                                    })
+                                }
+                                .pointerInput(p.id) {
+                                    // Two fingers pinch; zoomed in, one finger moves around. Not zoomed, one
+                                    // finger is left to the pager (the next photo).
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        do {
+                                            val event = awaitPointerEvent()
+                                            val fingers = event.changes.count { it.pressed }
+                                            if (fingers >= 2 || zoom > 1f) {
+                                                zoom = (zoom * event.calculateZoom()).coerceIn(1f, MAX_ZOOM)
+                                                pan = if (zoom <= 1f) androidx.compose.ui.geometry.Offset.Zero
+                                                else clampPan(pan + event.calculatePan(), zoom, size.width.toFloat(), size.height.toFloat())
+                                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                            }
+                                        } while (event.changes.any { it.pressed })
+                                    }
+                                }
+                                .graphicsLayer {
+                                    rotationZ = shown
+                                    scaleX = scale * zoom
+                                    scaleY = scale * zoom
+                                    translationX = pan.x
+                                    translationY = pan.y
+                                },
                         )
                     }
                     // Under the photo: when it was taken, and a light menu to turn it, save it, take it out.
@@ -291,3 +343,14 @@ private fun ViewerAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 private val REMOVE = Color(0xFFFF8A80)
 
 private const val FULL_PX = 2048
+
+/** As far in as a pinch goes, and where two taps go. */
+private const val MAX_ZOOM = 5f
+private const val DOUBLE_TAP_ZOOM = 2.5f
+
+/** [pan] kept so the zoomed photo never leaves the screen's edges. */
+private fun clampPan(pan: androidx.compose.ui.geometry.Offset, zoom: Float, w: Float, h: Float): androidx.compose.ui.geometry.Offset {
+    val maxX = w * (zoom - 1f) / 2f
+    val maxY = h * (zoom - 1f) / 2f
+    return androidx.compose.ui.geometry.Offset(pan.x.coerceIn(-maxX, maxX), pan.y.coerceIn(-maxY, maxY))
+}

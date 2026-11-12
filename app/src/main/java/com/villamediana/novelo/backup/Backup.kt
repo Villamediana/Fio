@@ -156,10 +156,34 @@ class Backup(
         }
     }
 
-    /** The folder's file copied beside it ("Novelo backup antes de 2026-11-12 18.30.zip"); its name. */
+    /** A name beside the folder's file, with the moment: "Novelo backup antes de 2026-11-12 18.30.05.zip". */
+    private fun asideName(): String =
+        ASIDE + java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), zone()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss")) + ".zip"
+
+    /**
+     * What the app has now, as a backup beside the folder's file (before the folder's backup comes
+     * back in its place): its name, or null when the app has nothing.
+     */
+    suspend fun saveAside(root: Shelf): String? = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val snap = snapshot()
+            if (snap.entries.isEmpty() && snap.captures.isEmpty()) return@withContext null
+            val work = work()
+            try {
+                val zip = File(work, "aside.zip")
+                writeZip(zip, snap)
+                val name = asideName()
+                root.copyIn(name, zip)
+                name
+            } finally {
+                work.deleteRecursively()
+            }
+        }
+    }
+
+    /** The folder's file copied beside it ("Novelo backup antes de 2026-11-12 18.30.05.zip"); its name. */
     private fun keepAside(root: Shelf, work: File): String {
-        val stamp = java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), zone()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss"))
-        val name = "$ASIDE$stamp.zip"
+        val name = asideName()
         val copy = File(work, "aside.zip")
         (root.open(FILE) ?: throw IOException(NOT_FOUND)).use { i -> copy.outputStream().use { i.copyTo(it) } }
         root.copyIn(name, copy)

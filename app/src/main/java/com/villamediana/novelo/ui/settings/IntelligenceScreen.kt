@@ -225,7 +225,7 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: Str
         ) {
             if (LocalEngine.available) when (state) {
                 LocalModel.State.Missing, is LocalModel.State.Failed -> IconAction(NoveloIcons.Download, t(R.string.local_download), {
-                    if (model.onWifi()) model.download() else askWifi = true
+                    if (model.onWifi()) model.download(wifiOnly = true) else askWifi = true
                 }, primary = true, size = 40.dp)
                 is LocalModel.State.Downloading -> IconAction(NoveloIcons.Stop, t(R.string.local_stop_download), { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)

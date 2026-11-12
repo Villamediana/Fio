@@ -71,8 +71,8 @@ fun ThemeSection() {
 
     Column(Modifier.fillMaxWidth()) {
         // The main screen in small (its 220×400 drawn at 70 %): enough to see the choice, inline.
-        Box(Modifier.size(154.dp, 280.dp).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
-            Preview(Modifier.requiredSize(220.dp, 400.dp).graphicsLayer(scaleX = 0.7f, scaleY = 0.7f))
+        Box(Modifier.size(187.dp, 340.dp).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
+            Preview(Modifier.requiredSize(220.dp, 400.dp).graphicsLayer(scaleX = 0.85f, scaleY = 0.85f))
         }
         Spacer(Modifier.height(22.dp))
 

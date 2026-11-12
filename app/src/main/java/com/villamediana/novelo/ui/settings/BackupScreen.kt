@@ -60,8 +60,10 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Ajustes › Backup: the folder (chosen in the phone's picker), the last one (it goes by itself every
- * day; a backup now is one touch away), and the import back from that folder.
+ * Ajustes › Backup: only the folder. The backup goes by itself after every change (and once a day),
+ * so there is nothing to do by hand; choosing a folder that already has a Novelo backup brings it
+ * back (what the app had stays beside it, dated), and a new folder starts getting the backups.
+ * Under the folder: when the last one went (or that it is going, or what went wrong).
  */
 @Composable
 fun BackupSection() {
@@ -69,150 +71,44 @@ fun BackupSection() {
     val backups = graph.backups
     val s by graph.settings.now.collectAsStateWithLifecycle()
     val busy by backups.busy.collectAsStateWithLifecycle()
-    var importing by remember { mutableStateOf(false) }
-    var importAfterPick by remember { mutableStateOf(false) }
-    var choosing by remember { mutableStateOf<Job?>(null) }
+    var back by remember { mutableStateOf<String?>(null) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            // Like the first steps: a backup already in the folder comes back when the app has nothing
-            // yet; otherwise it is kept beside (never written over) and the new one goes next to it.
-            choosing = graph.scope.launch { backups.chooseAndBringBack(uri) }
-            if (importAfterPick) importing = true
+            back = null
+            // On the app's scope: leaving the screen never leaves a bringing-back halfway.
+            graph.scope.launch {
+                back = backups.chooseAndBringBack(uri)?.let { (kept, restored) ->
+                    t(R.string.setup_backup_back, moment(kept.at), Backups.note(restored.entries, restored.photos, restored.sounds))
+                }
+            }
         }
-        importAfterPick = false
     }
     val hasFolder = s.backupFolder.isNotBlank()
     fun choose() = pick.launch(s.backupFolder.takeIf { it.isNotBlank() }?.let(Uri::parse))
+    val (status, problem) = when {
+        !hasFolder -> t(R.string.backup_choose_where) to true
+        busy == Backups.IMPORTING -> t(R.string.backup_importing) to false
+        busy == Backups.SAVING -> t(R.string.backup_doing) to false
+        back != null -> back!! to false
+        s.backupFailed -> s.backupNote to true
+        s.backupAt > 0 -> t(R.string.backup_last, moment(s.backupAt)) to false
+        else -> t(R.string.backup_by_itself) to false
+    }
 
     Group(
         Modifier,
         {
             Line(
-                title = t(R.string.backup_folder),
-                subtitle = if (hasFolder) s.backupPlace.ifBlank { t(R.string.backup_folder_chosen) } else t(R.string.backup_choose_where),
-                subtitleColor = if (hasFolder) NoveloColors.TextMuted else NoveloColors.Accent,
-                onClick = { choose() },
+                title = if (hasFolder) s.backupPlace.ifBlank { t(R.string.backup_folder_chosen) } else t(R.string.backup_folder),
+                subtitle = status,
+                subtitleColor = if (problem) (if (hasFolder) NoveloColors.Danger else NoveloColors.Accent) else NoveloColors.TextMuted,
+                onClick = { if (busy == null) choose() },
             ) {
-                Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
-            }
-        },
-        if (!hasFolder) null else ({
-            Line(
-                title = t(R.string.backup_now),
-                subtitle = when {
-                    busy == Backups.SAVING -> t(R.string.backup_doing)
-                    s.backupFailed -> s.backupNote
-                    s.backupAt > 0 -> t(R.string.backup_last, moment(s.backupAt)) + (if (s.backupNote.isNotBlank()) " · " + s.backupNote else "")
-                    else -> t(R.string.backup_by_itself)
-                },
-                subtitleColor = if (s.backupFailed && busy == null) NoveloColors.Danger else NoveloColors.TextMuted,
-                onClick = { if (busy == null) backups.now() },
-            ) {
-                if (busy == Backups.SAVING) CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
-                else IconAction(NoveloIcons.Upload, t(R.string.backup_now_long), { if (busy == null) backups.now() }, primary = true, size = 40.dp)
-            }
-        }),
-        {
-            Line(
-                title = t(R.string.backup_import),
-                onClick = { if (hasFolder) importing = true else { importAfterPick = true; choose() } },
-            ) {
-                IconAction(NoveloIcons.Download, t(R.string.backup_import), { if (hasFolder) importing = true else { importAfterPick = true; choose() } }, size = 40.dp)
+                if (busy != null) CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
+                else Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
             }
         },
     )
-
-    if (importing) ImportSheet(waitFor = choosing, onDismiss = { importing = false })
-}
-
-/** The backups in the folder (the newest first); one tapped, what it holds and the import. */
-@Composable
-private fun ImportSheet(waitFor: Job?, onDismiss: () -> Unit) {
-    val graph = NoveloApplication.graph
-    val backups = graph.backups
-    val busy by backups.busy.collectAsStateWithLifecycle()
-    var list by remember { mutableStateOf<List<Backup.Kept>?>(null) }
-    var chosen by remember { mutableStateOf<Backup.Kept?>(null) }
-    var holds by remember { mutableStateOf<Snapshot?>(null) }
-    var done by remember { mutableStateOf<Backup.Restored?>(null) }
-    var problem by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        waitFor?.join()
-        runCatching { backups.kept() }.onSuccess { list = it }.onFailure { problem = it.message; list = emptyList() }
-    }
-    LaunchedEffect(chosen) {
-        holds = null
-        val k = chosen ?: return@LaunchedEffect
-        problem = null
-        runCatching { backups.read(k.name) }.onSuccess { holds = it }.onFailure { problem = it.message }
-    }
-
-    NoveloSheet(onDismissRequest = { if (busy != Backups.IMPORTING) onDismiss() }) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
-            Text(t(R.string.backup_import), style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text)
-            Spacer(Modifier.height(14.dp))
-            val k = chosen
-            val finished = done
-            when {
-                finished != null -> {
-                    Text(t(R.string.backup_restored, Backups.note(finished.entries, finished.photos, finished.sounds)), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
-                    Spacer(Modifier.height(18.dp))
-                    IconAction(NoveloIcons.Check, t(R.string.ok), onDismiss, primary = true)
-                }
-                busy == Backups.IMPORTING -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
-                    Text(t(R.string.backup_importing), style = MaterialTheme.typography.bodyLarge, color = NoveloColors.TextMuted, modifier = Modifier.padding(start = 12.dp))
-                }
-                k != null -> {
-                    Text(moment(k.at), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
-                    Text(
-                        holds?.let { Backups.note(it.entries.size, it.photoCount, it.soundCount) } ?: t(R.string.reading),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = NoveloColors.TextMuted,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        t(R.string.backup_replaces),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = NoveloColors.TextMuted,
-                    )
-                    Spacer(Modifier.height(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        IconAction(NoveloIcons.Back, t(R.string.back), { chosen = null })
-                        if (holds != null) {
-                            IconAction(NoveloIcons.Check, t(R.string.import_action), {
-                                problem = null
-                                // On the app's scope: closing the sheet never leaves an import halfway.
-                                graph.scope.launch {
-                                    backups.restore(k.name).onSuccess { done = it }.onFailure { problem = it.message }
-                                }
-                            }, primary = true)
-                        }
-                    }
-                }
-                list == null -> CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
-                list!!.isEmpty() && problem == null -> Text(t(R.string.backup_none), style = MaterialTheme.typography.bodyLarge, color = NoveloColors.TextMuted)
-                else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
-                    itemsIndexed(list!!, key = { _, it -> it.name }) { i, item ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable { chosen = item }.padding(vertical = 13.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(moment(item.at), style = MaterialTheme.typography.bodyLarge, color = NoveloColors.Text, modifier = Modifier.weight(1f))
-                            if (i == 0) Text(t(R.string.newest), style = MaterialTheme.typography.bodySmall, color = NoveloColors.Accent, modifier = Modifier.padding(end = 6.dp))
-                            Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-            problem?.let {
-                Spacer(Modifier.height(12.dp))
-                Text(it, style = MaterialTheme.typography.bodySmall, color = NoveloColors.Danger)
-            }
-        }
-    }
 }
 
 private val HOUR: DateTimeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", Lang.locale)
