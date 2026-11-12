@@ -196,39 +196,39 @@ fun EntryScreen(nav: Nav, id: Long) {
             Spacer(Modifier.height(18.dp))
             val page = RoundedCornerShape(24.dp)
             val bodyStyle = if (diary) NoveloText.Diary else MaterialTheme.typography.bodyLarge
-            Box(
-                Modifier.fillMaxWidth().then(
-                    if (diary) Modifier.clip(page).background(NoveloColors.Surface).stitched(page, StitchColor, inset = 8.dp).padding(horizontal = 22.dp, vertical = 22.dp)
-                    else Modifier,
-                ),
-            ) {
-                val blurred = !revealed && Build.VERSION.SDK_INT >= 31
-                Box(if (blurred) Modifier.blur(10.dp) else Modifier) {
-                    if (body.isEmpty()) Text(t(R.string.details_hint), style = bodyStyle, color = NoveloColors.TextFaint)
-                    BasicTextField(
-                        value = if (!revealed && Build.VERSION.SDK_INT < 31) "••••••••" else body,
-                        onValueChange = { if (revealed) body = it },
-                        readOnly = !revealed,
-                        textStyle = bodyStyle.copy(color = NoveloColors.Text),
-                        cursorBrush = SolidColor(NoveloColors.Accent),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+            // Something sensitive not shown yet: the text and what goes with it blurred together, and
+            // one "Toque pra ver" in the middle of all of it (the whole of it is the place to tap).
+            Box(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier.fillMaxWidth().then(
+                            if (diary) Modifier.clip(page).background(NoveloColors.Surface).stitched(page, StitchColor, inset = 8.dp).padding(horizontal = 22.dp, vertical = 22.dp)
+                            else Modifier,
+                        ),
+                    ) {
+                        val blurred = !revealed && Build.VERSION.SDK_INT >= 31
+                        Box(if (blurred) Modifier.blur(10.dp) else Modifier) {
+                            if (body.isEmpty()) Text(t(R.string.details_hint), style = bodyStyle, color = NoveloColors.TextFaint)
+                            BasicTextField(
+                                value = if (!revealed && Build.VERSION.SDK_INT < 31) "••••••••" else body,
+                                onValueChange = { if (revealed) body = it },
+                                readOnly = !revealed,
+                                textStyle = bodyStyle.copy(color = NoveloColors.Text),
+                                cursorBrush = SolidColor(NoveloColors.Accent),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    // The day's photos live in the day's diary (above its text); an item's, under its text.
+                    if (!diary) EntryPhotos(e, side = 24.dp, hidden = !revealed, onReveal = reveal)
+                    // A sound kept with it (a melody she sang): to hear again.
+                    EntrySounds(e)
                 }
                 if (!revealed) {
-                    Text(
-                        t(R.string.tap_to_see),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = NoveloColors.Text,
-                        modifier = Modifier.align(Alignment.Center).clip(CircleShape).background(NoveloColors.Surface2).clickable(onClick = reveal).padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
+                    Box(Modifier.matchParentSize().clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = reveal))
+                    TapToSee(Modifier.align(Alignment.Center), reveal)
                 }
             }
-
-            // The day's photos live in the day's diary (above its text); an item's, under its text.
-            // Hidden with the text while something sensitive isn't shown (a tap asks like the text's).
-            if (!diary) EntryPhotos(e, side = 24.dp, hidden = !revealed, onReveal = reveal)
-            // A sound kept with it (a melody she sang): to hear again.
-            EntrySounds(e)
 
             if (kind == Kind.TASK && (hasSteps || addingStep)) {
                 StepsBlock(
@@ -408,4 +408,24 @@ private fun diaryDay(ms: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val d = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
     val pattern = t(if (d.year == LocalDate.now(zone).year) R.string.fmt_weekday_day_month else R.string.fmt_weekday_day_month_year)
     return d.format(java.time.format.DateTimeFormatter.ofPattern(pattern, com.villamediana.novelo.ui.components.PT))
+}
+
+/** "Toque pra ver": one pill in the middle of what is hidden, the lock and the words in the accent, a seam around. */
+@Composable
+private fun TapToSee(modifier: Modifier, onClick: () -> Unit) {
+    val shape = CircleShape
+    Row(
+        modifier
+            .clip(shape)
+            .background(NoveloColors.Surface)
+            .stitched(shape, NoveloColors.Accent.copy(alpha = 0.55f), inset = 4.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .semantics { contentDescription = "tap-to-see" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(NoveloIcons.Lock, null, tint = NoveloColors.Accent, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(t(R.string.tap_to_see), style = MaterialTheme.typography.labelLarge, color = NoveloColors.Accent)
+    }
 }
