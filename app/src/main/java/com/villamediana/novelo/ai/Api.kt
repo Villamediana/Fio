@@ -121,7 +121,15 @@ class Api(private val http: OkHttpClient) {
         val payload = buildJsonObject {
             put("model", model)
             put("max_tokens", 16000)
-            put("system", system)
+            // The instructions are the same on every call: kept in Anthropic's cache (read back at a
+            // tenth of the price); Anthropic only caches what is marked.
+            putJsonArray("system") {
+                addJsonObject {
+                    put("type", "text")
+                    put("text", system)
+                    putJsonObject("cache_control") { put("type", "ephemeral") }
+                }
+            }
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "user")
