@@ -678,6 +678,22 @@ class UpdatesTest {
     }
 
     @Test
+    fun anInstallAndroidNeverAnsweredDoesntStopTheNextCheck() {
+        val u = updates()
+        runBlocking { u.check(manual = false) }
+        u.update() // handed to Android (no screen), and Android says nothing back
+        runBlocking { withTimeout(5_000) { while (installer.installed.isEmpty()) kotlinx.coroutines.delay(10) } }
+        u.awaitState { it is UpdateState.Installing }
+        // The same version again: it stays with Android.
+        assertTrue(runBlocking { u.check(manual = true) } is UpdateState.Installing)
+        // A newer one: found, and the sheet offers it.
+        latest = UpdateFixtures.releaseOf("1.13.1", apkBytes)
+        etag = "\"v2\""
+        val s = runBlocking { u.check(manual = true) }
+        assertTrue("$s", s is UpdateState.Available && s.release?.version == "1.13.1")
+    }
+
+    @Test
     fun withoutAndroidsInstallerScreenTheButtonStillAsks() {
         installer.quiet = true // Android would let it go in quietly…
         val u = updates()

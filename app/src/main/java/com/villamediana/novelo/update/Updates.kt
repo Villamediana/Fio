@@ -220,7 +220,9 @@ class Updates internal constructor(
         if (!enabled) return _state.value
         return checking.withLock {
             val before = _state.value
-            if (before is UpdateState.Downloading || before is UpdateState.Installing) return@withLock before
+            // The button's download (or its hand-off to Android) going on: left alone. An install that
+            // Android never answered doesn't keep a newer version from being found.
+            if (work?.isActive == true && (before is UpdateState.Downloading || before is UpdateState.Installing)) return@withLock before
             if (manual) _state.value = UpdateState.Checking
             val saved = memory.read()
             val answer = try {
@@ -250,6 +252,7 @@ class Updates internal constructor(
             // Same version still mid-way (permission, failure): it stays there, with the fresh details.
             val same = before.release?.version == release.version
             _state.value = when {
+                same && before is UpdateState.Installing -> UpdateState.Installing(release)
                 same && before is UpdateState.NeedsPermission -> UpdateState.NeedsPermission(release)
                 same && before is UpdateState.Failed -> before.copy(release = release)
                 else -> UpdateState.Available(release)

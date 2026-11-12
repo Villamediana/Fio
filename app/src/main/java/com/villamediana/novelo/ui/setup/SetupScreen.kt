@@ -110,10 +110,10 @@ import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 
 /**
- * The first steps, once: the permissions, the backup (a folder; a backup already there comes back),
- * who thinks with her — the Novelo's own intelligence or hers — and last the Novelo's ears, which
- * have to be on the phone before the app opens: that step only ends when they are. They start
- * coming right after the permissions when the phone is on Wi-Fi, so most of it is done by then.
+ * The first steps, once: the permissions (and the language), the Novelo's ears (they come only
+ * when she agrees, and go on in the background), the backup folder (a must; a backup already there
+ * comes back), and who thinks with her — the Novelo's own intelligence or hers. The app opens only
+ * with the ears on the phone.
  */
 @Composable
 fun SetupScreen(onDone: () -> Unit) {
@@ -334,7 +334,7 @@ private fun BackupStep(onNext: () -> Unit) {
             scope.launch {
                 val r = runCatching { graph.backups.chooseAndBringBack(uri) }.getOrNull()
                 back = r?.let { (kept, restored) ->
-                    t(R.string.setup_backup_back, moment(kept.at), com.villamediana.novelo.backup.Backups.note(restored.entries, restored.photos, restored.sounds))
+                    t(R.string.setup_backup_back, moment(kept.at), com.villamediana.novelo.backup.Backups.note(restored.entries, restored.photos, restored.sounds, restored.files))
                 }
                 bringing = false
             }
@@ -438,6 +438,14 @@ private fun IntelligenceStep(onDone: () -> Unit) {
             }
             Spacer(Modifier.height(6.dp))
             if (own) OwnSetup(onReady = { ownReady = it })
+            // The ears stopped (no room, the download failed, gone) or wait for the Wi-Fi: what to do
+            // is here too — the button can't go on without them, and the setup has no way back.
+            val stuck = ears == LocalModel.State.Missing || ears is LocalModel.State.Failed || (ears as? LocalModel.State.Downloading)?.waiting != null
+            if (LocalEngine.available && stuck) {
+                Spacer(Modifier.height(8.dp))
+                Text(t(R.string.setup_ears_title), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
+                LocalDownload(Modifier.padding(top = 6.dp))
+            }
         }
     }
 }
@@ -518,10 +526,7 @@ internal fun LocalDownload(modifier: Modifier = Modifier) {
                         Note(t(R.string.local_waiting_wifi, percent.format(d.fraction.toDouble())), NoveloColors.TextMuted)
                         Spacer(Modifier.height(10.dp))
                         // Waiting for the Wi-Fi: mobile data now, if she wants (the piece coming starts again).
-                        Pill(t(R.string.local_use_mobile), selected = false, onClick = {
-                            model.cancel()
-                            model.download()
-                        })
+                        Pill(t(R.string.local_use_mobile), selected = false, onClick = { model.useMobileData() })
                     }
                     LocalModel.Waiting.NETWORK -> Note(t(R.string.local_waiting_network, percent.format(d.fraction.toDouble())), NoveloColors.TextMuted)
                     null -> {

@@ -59,6 +59,9 @@ object FileKind {
  */
 interface FilePeek {
     suspend fun peek(file: File, name: String, mime: String?): String
+
+    /** Its first page (a PDF's) or itself (a picture) as a JPEG for Omni to look at; null for anything else. */
+    suspend fun look(file: File, name: String, mime: String?): ByteArray? = null
 }
 
 /** Nothing peeked: the name and the type only. */
@@ -130,19 +133,27 @@ object Peek {
 class PhonePeek(private val context: Context, private val photos: PhotoReader) : FilePeek {
     override suspend fun peek(file: File, name: String, mime: String?): String = withContext(Dispatchers.IO) {
         when (FileKind.look(name, mime)) {
-            FileKind.Look.PDF -> runCatching { firstPage(file) }.getOrDefault("")
+            FileKind.Look.PDF -> runCatching { firstPage(file) { photos.text(it).take(Brain.PEEK) } }.getOrNull().orEmpty()
             FileKind.Look.IMAGE -> runCatching { photos.text(file).take(Brain.PEEK) }.getOrDefault("")
             else -> Peek.of(file, name, mime)
         }
     }
 
-    /** The PDF's first page as a picture, and the text on it. */
-    private suspend fun firstPage(file: File): String {
+    override suspend fun look(file: File, name: String, mime: String?): ByteArray? = withContext(Dispatchers.IO) {
+        when (FileKind.look(name, mime)) {
+            FileKind.Look.PDF -> runCatching { firstPage(file) { photos.jpeg(it, LOOK_SIDE) } }.getOrNull()
+            FileKind.Look.IMAGE -> runCatching { photos.jpeg(file, LOOK_SIDE) }.getOrNull()
+            else -> null
+        }
+    }
+
+    /** The PDF's first page drawn as a picture, handed to [use] (null: no page). */
+    private suspend fun <T> firstPage(file: File, use: suspend (File) -> T): T? {
         val page = File(context.cacheDir, "peek-${System.nanoTime()}.png")
         try {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
                 PdfRenderer(fd).use { pdf ->
-                    if (pdf.pageCount == 0) return ""
+                    if (pdf.pageCount == 0) return null
                     pdf.openPage(0).use { p ->
                         // About an A4 at 150 dpi: enough to read, light to hold.
                         val scale = PAGE_WIDTH.toFloat() / p.width.coerceAtLeast(1)
@@ -154,7 +165,7 @@ class PhonePeek(private val context: Context, private val photos: PhotoReader) :
                     }
                 }
             }
-            return photos.text(page).take(Brain.PEEK)
+            return use(page)
         } finally {
             page.delete()
         }
@@ -162,5 +173,8 @@ class PhonePeek(private val context: Context, private val photos: PhotoReader) :
 
     private companion object {
         const val PAGE_WIDTH = 1240
+
+        /** As much as Omni looks at a photo. */
+        const val LOOK_SIDE = 768
     }
 }

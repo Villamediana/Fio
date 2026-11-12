@@ -88,6 +88,7 @@ class AppGraph(context: Context) {
             dir = captures,
             offline = { WhenOnline.schedule(appContext) },
             peek = com.villamediana.novelo.mind.PhonePeek(appContext, MlKitPhotoReader(appContext)),
+            about = com.villamediana.novelo.mind.OmniAbout(engine, localModel),
         )
     }
 
@@ -149,6 +150,7 @@ class AppGraph(context: Context) {
         if (uris.isEmpty()) return
         scope.launch(Dispatchers.IO) {
             val resolver = appContext.contentResolver
+            val lost = ArrayList<String>()
             val picked = uris.mapNotNull { uri ->
                 val name = runCatching {
                     resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
@@ -159,11 +161,14 @@ class AppGraph(context: Context) {
                 }.isSuccess
                 if (!copied) {
                     file.delete()
+                    lost += name
                     return@mapNotNull null
                 }
                 file to name
             }
             mind.stageFiles(picked)
+            // One that couldn't be copied (no room, a cloud file that didn't come): she is told which.
+            if (lost.isNotEmpty()) mind.problem(com.villamediana.novelo.settings.t(R.string.file_not_brought, lost.joinToString(", ")))
         }
     }
 

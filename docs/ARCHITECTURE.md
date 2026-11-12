@@ -133,8 +133,8 @@ dia — se o dia não tem diário, `Mind.diaryFor` cria um com a data de título
 diário do dia (o mais novo daquele dia) mostra as fotos do dia num carrossel (`ui/entry/DayPhotos`,
 `PhotoRow`), o cartão do Diário mostra até 4 miniaturas, a aba Galeria é um mosaico de duas colunas
 (`ui/library/Gallery`, `LazyVerticalStaggeredGrid`) e um toque abre `PhotoViewer` (tela cheia,
-desliza, legenda + data). O modelo que olha a foto escreve `photo_description` (o que se vê, no
-idioma dela, com as palavras que ela usaria pra procurar) → `Capture.description` (banco v4,
+desliza, legenda + data). O Omni, no celular, diz o que se vê (`mind/FileAbout.kt`, `About.photo`;
+desde a 1.31.1 — antes era o `photo_description` do modelo online) → `Capture.description` (banco v4,
 AutoMigration 3→4). `PhotoRecall` acha fotos pela descrição + texto lido (OCR), do mesmo jeito do
 `Recall`: na busca da biblioteca (faixa "Fotos" no topo) e nas perguntas — o contexto ganha
 `FOTOS QUE PODEM TER A VER` / `FOTOS ACHADAS` (`foto#id`), o modelo devolve `show_photos` e a
@@ -159,8 +159,10 @@ Mais na 1.14.0:
 - **Mosaico** (`ui/components/Mosaic`): fotos da mesma câmera têm todas o mesmo formato, então cada uma
   ganha um formato pelo lugar (`Mosaic.shape`, recorte) e as linhas vão de ponta a ponta com larguras
   diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
-- **Descrição só pra busca**: `photo_description` vem na mesma chamada que organiza (uma resposta só, no
-  idioma dela, sem uma por idioma do app) e `Capture.description` nunca aparece na tela (a 1.23.0 mostrou
+- **Descrição só pra busca**: escrita pelo Omni antes de organizar (uma olhada, no idioma do app; as fotos
+  mandadas juntas lado a lado numa imagem só), guardada e passada ao modelo como `O QUE SE VÊ (o celular
+  olhou)`. A inteligência do Novelo recebe só esse texto; a API dela ainda olha a foto (`Thinker.looksItself`).
+  `Capture.description` nunca aparece na tela (a 1.23.0 mostrou
   embaixo da foto; a 1.23.1 tirou a pedido). O prompt diz que o que se vê na foto não vai pro diário nem pra
   item (a foto já está no diário do dia).
 - **Girar**: no visualizador, um menu leve embaixo gira a foto um quarto pra direita, com animação e escala
@@ -407,12 +409,13 @@ O ícone de folha na barra de baixo (ao lado da busca) anexa arquivos de qualque
 ela fala ou escreve, vão junto (`partOf`). O arquivo fica em `captures/files/<quando>-<n>/<nome dele>`, com
 nome, tipo e tamanho na captura (Room v7: `filePath`, `fileName`, `fileMime`, `fileSize`).
 
-O app não lê o arquivo: o modelo vê o nome, o tipo, o tamanho e, quando dá, só o começo da primeira página
-(`mind/FilePeek`, até `Brain.PEEK` = 800 caracteres): texto puro; Word/Excel/PowerPoint/OpenDocument pelo
-XML de dentro do zip (primeira página, palavras da planilha, primeiro slide); PDF com a primeira página
-desenhada (`PdfRenderer`) e lida pelo ML Kit; imagem pelo ML Kit. Tudo no celular. Na mesma chamada ele
-devolve `file_descriptions` (o que cada arquivo é, pra busca) e marca `"files": true` no único item onde o
-arquivo mora — em geral uma nota sobre ele. Sem item marcado (ou com o item apagado depois), o arquivo é do
+O app não lê o arquivo: só o começo da primeira página (`mind/FilePeek`, até `Brain.PEEK` = 800
+caracteres): texto puro; Word/Excel/PowerPoint/OpenDocument pelo XML de dentro do zip (primeira página,
+palavras da planilha, primeiro slide); PDF com a primeira página desenhada (`PdfRenderer`) e lida pelo ML
+Kit; imagem pelo ML Kit. Com isso, o nome e o que ela disse, o Omni escreve no celular o que o arquivo é
+(`About.file`, uma frase; sem texto nenhum, ele olha a primeira página como imagem — `FilePeek.look`). Isso
+fica na captura (a busca) e é o que o modelo online recebe ("o que é: …"), nunca o começo do arquivo (só se o
+Omni não disse nada). O modelo online só classifica: marca `"files": true` no único item onde o arquivo mora — em geral uma nota sobre ele. Sem item marcado (ou com o item apagado depois), o arquivo é do
 diário do dia (`Attached.fileHomes`: o primeiro item marcado que ainda existe, senão nenhum).
 
 Na tela: o item mostra seus arquivos debaixo do texto (`ui/entry/Files.kt`, um toque abre no app que ela

@@ -44,10 +44,26 @@ class Backups(
 
     private fun root(uri: String): Shelf = TreeShelf.root(resolver, Uri.parse(uri))
 
-    /** Something changed since the backup that is running or waiting. */
-    @Volatile private var dirty = false
+    /**
+     * Something changed (one waiting at most: a change while a backup runs makes one more after
+     * it, never none — the backup started may have looked before the change).
+     */
+    private val changes = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
     @Volatile private var lastChange = 0L
-    private var runner: Job? = null
+    private val runner: Job by lazy {
+        scope.launch {
+            for (change in changes) {
+                // A moment of quiet first, and nothing going through: a talk (heard, thought, kept —
+                // each step a change) makes one backup, of what came of it, not one at every step.
+                while (true) {
+                    val quiet = android.os.SystemClock.elapsedRealtime() - lastChange
+                    if (quiet >= QUIET_MS && !mind.working) break
+                    kotlinx.coroutines.delay(if (quiet < QUIET_MS) QUIET_MS - quiet else BUSY_MS)
+                }
+                if (settings.current().backupFolder.isNotBlank()) save()
+            }
+        }
+    }
 
     /**
      * Every change in what she keeps (something new, changed, taken out; its photos, connections,
@@ -63,21 +79,9 @@ class Backups(
     /** A backup soon (see [watch]). */
     fun soon() {
         lastChange = android.os.SystemClock.elapsedRealtime()
-        dirty = true
         runCatching { BackupWorker.soon(context) }
-        if (runner?.isActive == true) return
-        runner = scope.launch {
-            while (dirty) {
-                // A moment of quiet first: a burst of changes makes one backup.
-                while (true) {
-                    val quiet = android.os.SystemClock.elapsedRealtime() - lastChange
-                    if (quiet >= QUIET_MS) break
-                    kotlinx.coroutines.delay(QUIET_MS - quiet)
-                }
-                dirty = false
-                if (settings.current().backupFolder.isNotBlank()) save()
-            }
-        }
+        runner.start()
+        changes.trySend(Unit)
     }
 
     /** The folder chosen in the picker: kept, the old one let go, the automatic backup set, and a backup right away. */
@@ -121,7 +125,8 @@ class Backups(
                 return null
             }
         }
-        return restore(Backup.FILE).getOrNull()?.let { there to it }
+        // Not brought back (busy, a broken file): she is told, under the folder; nothing was replaced.
+        return restore(Backup.FILE).onFailure { settings.setBackupFailed(it.message.orEmpty()) }.getOrNull()?.let { there to it }
     }
 
     fun now(): Job = scope.launch { save() }
@@ -135,7 +140,7 @@ class Backups(
             val r = core.save(root, key = folder)
             // Where it is now (a folder chosen before the backup became one file showed another place).
             core.place(root).let { if (it != settings.current().backupPlace) settings.setBackupPlace(it) }
-            val said = if (r.empty) t(R.string.backup_nothing_yet) else note(r.entries, r.photos, r.sounds)
+            val said = if (r.empty) t(R.string.backup_nothing_yet) else note(r.entries, r.photos, r.sounds, r.files)
             // A backup that was already in the folder: kept beside, and she is told where.
             settings.setBackupDone(System.currentTimeMillis(), r.aside?.let { said + " · " + t(R.string.backup_kept_aside, it.removeSuffix(".zip")) } ?: said)
             true
@@ -185,12 +190,16 @@ class Backups(
         /** Quiet after a change before the backup goes (a talk changes several things at once). */
         const val QUIET_MS = 4_000L
 
+        /** How often it looks again while something is going through. */
+        const val BUSY_MS = 1_500L
+
         const val SAVING = "Fazendo o backup…"
         const val IMPORTING = "Importando…"
 
-        fun note(entries: Int, photos: Int, sounds: Int = 0): String = buildString {
+        fun note(entries: Int, photos: Int, sounds: Int = 0, files: Int = 0): String = buildString {
             append(tn(R.plurals.items, entries))
             if (photos > 0) append(" · ").append(tn(R.plurals.photos, photos))
+            if (files > 0) append(" · ").append(tn(R.plurals.files, files))
             if (sounds > 0) append(" · ").append(tn(R.plurals.sounds, sounds))
         }
     }
@@ -199,7 +208,10 @@ class Backups(
 /** The automatic backup: after every change (see [Backups.watch]), and once a day besides. */
 class BackupWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        NoveloApplication.graph.backups.save()
+        val graph = NoveloApplication.graph
+        // Something going through: a bit later (the app backs up itself when it ends, if it is open).
+        if (graph.mind.working) return Result.retry()
+        graph.backups.save()
         return Result.success()
     }
 
