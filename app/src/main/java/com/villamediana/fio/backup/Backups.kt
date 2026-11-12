@@ -66,7 +66,10 @@ class Backups(
         val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return false
         _busy.value = SAVING
         return try {
-            val r = core.save(root(folder), key = folder)
+            val root = root(folder)
+            val r = core.save(root, key = folder)
+            // Where it is now (a folder chosen before the backup became one file showed another place).
+            core.place(root).let { if (it != settings.current().backupPlace) settings.setBackupPlace(it) }
             settings.setBackupDone(System.currentTimeMillis(), if (r.empty) "nada pra guardar ainda" else note(r.entries, r.photos, r.sounds))
             true
         } catch (e: Throwable) {
@@ -77,7 +80,7 @@ class Backups(
         }
     }
 
-    /** The snapshots in the folder, the newest first. */
+    /** The backups in the folder, the newest first. */
     suspend fun kept(): List<Backup.Kept> {
         val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return emptyList()
         return core.kept(root(folder))
@@ -85,13 +88,13 @@ class Backups(
 
     suspend fun read(name: String): Snapshot = core.read(root(settings.current().backupFolder), name)
 
-    /** Puts the snapshot [name] back in place of everything (what is here first becomes a backup). */
+    /** Puts the backup [name] back in place of everything. */
     suspend fun restore(name: String): Result<Backup.Restored> {
         val folder = settings.current().backupFolder.takeIf { it.isNotBlank() } ?: return Result.failure(IOException("Escolha a pasta do backup."))
         if (!mind.idle) return Result.failure(IOException("Espere o Novelo terminar o que está fazendo e tente de novo."))
         _busy.value = IMPORTING
         val r = try {
-            Result.success(core.restore(root(folder), folder, name))
+            Result.success(core.restore(root(folder), name))
         } catch (e: Throwable) {
             Result.failure(IOException(message(e), e))
         } finally {
@@ -100,7 +103,7 @@ class Backups(
         if (r.isSuccess) {
             runCatching { joinDays() }
             mind.restored()
-            // The readable side follows what came back (no new snapshot: it is the same).
+            // The file follows what came back.
             save()
         }
         return r

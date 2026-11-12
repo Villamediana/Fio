@@ -56,10 +56,14 @@ class BackupTest {
     )
 
     private val root get() = FileShelf(chosen)
-    private val home get() = File(chosen, "Novelo")
+    private val zip get() = File(chosen, Backup.FILE)
 
-    private fun files(dir: File = home): List<String> =
-        dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }.sorted().toList()
+    /** What is in the backup file: path → bytes. */
+    private fun inside(file: File = zip): Map<String, ByteArray> = java.util.zip.ZipFile(file).use { z ->
+        z.entries().toList().filter { !it.isDirectory }.associate { it.name to z.getInputStream(it).readBytes() }
+    }
+
+    private fun text(path: String) = inside().getValue(path).toString(Charsets.UTF_8)
 
     /** A day with a bit of everything: a diary with a photo, a note, a task open, one done, topics and links. */
     private suspend fun aDay(): Map<String, Long> {
@@ -85,57 +89,59 @@ class BackupTest {
     }
 
     @Test
-    fun everythingGoesToTheFolderLaidOutToBeRead() = runBlocking {
+    fun everythingGoesIntoOneFile() = runBlocking {
         val ids = aDay()
         val saved = backup().save(root, "k")
         assertEquals(4, saved.entries)
         assertEquals(1, saved.photos)
+        assertEquals(Backup.FILE, saved.snapshot)
+        // One file in the folder she chose, nothing else.
+        assertEquals(listOf(Backup.FILE), chosen.list()!!.toList())
         assertEquals(
             listOf(
-                "Backups/fio 2026-11-11 14.32.05.json",
                 "Diário/2026/2026-11-11.md",
-                "Fotos/.nomedia",
                 "Fotos/2026/2026-11-11 14.02.05 (${ids["photo"]}).jpg",
                 "Notas/Senha do wi-fi casa 2.md",
                 "Tarefas/Abertas/Pagar o IPVA.md",
                 "Tarefas/Feitas/Comprar pão.md",
+                Backup.INSIDE,
             ),
-            files(),
+            inside().keys.sorted(),
         )
-        val diary = File(home, "Diário/2026/2026-11-11.md").readText()
+        val diary = text("Diário/2026/2026-11-11.md")
         assertTrue(diary, diary.startsWith("# Quarta-feira, 11 de novembro\n\nFui à praia com a Alma.\n"))
-        // The day's photo, from the diary's place in the folder.
+        // The day's photo, from the diary's place in the file.
         assertTrue(diary, diary.contains("![](../../Fotos/2026/2026-11-11%2014.02.05%20%28${ids["photo"]}%29.jpg)"))
         assertTrue(diary, diary.contains("Tópicos: Alma"))
-        val task = File(home, "Tarefas/Abertas/Pagar o IPVA.md").readText()
+        val task = text("Tarefas/Abertas/Pagar o IPVA.md")
         assertTrue(task, task.contains("Tarefa · fazendo · vence 12/11/2026 · lembrete 11/11/2026 15:32"))
         assertTrue(task, task.contains("- [x] boleto\n- [ ] pagar\n"))
-        assertEquals(2048L, File(home, "Fotos/2026/2026-11-11 14.02.05 (${ids["photo"]}).jpg").length())
+        assertEquals(2048, inside().getValue("Fotos/2026/2026-11-11 14.02.05 (${ids["photo"]}).jpg").size)
+        assertEquals(now, backup().read(root, Backup.FILE).madeAt)
     }
 
     @Test
-    fun nothingChangedNothingWrittenAndWhatIsGoneLeaves() = runBlocking {
+    fun nothingChangedNothingWrittenAndTheFileIsReplacedWhenSomethingDid() = runBlocking {
         val ids = aDay()
         val b = backup()
         b.save(root, "k")
-        val task = File(home, "Tarefas/Abertas/Pagar o IPVA.md")
-        task.setLastModified(1000)
+        zip.setLastModified(1000)
         now += 60_000
-        // Again, nothing new: no second snapshot, no file written again.
+        // Again, nothing new: the file isn't written again.
         assertNull(b.save(root, "k").snapshot)
-        assertEquals(1000L, task.lastModified())
-        assertEquals(1, File(home, "Backups").list()!!.size)
+        assertEquals(1000L, zip.lastModified())
 
-        // The task is done and the note is deleted: the files follow, and a new snapshot is made.
+        // The task is done and the note is deleted: the file is made again, still the only one.
         db.entries().update(db.entries().get(ids.getValue("open"))!!.copy(status = "done", doneAt = now))
         db.entries().delete(ids.getValue("note"))
         now += 60_000
-        assertNotNull(b.save(root, "k").snapshot)
-        val after = files()
+        assertEquals(Backup.FILE, b.save(root, "k").snapshot)
+        val after = inside().keys
         assertTrue(after.toString(), "Tarefas/Feitas/Pagar o IPVA.md" in after)
         assertFalse(after.toString(), "Tarefas/Abertas/Pagar o IPVA.md" in after)
         assertFalse(after.toString(), "Notas/Senha do wi-fi casa 2.md" in after)
-        assertEquals(2, File(home, "Backups").list()!!.size)
+        assertEquals(listOf(Backup.FILE), chosen.list()!!.toList())
+        assertEquals(listOf(Backup.Kept(Backup.FILE, now)), b.kept(root))
     }
 
     @Test
@@ -146,50 +152,27 @@ class BackupTest {
     }
 
     @Test
-    fun aFolderAlreadyCalledFioIsTheFolder() = runBlocking {
-        aDay()
-        val fio = tmp.newFolder("Fio")
+    fun theOldFoldersBackupsCanStillComeBack() = runBlocking {
+        // Up to 1.17.0: Documents/Fio/Backups/fio <date>.json.
+        val old = Snapshot(madeAt = now - 86_400_000, entries = listOf(Entry(id = 5, kind = "note", title = "Do backup antigo", createdAt = now, updatedAt = now)))
+        File(chosen, "Fio/Backups").apply { mkdirs() }.resolve("fio 2026-11-10 14.32.05.json").writeText(Backup.json.encodeToString(Snapshot.serializer(), old))
         val b = backup()
-        assertEquals("Fio", b.place(FileShelf(fio)))
-        assertEquals("Documents/Novelo", b.place(root))
-        b.save(FileShelf(fio), "k")
-        assertTrue(File(fio, "Backups").isDirectory)
-        assertFalse(File(fio, "Fio").exists())
-        assertFalse(File(fio, "Novelo").exists())
-    }
-
-    @Test
-    fun theFioFolderFromBeforeTheNameStaysTheOne() = runBlocking {
-        aDay()
-        File(chosen, "Fio").mkdirs()
-        val b = backup()
-        assertEquals("Documents/Fio", b.place(root))
+        assertEquals("Documents/Novelo backup.zip", b.place(root))
+        db.entries().insert(Entry(kind = "note", title = "De hoje", createdAt = now, updatedAt = now))
         b.save(root, "k")
-        assertTrue(File(chosen, "Fio/Backups").isDirectory)
-        assertFalse(File(chosen, "Novelo").exists())
+        // The new file goes in the chosen folder; the old folder is left as it was.
+        assertTrue(zip.isFile)
+        assertEquals(listOf("fio 2026-11-10 14.32.05.json"), File(chosen, "Fio/Backups").list()!!.toList())
+        assertEquals(listOf(Backup.FILE, "fio 2026-11-10 14.32.05.json"), b.kept(root).map { it.name })
+        b.restore(root, "fio 2026-11-10 14.32.05.json")
+        assertEquals(listOf("Do backup antigo"), db.backup().entries().map { it.title })
     }
 
     @Test
-    fun theLastThirtySnapshotsStay() = runBlocking {
-        val id = db.entries().insert(Entry(kind = "note", title = "n", createdAt = now, updatedAt = now))
-        val b = backup()
-        repeat(Backup.KEEP + 3) { i ->
-            db.entries().update(db.entries().get(id)!!.copy(body = "versão $i"))
-            now += 60_000
-            b.save(root, "k")
-        }
-        val kept = b.kept(root)
-        assertEquals(Backup.KEEP, kept.size)
-        assertTrue(kept.first().at > kept.last().at) // the newest first
-        assertEquals("versão ${Backup.KEEP + 2}", b.read(root, kept.first().name).entries.single().body)
-    }
-
-    @Test
-    fun anImportPutsEverythingBackAsItWasAndWhatWasHereBecomesABackup() = runBlocking {
+    fun anImportPutsEverythingBackAsItWas() = runBlocking {
         val ids = aDay()
         val b = backup()
         b.save(root, "k")
-        val snapshot = b.kept(root).single().name
         val before = db.backup().entries()
         val topicsBefore = db.backup().topics()
 
@@ -199,7 +182,7 @@ class BackupTest {
         val extra = db.entries().insert(Entry(kind = "note", title = "Depois do backup", createdAt = now, updatedAt = now))
         File(db.captures().get(ids.getValue("photo"))!!.imagePath!!).delete()
 
-        val restored = b.restore(root, "k", snapshot)
+        val restored = b.restore(root, Backup.FILE)
         assertEquals(4, restored.entries)
         assertEquals(1, restored.photos)
         assertEquals(before, db.backup().entries()) // the same items, the same ids
@@ -216,11 +199,9 @@ class BackupTest {
         assertNull(db.entries().get(extra))
         // Reminders: the ones that were here and the ones that came back.
         assertTrue(synced.containsAll(listOf(extra, ids.getValue("open"))))
-        // What was here before the import is a backup of its own, the newer one.
-        val kept = b.kept(root)
-        assertEquals(2, kept.size)
-        assertEquals(snapshot, kept[1].name)
-        assertTrue(b.read(root, kept[0].name).entries.any { it.title == "Depois do backup" })
+        // Still one file, and nothing left over on the phone from opening it.
+        assertEquals(listOf(Backup.FILE), chosen.list()!!.toList())
+        assertFalse(File(tmp.root, "backup-work").exists())
     }
 
     @Test
@@ -237,15 +218,13 @@ class BackupTest {
         val b = backup()
         val saved = b.save(root, "k")
         assertEquals(1, saved.sounds)
-        val rel = "Áudios/2026/2026-11-11 14.32.05 ($sung).wav"
-        assertEquals(3000L, File(home, rel).length())
-        assertTrue(File(home, "Áudios/.nomedia").isFile)
-        val md = File(home, "Notas/Música que eu inventei.md").readText()
+        assertEquals(3000, inside().getValue("Áudios/2026/2026-11-11 14.32.05 ($sung).wav").size)
+        val md = text("Notas/Música que eu inventei.md")
         assertTrue(md, md.contains("[Áudio](../Áudios/2026/2026-11-11%2014.32.05%20%28$sung%29.wav)"))
 
         // Gone from the phone, back with the import.
         wav.delete()
-        val restored = b.restore(root, "k", b.kept(root).single().name)
+        val restored = b.restore(root, Backup.FILE)
         assertEquals(1, restored.sounds)
         val back = db.captures().get(sung)!!
         assertTrue(back.sound)
@@ -259,22 +238,29 @@ class BackupTest {
         val file = File(app, "photo-7.jpg").apply { writeBytes(ByteArray(512)) }
         val photo = db.captures().insert(Capture(createdAt = now, source = "photo", imagePath = file.path, state = Capture.DONE, partOf = said))
         backup().save(root, "k")
-        val md = File(home, "Tarefas/Abertas/Comprar o tênis da Alma.md").readText()
+        val md = text("Tarefas/Abertas/Comprar o tênis da Alma.md")
         assertTrue(md, md.contains("![](../../Fotos/2026/2026-11-11%2014.32.05%20%28$photo%29.jpg)"))
     }
 
     @Test
-    fun aBrokenOrNewerSnapshotIsNotImported() = runBlocking {
+    fun aBrokenOrNewerBackupIsNotImported() = runBlocking {
         aDay()
         val b = backup()
-        val backups = File(home, "Backups").apply { mkdirs() }
-        File(backups, "fio 2026-11-10 10.00.00.json").writeText("{ estragado")
-        File(backups, "fio 2026-11-10 11.00.00.json").writeText("""{"format":99}""")
         val count = db.backup().count()
-        val broken = runCatching { b.restore(root, "k", "fio 2026-11-10 10.00.00.json") }.exceptionOrNull()
+        zip.writeText("{ estragado")
+        val broken = runCatching { b.restore(root, Backup.FILE) }.exceptionOrNull()
         assertTrue(broken?.message.orEmpty(), broken?.message.orEmpty().contains("estragado"))
-        val newer = runCatching { b.restore(root, "k", "fio 2026-11-10 11.00.00.json") }.exceptionOrNull()
+        java.util.zip.ZipOutputStream(zip.outputStream()).use { z ->
+            z.putNextEntry(java.util.zip.ZipEntry(Backup.INSIDE)); z.write("""{"format":99}""".toByteArray()); z.closeEntry()
+        }
+        val newer = runCatching { b.restore(root, Backup.FILE) }.exceptionOrNull()
         assertTrue(newer?.message.orEmpty(), newer?.message.orEmpty().contains("versão mais nova"))
+        // A name inside that points out of the folder goes nowhere.
+        java.util.zip.ZipOutputStream(zip.outputStream()).use { z ->
+            z.putNextEntry(java.util.zip.ZipEntry("../fora.txt")); z.write("x".toByteArray()); z.closeEntry()
+        }
+        assertTrue(runCatching { b.restore(root, Backup.FILE) }.isFailure)
+        assertFalse(File(tmp.root, "fora.txt").exists())
         assertEquals(count, db.backup().count())
     }
 

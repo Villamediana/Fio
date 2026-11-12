@@ -30,9 +30,9 @@ data class Snapshot(
     val ties: List<EntryTopic> = emptyList(),
     val links: List<Link> = emptyList(),
     val progress: List<Progress> = emptyList(),
-    /** Each photo (capture id) → its file in the backup folder ("Fotos/2026/…jpg"). */
+    /** Each photo (capture id) → its file in the backup ("Fotos/2026/…jpg"). */
     val photos: Map<Long, String> = emptyMap(),
-    /** Each sound kept (capture id) → its file in the backup folder ("Áudios/2026/…wav"). */
+    /** Each sound kept (capture id) → its file in the backup ("Áudios/2026/…wav"). */
     val sounds: Map<Long, String> = emptyMap(),
 ) {
     val photoCount: Int get() = photos.size
@@ -44,9 +44,10 @@ data class Snapshot(
 }
 
 /**
- * The backup folder, in the open: one Markdown file per thing kept, by kind — the diary by year,
- * notes, tasks open and done — and the photos by year. Readable in any file app or notes app
- * (Obsidian, a text editor); the snapshot in Backups/ is what an import reads.
+ * Inside the backup file, in the open: one Markdown file per thing kept, by kind — the diary by
+ * year, notes, tasks open and done — and the photos by year. Readable once the zip is opened in any
+ * file app or notes app (Obsidian, a text editor); backup.json is what an import reads. (Backups/
+ * with dated snapshots is the old folder's, up to 1.17.0.)
  */
 object Readable {
     const val DIARY = "Diário"
@@ -57,9 +58,6 @@ object Readable {
     const val PHOTOS = "Fotos"
     const val SOUNDS = "Áudios"
     const val BACKUPS = "Backups"
-
-    /** The folders holding Markdown kept in step with the app (a file whose item is gone leaves). */
-    val MIRRORED = listOf(DIARY, NOTES, TASKS)
 
     private val WHEN = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -81,9 +79,7 @@ object Readable {
         return "$SOUNDS/${at.year}/${at.format(PHOTO)} (${c.id}).$ext"
     }
 
-    /** The name of a snapshot made at [ms]: Backups/fio 2026-11-11 14.32.05.json (the newest sorts last). */
-    fun snapshotName(ms: Long, zone: ZoneId): String = "fio " + Instant.ofEpochMilli(ms).atZone(zone).format(SNAPSHOT) + ".json"
-
+    /** An old folder's snapshot: Backups/fio 2026-11-11 14.32.05.json. */
     fun isSnapshot(name: String): Boolean = SNAPSHOT_NAME.matches(name)
 
     /** When a snapshot was made, read from its name; null for any other file. */

@@ -65,8 +65,7 @@ em vez de texto explicando. No diário, as fotos do dia vêm antes do texto, que
 costurada.
 
 O nome mudou de Fio pra Novelo na 1.17.0: muda o que aparece (nome, ícone, textos, a pasta do
-backup e a da galeria), o pacote e o repositório seguem `fio`. Uma pasta de backup `Fio` que já
-existia continua sendo a usada.
+backup e a da galeria), o pacote e o repositório seguem `fio`.
 
 Navegação por deslize: as telas ficam numa linha, câmera · tela principal · biblioteca (Hoje,
 Tarefas, …, Tudo). Na principal, deslizar pra direita abre a câmera e pra esquerda a Hoje
@@ -191,37 +190,40 @@ Na 1.15.0:
 Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
 null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
 
-## Backup (1.14.0)
+## Backup (1.14.0; um arquivo só desde a 1.17.1)
 
 Ajustes › Backup: ela escolhe uma pasta no seletor do Android (`OpenDocumentTree`, permissão guardada
-com `takePersistableUriPermission`) e o backup vai pra `<pasta>/Fio` (ou pra própria pasta, se ela já se
-chama Fio ou já tem `Backups/`). Ao escolher, faz um na hora; depois sozinho (`BackupWorker`, WorkManager,
-Diário ou Semanal, com bateria e espaço; "Não" desliga). "Fazer agora" e o resultado do último ficam na
-mesma linha.
+com `takePersistableUriPermission`) e o backup é **um arquivo só**, `Novelo backup.zip`, direto nessa
+pasta, trocado a cada backup (só existe o último). Ao escolher, faz um na hora; depois sozinho
+(`BackupWorker`, WorkManager, Diário ou Semanal, com bateria e espaço; "Não" desliga). "Fazer agora" e o
+resultado do último ficam na mesma linha.
 
 ```
-Fio/
-  Diário/2026/2026-11-11.md        um por diário, com as fotos do dia (links relativos)
+Novelo backup.zip
+  backup.json                       tudo, com os ids: é o que o importar lê
+  Diário/2026/2026-11-11.md         um por diário, com as fotos do dia (links relativos)
   Notas/<título>.md
-  Tarefas/Abertas/<título>.md      status, prazo, lembrete, etapas [x]/[ ]
+  Tarefas/Abertas/<título>.md       status, prazo, lembrete, etapas [x]/[ ]
   Tarefas/Feitas/<título>.md
-  Fotos/2026/<data hora> (<id>).jpg   + .nomedia (a galeria do celular não mostra cópias)
-  Backups/fio 2026-11-11 14.32.05.json   tudo, com os ids: é o que o importar lê
+  Fotos/2026/<data hora> (<id>).jpg
+  Áudios/2026/<data hora> (<id>).wav
 ```
 
-- `backup/Backup.kt` (testável com `FileShelf`): lê tudo numa transação (`BackupDao`), copia as fotos
-  que faltam (pelo tamanho), escreve só o Markdown que mudou (hash guardado em filesDir/backup-state.json),
-  apaga o `.md` de item que sumiu e grava um snapshot novo só quando algo mudou; ficam os 30 últimos.
-  Fotos nunca saem da pasta (snapshots antigos apontam pra elas). App vazio não escreve nada: instalação
-  nova nunca cobre um backup bom. Fala ainda não ouvida (só o áudio) não vai.
-- `backup/Shelf.kt`: a pasta. `TreeShelf` vai direto no `DocumentsContract` (uma consulta por pasta; o
-  `DocumentFile` perguntaria o nome de cada arquivo), cria como octet-stream pra nenhum provedor trocar a
-  extensão e escreve com "wt".
-- Importar: lista os snapshots da pasta (o mais novo primeiro), mostra quantos itens/fotos tem e troca
-  tudo pelo escolhido, com os mesmos ids. Antes, o que está no app vira um backup na mesma pasta (dá pra
-  voltar). Só com o Fio parado (`Mind.idle`); fotos copiadas antes de mexer no banco, lembretes
-  refeitos (`ReminderSync`), e o Markdown segue o que voltou. Snapshot de versão mais nova (`format`)
-  ou estragado não entra.
+- `backup/Backup.kt` (testável com `FileShelf`): lê tudo numa transação (`BackupDao`), monta o zip no
+  celular (filesDir/backup-work, apagada no fim) e copia por cima do que está na pasta — só quando algo
+  mudou (hash do snapshot em filesDir/backup-state.json). App vazio não escreve nada: instalação nova
+  nunca cobre um backup bom. Fala ainda não ouvida (só o áudio) não vai.
+- Até a 1.17.0 o backup era uma árvore de pastas (`Novelo/` ou `Fio/` com `Backups/fio <data>.json`).
+  Enquanto essa pasta existir, os snapshots dela aparecem no importar e ainda entram; nada mais é escrito
+  nela (pode ser apagada à mão).
+- `backup/Shelf.kt`: a pasta. `TreeShelf` vai direto no `DocumentsContract` (uma consulta por pasta),
+  cria como octet-stream pra nenhum provedor trocar a extensão e escreve com "wt".
+- Importar: lista o arquivo (e os snapshots antigos, se houver), mostra quantos itens/fotos tem e troca
+  tudo pelo escolhido, com os mesmos ids. O zip abre numa pasta do app (nada sai dela, seja qual for o
+  nome lá dentro). Só com o Novelo parado (`Mind.idle`); fotos copiadas antes de mexer no banco,
+  lembretes refeitos (`ReminderSync`), e o arquivo segue o que voltou. Backup de versão mais nova
+  (`format`) ou estragado não entra. Com um arquivo só, o que estava no app antes de importar não
+  fica guardado.
 - As entidades do Room são `@Serializable`: o snapshot é o próprio banco em JSON (campos com padrão, chaves
   desconhecidas ignoradas).
 
