@@ -588,7 +588,7 @@ class Mind(
                 if (p.transcript != null) p else p.copy(transcript = runCatching { photos.text(File(p.imagePath!!)) }.getOrDefault("")).also { db.captures().update(it) }
             }
             // The photo (or those sent with it, side by side): Omni says what it shows, once, on the
-            // phone — kept for the search and given to the model (which looks itself only when it is hers).
+            // phone — kept for the search and given to the model that thinks, whichever (the photo never goes to it).
             val image = when {
                 photo -> runCatching { photos.jpeg(File(c.imagePath!!), thinking.imageSide()) }.getOrNull()
                 sent.isNotEmpty() -> runCatching { photos.jpeg(sent.take(MAX_SENT_SEEN).map { File(it.imagePath!!) }, thinking.imageSide()) }.getOrNull()
@@ -614,8 +614,7 @@ class Mind(
             val sentFiles = if (file) emptyList() else db.captures().filesWith(id)
             val seen = (if (file) listOf(c) else sentFiles).map { f -> described(f, if (file) null else said) }
             if (file) c = db.captures().get(id) ?: c
-            val looks = if (image != null && thinking.seesImages() && thinking.looksItself()) image else null
-            val plan = think(c, said, photo, typed, sent, seen, fileAlone = file, image = looks, shows = shows)
+            val plan = think(c, said, photo, typed, sent, seen, fileAlone = file, shows = shows)
             val result = keeper.apply(plan, id)
             // A photo is the day's too: it shows in the day's diary (begun now when there is none).
             if (photo) diaryFor(c.createdAt)
@@ -691,8 +690,7 @@ class Mind(
         sent: List<Capture> = emptyList(),
         files: List<FileSeen> = emptyList(),
         fileAlone: Boolean = false,
-        /** The photo for a model that looks itself (hers); null: it gets what the phone saw ([shows]). */
-        image: ByteArray? = null,
+        /** What the photo shows, as the phone saw it (the model gets these words, never the photo). */
         shows: String? = null,
     ): Plan {
         val now = clock()
@@ -723,7 +721,7 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows)
-        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException(t(R.string.bad_format))
+        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
@@ -739,7 +737,7 @@ class Mind(
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
             val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows)
-            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
+            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.

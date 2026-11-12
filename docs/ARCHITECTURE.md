@@ -161,7 +161,7 @@ Mais na 1.14.0:
   diferentes (`Mosaic.rows`): galeria, carrossel do diário e a faixa do cartão do diário (`Mosaic.strip`, até 4).
 - **Descrição só pra busca**: escrita pelo Omni antes de organizar (uma olhada, no idioma do app; as fotos
   mandadas juntas lado a lado numa imagem só), guardada e passada ao modelo como `O QUE SE VÊ (o celular
-  olhou)`. A inteligência do Novelo recebe só esse texto; a API dela ainda olha a foto (`Thinker.looksItself`).
+  olhou)`. Seja qual for o modelo que pensa (o do Novelo ou a API dela), ele recebe só esse texto: a foto não sai do celular.
   `Capture.description` nunca aparece na tela (a 1.23.0 mostrou
   embaixo da foto; a 1.23.1 tirou a pedido). O prompt diz que o que se vê na foto não vai pro diário nem pra
   item (a foto já está no diário do dia).

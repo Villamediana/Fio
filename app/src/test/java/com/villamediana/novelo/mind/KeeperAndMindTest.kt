@@ -486,6 +486,26 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun thePhotoNeverGoesToTheModelOnlyWhatOmniSaw() = runBlocking {
+        // Even a model that could look (her API) gets only the words Omni wrote on the phone.
+        val images = mutableListOf<ByteArray?>()
+        val prompts = mutableListOf<String>()
+        val looking = object : Thinker {
+            override suspend fun seesImages() = true
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String { images += image; prompts += user; return """{"reply":"Que lindo!"}""" }
+        }
+        val omni = Says("pôr do sol na praia de Itacaré")
+        val shot = object : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = byteArrayOf(1, 2, 3) }
+        val m = mind(FakeEars(""), looking, photos = shot, about = omni)
+        m.photo(tmp.newFile("sol.jpg"))
+        answered(m)
+        assertEquals(listOf<ByteArray?>(null), images)
+        assertEquals(1, omni.photos.size) // Omni looked
+        assertTrue(prompts.single(), prompts.single().contains("O QUE SE VÊ (o celular olhou):\npôr do sol na praia de Itacaré"))
+        assertEquals("pôr do sol na praia de Itacaré", db.captures().allPhotos().single().description)
+    }
+
+    @Test
     fun morePhotosJoinATaskAlreadyThere() = runBlocking {
         val id = db.entries().insert(Entry(kind = "task", title = "Presente da Alma", status = "todo", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
         val r = keeper().apply(Brain.parse("""{"update":[{"id":$id,"photos":true}]}""")!!, 7L)
