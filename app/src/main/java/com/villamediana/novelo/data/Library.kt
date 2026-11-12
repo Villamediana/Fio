@@ -107,11 +107,48 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         db.captures().update(c.copy(turn = (c.turn + 90) % 360))
     }
 
+    /** The photos and the files (capture ids) that live in [entryId] and in no other item. */
+    suspend fun onlyIn(entryId: Long): Pair<List<Long>, List<Long>> {
+        val all = db.backup().captures()
+        val byId = all.associateBy { it.id }
+        val photos = all.filter { it.source == "photo" && it.imagePath != null && Attached.homesOf(it, byId) == setOf(entryId) }.map { it.id }
+        val files = all.filter { it.filePath != null && Attached.fileHomesOf(it, byId) == setOf(entryId) }.map { it.id }
+        return photos to files
+    }
+
+    /** Takes a file out of Novelo — from its item, the day's diary and the Arquivos tab — and off the phone. */
+    suspend fun removeFile(captureId: Long) {
+        val c = db.captures().get(captureId)?.takeIf { it.filePath != null } ?: return
+        db.captures().delete(c.id)
+        c.filePath?.let { java.io.File(it).delete(); java.io.File(it).parentFile?.takeIf { d -> d.name.contains('-') && d.list().isNullOrEmpty() }?.delete() }
+    }
+
     /** Takes a photo out of Novelo, its file too. What was kept from it (a task, a note) stays. */
     suspend fun removePhoto(captureId: Long) {
         val c = db.captures().get(captureId)?.takeIf { it.source == "photo" } ?: return
         db.captures().delete(c.id)
         c.imagePath?.let { java.io.File(it).delete() }
+    }
+
+    /** A task or note made by hand, still empty (its screen opens on the title); its id. */
+    suspend fun create(kind: Kind): Long {
+        val now = clock()
+        return db.entries().insert(Entry(kind = kind.key, title = "", status = if (kind == Kind.TASK) Status.TODO.key else null, createdAt = now, updatedAt = now))
+    }
+
+    /** An item made by hand and left with nothing written: it isn't kept. */
+    suspend fun dropIfEmpty(id: Long) {
+        val e = db.entries().get(id) ?: return
+        if (e.title.isBlank() && e.body.isBlank() && Steps.read(e.steps).isEmpty()) db.entries().delete(id)
+    }
+
+    /** A step moved by hand from [from] to [to]. */
+    suspend fun moveStep(id: Long, from: Int, to: Int) {
+        val e = db.entries().get(id) ?: return
+        val steps = Steps.read(e.steps).toMutableList()
+        if (from !in steps.indices || to !in steps.indices || from == to) return
+        steps.add(to, steps.removeAt(from))
+        db.entries().update(e.copy(steps = Steps.write(steps), updatedAt = clock()))
     }
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
@@ -162,6 +199,7 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
 
     suspend fun edit(id: Long, title: String, body: String) {
         val e = db.entries().get(id) ?: return
+        // Emptied by hand stays as it was; one made by hand starts empty and is written now.
         val t = title.trim().ifEmpty { e.title }
         if (t == e.title && body == e.body) return
         db.entries().update(e.copy(title = t, body = body, updatedAt = clock()))
@@ -197,11 +235,17 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         db.entries().update(e.copy(sensitive = sensitive, updatedAt = clock()))
     }
 
-    /** Deletes it (topics left with nothing are pruned). Returns it for "Desfazer". */
+    /**
+     * Deletes it (topics left with nothing are pruned), and the photos and files that lived only in
+     * it go with it (out of the gallery, the Arquivos tab and the phone too). Returns it for "Desfazer".
+     */
     suspend fun delete(id: Long): Entry? {
         val e = db.entries().get(id) ?: return null
         val topics = db.graph().topicsOf(id)
+        val (photos, files) = onlyIn(id)
         db.entries().delete(id)
+        photos.forEach { removePhoto(it) }
+        files.forEach { removeFile(it) }
         db.graph().pruneTopics()
         reminders.sync(listOf(id))
         deleted[id] = e to topics

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -89,5 +90,49 @@ class PhotosInsideTest {
         alone("rg.jpg", entry("note", "RG"))
         val day = (now - 1000)..(now + 1000)
         assertEquals(listOf(moment), lib.photos(day).first().map { it.id })
+    }
+
+    @Test
+    fun deletingAnItemTakesWhatLivesOnlyInItTheRestStays() = runBlocking {
+        val note = entry("note", "Documentos")
+        val task = entry("task", "Comprar o tênis")
+        val docs = sentWith(note, "rg.jpg")
+        val shoe = sentWith(task, "tenis.jpg")
+        val moment = alone("praia.jpg")
+        val pdf = File(tmp.root, "files/1-1").apply { mkdirs() }.let { File(it, "rg.pdf").apply { writeBytes(ByteArray(10)) } }
+        val file = db.captures().insert(Capture(createdAt = now, source = Capture.FILE, filePath = pdf.path, fileName = "rg.pdf", state = Capture.DONE, outcomes = """[{"entryId":$note,"action":"created","files":true}]"""))
+        assertEquals(docs to listOf(file), lib.onlyIn(note))
+        lib.delete(note)
+        // Its photo and file are gone, from everywhere and from the phone; the others stay.
+        assertEquals(null, db.captures().get(docs.single()))
+        assertEquals(null, db.captures().get(file))
+        assertTrue(!pdf.exists())
+        assertEquals((shoe + moment).toSet(), lib.loosePhotos().first().map { it.id }.toSet())
+    }
+
+    @Test
+    fun aFileTakenOutIsGoneEverywhere() = runBlocking {
+        val note = entry("note", "Contrato")
+        val pdf = File(tmp.root, "files/2-2").apply { mkdirs() }.let { File(it, "c.pdf").apply { writeBytes(ByteArray(10)) } }
+        val file = db.captures().insert(Capture(createdAt = now, source = Capture.FILE, filePath = pdf.path, fileName = "c.pdf", state = Capture.DONE, outcomes = """[{"entryId":$note,"action":"created","files":[1]}]"""))
+        lib.removeFile(file)
+        assertTrue(lib.filesOf(note).first().isEmpty())
+        assertTrue(lib.files().first().isEmpty())
+        assertTrue(!pdf.exists() && !pdf.parentFile!!.exists())
+        assertTrue(db.entries().get(note) != null) // the note stays
+    }
+
+    @Test
+    fun madeByHandStepsMovedAndEmptyOnesNotKept() = runBlocking {
+        val id = lib.create(Kind.TASK)
+        assertEquals(Status.TODO, db.entries().get(id)!!.statusEnum)
+        lib.addStep(id, "a"); lib.addStep(id, "b"); lib.addStep(id, "c")
+        lib.moveStep(id, 2, 0)
+        assertEquals(listOf("c", "a", "b"), com.villamediana.novelo.mind.Steps.read(db.entries().get(id)!!.steps).map { it.text })
+        lib.dropIfEmpty(id)
+        assertTrue(db.entries().get(id) != null) // it has steps: kept
+        val empty = lib.create(Kind.NOTE)
+        lib.dropIfEmpty(empty)
+        assertEquals(null, db.entries().get(empty))
     }
 }

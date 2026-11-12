@@ -26,7 +26,7 @@ object Attached {
         else outcomes(photo).filter { it.action != Outcome.DELETED }.map { it.entryId }.toSet()
 
     /** The entries that hold [photo]: what it was sent with gave it to them, or it made them (sent alone). */
-    private fun homesOf(photo: Capture, byId: Map<Long, Capture>): Set<Long> =
+    fun homesOf(photo: Capture, byId: Map<Long, Capture>): Set<Long> =
         if (photo.partOf != null) byId[photo.partOf]?.let { holders(it, photo) }.orEmpty() else madeFrom(photo)
 
     /** Among [captures] (the photos and what they went with), the photos [entryId] holds, in order. */
@@ -39,6 +39,10 @@ object Attached {
 
     /** The entries that took [part], a file sent alone ([owner] is itself) or with what [owner] said. */
     fun fileHolders(owner: Capture, part: Capture): Set<Long> = outcomes(owner).filter { it.holdsFile(part.id) }.map { it.entryId }.toSet()
+
+    /** The entries that hold [file] (sent alone, or with what [byId] has as its owner). */
+    fun fileHomesOf(file: Capture, byId: Map<Long, Capture>): Set<Long> =
+        (if (file.partOf != null) byId[file.partOf] else file)?.let { fileHolders(it, file) }.orEmpty()
 
     /**
      * Where each file lives (file capture id → entry id): the first item the model put it in that

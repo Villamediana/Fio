@@ -620,6 +620,33 @@ class ScreensTest {
     }
 
     @Test
+    fun aTaskMadeByHandOpensOnItsTitle() {
+        val nav = Nav().apply { go(Screen.Library(Filter.TASKS)) }
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val s = nav.top) {
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    else -> {}
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("Nova tarefa").performClick()
+        compose.waitUntil(5_000) { nav.top is Screen.Entry }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Título").fetchSemanticsNodes().isNotEmpty() }
+        // The quiet chips say what they are.
+        compose.onNodeWithText("Lembrete").assertExists()
+        compose.onNodeWithText("Prazo").assertExists()
+        compose.mainClock.advanceTimeBy(600)
+        shot("56-new-task")
+        val id = (nav.top as Screen.Entry).id
+        // Left with nothing written: not kept.
+        nav.back()
+        compose.waitForIdle()
+        runBlocking { withTimeout(5_000) { while (graph.db.entries().get(id) != null) kotlinx.coroutines.delay(20) } }
+    }
+
+    @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }
         compose.onNodeWithText("Privacidade").performScrollTo().performClick()

@@ -6,7 +6,8 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -66,11 +68,19 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
     val loose by remember(day) { lib.dayFiles(day) }.collectAsStateWithLifecycle(initialValue = emptyList())
     val files = remember(own, loose, isDay) { (own + if (isDay) loose else emptyList()).distinctBy { it.id } }
     if (files.isEmpty()) return
+    var removing by remember { androidx.compose.runtime.mutableStateOf<KeptFile?>(null) }
     Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         files.forEachIndexed { i, f ->
-            FileRow(f, onClick = { if (hidden) onReveal() else openFile(context, f) }, hidden = hidden, modifier = Modifier.testTag(if (hidden) "entry-file-hidden-$i" else "entry-file-$i"))
+            FileRow(
+                f,
+                onClick = { if (hidden) onReveal() else openFile(context, f) },
+                onLongClick = { if (hidden) onReveal() else removing = f },
+                hidden = hidden,
+                modifier = Modifier.testTag(if (hidden) "entry-file-hidden-$i" else "entry-file-$i"),
+            )
         }
     }
+    removing?.let { f -> RemoveFile(f) { removing = null } }
 }
 
 /**
@@ -78,7 +88,7 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
  * [where] is given, the item it lives in.
  */
 @Composable
-internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modifier, hidden: Boolean = false, where: String? = null) {
+internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modifier, hidden: Boolean = false, where: String? = null, onLongClick: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(18.dp)
     Row(
         modifier
@@ -86,7 +96,7 @@ internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modi
             .clip(shape)
             .background(NoveloColors.Surface)
             .stitched(shape, StitchColor, inset = 5.dp)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = onLongClick?.let { t(R.string.file_remove) })
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -113,6 +123,19 @@ internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modi
             )
         }
     }
+}
+
+/** Taking [f] out of Novelo, once more asked: from its item, the day's diary, the Arquivos tab and the phone. */
+@Composable
+internal fun RemoveFile(f: KeptFile, onDone: () -> Unit) {
+    val graph = NoveloApplication.graph
+    com.villamediana.novelo.ui.sheets.ConfirmSheet(
+        title = t(R.string.file_remove_title),
+        line = f.name,
+        yes = t(R.string.file_remove),
+        onYes = { onDone(); graph.scope.launch { graph.library.removeFile(f.id) } },
+        onDismiss = onDone,
+    )
 }
 
 /** Opens [f] in the app she picks for its type (the phone asks when there is more than one). */

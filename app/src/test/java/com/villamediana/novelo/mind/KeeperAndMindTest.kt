@@ -454,9 +454,10 @@ class KeeperAndMindTest {
         // In its item (hidden there like the rest), out of the Arquivos tab and its search.
         assertEquals(listOf(id), lib.filesOf(note).first().map { it.id })
         assertTrue(lib.files(withSensitive = false).first().isEmpty())
-        // Its item deleted: the file isn't lost, it goes back to its day's diary.
+        // Its item deleted (asked once more on the screen): the file that lived only in it goes with it.
         lib.delete(note)
-        assertEquals(listOf(id), lib.dayFiles(DayDiary.bounds(now, zone)).first().map { it.id })
+        assertNull(db.captures().get(id))
+        assertTrue(!f.exists())
     }
 
     @Test

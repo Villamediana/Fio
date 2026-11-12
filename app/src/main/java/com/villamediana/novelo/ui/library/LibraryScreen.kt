@@ -247,7 +247,13 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        // On Tarefas and Notas, a quiet + makes one by hand (it opens on its title).
+        val makes = when (TABS.getOrNull(pager.currentPage)) {
+            Filter.TASKS -> Kind.TASK
+            Filter.NOTES -> Kind.NOTE
+            else -> null
+        }
+        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = if (makes != null && !searching) 4.dp else 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(NoveloIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
             SearchBar(
                 searching = searching,
@@ -258,6 +264,11 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                 focus = focus,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
+            if (makes != null && !searching) {
+                QuietIcon(NoveloIcons.Plus, t(if (makes == Kind.TASK) R.string.new_task else R.string.new_note), {
+                    scope.launch { nav.go(Screen.Entry(graph.library.create(makes))) }
+                }, alpha = 0.55f)
+            }
         }
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {

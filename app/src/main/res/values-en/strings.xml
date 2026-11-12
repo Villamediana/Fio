@@ -346,4 +346,12 @@
     <string name="stage_seeing_many">Looking at the photos… %1$d of %2$d</string>
     <string name="stage_files">Seeing what the file is…</string>
     <string name="stage_files_many">Seeing what the files are… %1$d of %2$d</string>
+    <string name="delete_item_title">Delete this item?</string>
+    <string name="delete_item_with">The photos and files that are only in it go with it.</string>
+    <string name="file_remove">Remove</string>
+    <string name="file_remove_title">Remove the file from Novelo?</string>
+    <string name="title_hint">Title</string>
+    <string name="new_task">New task</string>
+    <string name="new_note">New note</string>
+    <string name="step_move">Drag to reorder</string>
 </resources>

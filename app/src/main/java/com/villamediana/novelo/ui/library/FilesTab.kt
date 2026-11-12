@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -35,6 +37,8 @@ internal fun FilesTab(files: List<KeptFile>, empty: @Composable () -> Unit) {
         return
     }
     val context = LocalContext.current
+    var removing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<KeptFile?>(null) }
+    removing?.let { f -> com.villamediana.novelo.ui.entry.RemoveFile(f) { removing = null } }
     val zone = ZoneId.systemDefault()
     val days = remember(files) {
         val today = LocalDate.now(zone)
@@ -46,7 +50,7 @@ internal fun FilesTab(files: List<KeptFile>, empty: @Composable () -> Unit) {
             item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
             itemsIndexed(list, key = { _, f -> f.id }) { _, f ->
                 Box(Modifier.animateItem().padding(bottom = 8.dp)) {
-                    FileRow(f, onClick = { openFile(context, f) }, where = where(f))
+                    FileRow(f, onClick = { openFile(context, f) }, where = where(f), onLongClick = { removing = f })
                 }
             }
         }
