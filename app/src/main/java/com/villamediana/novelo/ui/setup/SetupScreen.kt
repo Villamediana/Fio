@@ -81,6 +81,7 @@ import com.villamediana.novelo.R
 import com.villamediana.novelo.ai.Provider
 import com.villamediana.novelo.ai.Providers
 import com.villamediana.novelo.local.LocalEngine
+import com.villamediana.novelo.ui.settings.moment
 import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.AppLang
 import com.villamediana.novelo.settings.Lang
@@ -108,15 +109,21 @@ import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 
 /**
- * The first steps, once: the permissions, where the backup goes, and who thinks with her — the
- * Novelo's own intelligence on the phone, or hers (a key from OpenAI, Anthropic, Kimi…). Each step
- * shows how things already are (so going through again is a few touches) and can be left for later.
+ * The first steps, once: the permissions, the backup (a folder; a backup already there comes back),
+ * who thinks with her — the Novelo's own intelligence or hers — and last the Novelo's ears, which
+ * have to be on the phone before the app opens: that step only ends when they are. They start
+ * coming right after the permissions when the phone is on Wi-Fi, so most of it is done by then.
  */
 @Composable
 fun SetupScreen(onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
+    val model = NoveloApplication.graph.localModel
+    val ears by model.state.collectAsStateWithLifecycle()
+    LaunchedEffect(step >= 1, ears == LocalModel.State.Missing) {
+        if (step >= 1 && ears == LocalModel.State.Missing && LocalEngine.available && model.onWifi()) model.download()
+    }
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Steps(step, count = 3, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
+        Steps(step, count = 4, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
         AnimatedContent(
             targetState = step,
             transitionSpec = {
@@ -129,7 +136,8 @@ fun SetupScreen(onDone: () -> Unit) {
             when (at) {
                 0 -> PermissionsStep(onNext = { step = 1 })
                 1 -> BackupStep(onNext = { step = 2 })
-                else -> IntelligenceStep(onDone = onDone)
+                2 -> IntelligenceStep(onNext = { step = 3 })
+                else -> EarsStep(onDone = onDone)
             }
         }
     }
@@ -154,6 +162,7 @@ private fun Page(
     line: String,
     primary: String,
     onPrimary: () -> Unit,
+    primaryEnabled: Boolean = true,
     secondary: String? = null,
     onSecondary: () -> Unit = {},
     top: @Composable () -> Unit = {},
@@ -173,7 +182,7 @@ private fun Page(
             Spacer(Modifier.height(24.dp))
         }
         Column(Modifier.fillMaxWidth().padding(bottom = 18.dp, top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            BigButton(primary, onPrimary, Modifier.fillMaxWidth())
+            BigButton(primary, onPrimary, Modifier.fillMaxWidth(), enabled = primaryEnabled)
             if (secondary != null) {
                 Text(
                     secondary,
@@ -201,15 +210,15 @@ private fun Yarn(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
             .pressScale(interaction, 0.97f)
             .heightIn(min = 56.dp)
             .clip(CircleShape)
-            .background(NoveloColors.Accent)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .background(if (enabled) NoveloColors.Accent else NoveloColors.Accent.copy(alpha = 0.35f))
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
             .semantics { role = Role.Button }
             .padding(horizontal = 24.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
@@ -327,9 +336,23 @@ private fun Permission(icon: ImageVector, title: String, why: String, ok: Boolea
 @Composable
 private fun BackupStep(onNext: () -> Unit) {
     val graph = NoveloApplication.graph
+    val scope = rememberCoroutineScope()
     val s by graph.settings.now.collectAsStateWithLifecycle()
+    // Looking in the folder / bringing a backup back; then what came back (when one did).
+    var bringing by remember { mutableStateOf(false) }
+    var back by remember { mutableStateOf<String?>(null) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) graph.backups.choose(uri)
+        if (uri != null) {
+            bringing = true
+            back = null
+            scope.launch {
+                val r = runCatching { graph.backups.chooseAndBringBack(uri) }.getOrNull()
+                back = r?.let { (kept, restored) ->
+                    t(R.string.setup_backup_back, moment(kept.at), com.villamediana.novelo.backup.Backups.note(restored.entries, restored.photos, restored.sounds))
+                }
+                bringing = false
+            }
+        }
     }
     val chosen = s.backupFolder.isNotBlank()
     fun choose() = pick.launch(s.backupFolder.takeIf { it.isNotBlank() }?.let(Uri::parse))
@@ -338,10 +361,11 @@ private fun BackupStep(onNext: () -> Unit) {
         line = t(R.string.setup_backup_line),
         primary = t(if (chosen) R.string.setup_continue else R.string.setup_choose_folder),
         onPrimary = { if (chosen) onNext() else choose() },
-        secondary = if (chosen) null else t(R.string.setup_later),
+        primaryEnabled = !bringing,
+        secondary = if (chosen || bringing) null else t(R.string.setup_later),
         onSecondary = onNext,
     ) {
-        Card(onClick = { choose() }) {
+        Card(onClick = { if (!bringing) choose() }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(NoveloColors.Accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                     Icon(NoveloIcons.Upload, null, tint = NoveloColors.Accent, modifier = Modifier.size(20.dp))
@@ -350,14 +374,25 @@ private fun BackupStep(onNext: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text(t(R.string.backup_folder), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
                     Text(
-                        if (chosen) s.backupPlace.ifBlank { t(R.string.backup_folder_chosen) } else t(R.string.backup_choose_where),
+                        when {
+                            bringing -> t(R.string.setup_backup_bringing)
+                            chosen -> s.backupPlace.ifBlank { t(R.string.backup_folder_chosen) }
+                            else -> t(R.string.backup_choose_where)
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (chosen) NoveloColors.TextMuted else NoveloColors.Accent,
+                        color = if (chosen || bringing) NoveloColors.TextMuted else NoveloColors.Accent,
                     )
                 }
-                if (chosen) Icon(NoveloIcons.Check, null, tint = NoveloColors.Success, modifier = Modifier.size(20.dp))
-                else Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
+                when {
+                    bringing -> androidx.compose.material3.CircularProgressIndicator(color = NoveloColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    chosen -> Icon(NoveloIcons.Check, null, tint = NoveloColors.Success, modifier = Modifier.size(20.dp))
+                    else -> Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
+                }
             }
+        }
+        back?.let {
+            Spacer(Modifier.height(12.dp))
+            Note(it, NoveloColors.Success)
         }
     }
 }
@@ -366,7 +401,7 @@ private fun BackupStep(onNext: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IntelligenceStep(onDone: () -> Unit) {
+private fun IntelligenceStep(onNext: () -> Unit) {
     val graph = NoveloApplication.graph
     val st = graph.settings
     val scope = rememberCoroutineScope()
@@ -374,16 +409,11 @@ private fun IntelligenceStep(onDone: () -> Unit) {
     // Hers when her API already thinks; the Novelo's otherwise.
     var own by rememberSaveable { mutableStateOf(s.think == Source.API) }
 
-    fun finish() = scope.launch {
-        st.setSetupDone()
-        onDone()
-    }
-
     Page(
         title = t(R.string.setup_ai_title),
         line = t(R.string.setup_ai_line),
-        primary = t(R.string.setup_start),
-        onPrimary = { finish() },
+        primary = t(R.string.setup_continue),
+        onPrimary = onNext,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Card(selected = !own, onClick = {
@@ -400,10 +430,36 @@ private fun IntelligenceStep(onDone: () -> Unit) {
             }
             Spacer(Modifier.height(6.dp))
             if (own) OwnSetup()
-            // Hearing is on the phone, whoever thinks: its ears come down (just its name and size).
-            Text(t(R.string.local_pack_hear) + " · " + formatBytes(graph.localModel.totalBytes), style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
-            LocalDownload()
         }
+    }
+}
+
+// ——— 4. The ears ———
+
+/**
+ * The Novelo's ears (LFM3-Omni, on the phone): without them nothing is heard, so the first steps
+ * only end once they are here — "Começar" waits for them. (A build without the engine, only for
+ * tests, can't have them: it lets her go.)
+ */
+@Composable
+private fun EarsStep(onDone: () -> Unit) {
+    val graph = NoveloApplication.graph
+    val scope = rememberCoroutineScope()
+    val state by graph.localModel.state.collectAsStateWithLifecycle()
+    val ready = state == LocalModel.State.Ready || !LocalEngine.available
+    Page(
+        title = t(R.string.setup_ears_title),
+        line = t(R.string.setup_ears_line, formatBytes(graph.localModel.totalBytes)),
+        primary = t(if (ready) R.string.setup_start else R.string.setup_ears_wait),
+        onPrimary = {
+            scope.launch {
+                graph.settings.setSetupDone()
+                onDone()
+            }
+        },
+        primaryEnabled = ready,
+    ) {
+        LocalDownload()
     }
 }
 

@@ -45,7 +45,8 @@ enum class ThemeMode(val key: String) {
     SYSTEM("system"), LIGHT("light"), DARK("dark");
 
     companion object {
-        fun of(key: String?): ThemeMode = entries.firstOrNull { it.key == key } ?: SYSTEM
+        /** Light unless she chose otherwise. */
+        fun of(key: String?): ThemeMode = entries.firstOrNull { it.key == key } ?: LIGHT
     }
 }
 
@@ -58,7 +59,7 @@ data class NoveloSettings(
     /** Whose API (see [Providers]); empty: set up before providers existed, the address she typed. */
     val apiProvider: String = "",
     val hasApiKey: Boolean = false,
-    val theme: ThemeMode = ThemeMode.SYSTEM,
+    val theme: ThemeMode = ThemeMode.LIGHT,
     /** The highlight color's id (see NoveloAccents); empty is the thread's own vermilion. */
     val accent: String = "",
     /** The "segure ou toque" hint under the button was seen (it shows only until the first capture). */

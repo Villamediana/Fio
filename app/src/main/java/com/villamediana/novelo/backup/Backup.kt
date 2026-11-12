@@ -104,6 +104,9 @@ class Backup(
         }
     }
 
+    /** Nothing in the app yet (a first start): a backup found can come back without replacing anything. */
+    suspend fun empty(): Boolean = withContext(Dispatchers.IO) { db.backup().count() == 0 }
+
     /** The backups in [root], the newest first: the file, and the dated ones of the old folder while it is there. */
     suspend fun kept(root: Shelf): List<Kept> = withContext(Dispatchers.IO) {
         val out = ArrayList<Kept>()

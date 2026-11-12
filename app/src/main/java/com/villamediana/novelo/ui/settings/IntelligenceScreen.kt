@@ -119,8 +119,12 @@ fun IntelligenceSection() {
                 )
             })
 
-            SectionLabel(t(R.string.ai_on_phone))
-            Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear)) })
+            // The ears come in the first steps and stay (only uninstalling takes them): nothing here
+            // once they are on the phone; the line shows only if they went missing, to bring them back.
+            if (local != LocalModel.State.Ready) {
+                SectionLabel(t(R.string.ai_on_phone))
+                Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear)) })
+            }
 
             if (s.think == Source.API) {
                 SectionLabel(t(R.string.ai_api))
