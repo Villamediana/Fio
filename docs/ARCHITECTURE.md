@@ -7,10 +7,11 @@ Orb (segurar / tocar / arrastar pra cima)
   → Recorder (AudioRecord 16 kHz mono → WAV; nível 0..1 a cada 20 ms)   MicService segura com a tela apagada
   → Capture (banco: recorded)
   → Mind.process (fila, um por vez)
-      Ears.transcribe     Hearing: LFM3-Omni no celular (pedaços ≤ 28 s) ou API /audio/transcriptions (pedaços ≤ 5 min)
+      Ears.transcribe     Hearing: sempre LFM3-Omni no celular (pedaços ≤ 28 s), quem quer que pense
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      Thinking: LFM3-Omni no celular (gramática JSON GBNF, foto pelo projetor a 768 px) ou API /chat/completions (json_object)
+      Thinker.organize    no celular (1.19): LocalOrganizer → Plan inteiro (ver "Organizar no celular"); sem procuras
+      Thinker.answer      API /chat/completions (json_object), foto a 768 px
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
         e outra chamada com os resultados; até 2 procuras, somando o que achou
@@ -62,8 +63,8 @@ costura sob a escolhida. A aba Conexões (o grafo, `ui/graph`) está escondida p
 em `LibraryScreen` deixa `Filter.LINKS` de fora. Cartões do mesmo grupo encostam (2 dp, cantos
 redondos só nas pontas). Ajustes (1.17.2) são três portas e o "Sobre": Inteligência, Tema e Backup,
 cada uma dizendo em poucas palavras como está (no acento quando falta algo) e com os detalhes atrás.
-Inteligência mostra Ouvir/Pensar (Celular ou API) e só o que a escolha pede — o modelo do celular ou o
-endereço e a chave da API, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
+Inteligência mostra só "Quem pensa" (Celular ou API; ouvir é sempre do celular) e o que a escolha pede — o
+download do celular (a inteligência inteira, ou só o ouvido quando a API pensa) e o endereço e a chave da API, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
 sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
 costurada.
 
@@ -205,8 +206,8 @@ null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
   têm endereço próprio só pedem a chave; Foundry e Outro pedem o endereço. A conexão é testada sozinha
   (lista de modelos). `Wire.ANTHROPIC` fala a Messages API da própria Anthropic (`x-api-key`,
   `anthropic-version`, `output_config.effort`, `fallbacks: "default"` nos modelos que aceitam); os
-  outros, o jeito OpenAI. Provedor que não ouve áudio (Anthropic, Kimi, OpenRouter): ouvir fica no
-  celular. Sem provedor salvo (configurado antes) = Outro, com o endereço digitado.
+  outros, o jeito OpenAI. Ouvir é sempre no celular (desde a 1.19): com a API pensando, os primeiros passos
+  baixam só o ouvido do Novelo. Sem provedor salvo (configurado antes) = Outro, com o endereço digitado.
 - **Idioma do app** (`settings/Lang`): português por padrão (seja qual for o idioma do celular), inglês
   ou espanhol nos primeiros passos e em Ajustes › Idioma; guardado em SharedPreferences pra valer desde
   o primeiro quadro (`FioActivity.attachBaseContext`). Todo texto vem de `t(R.string.…)`
@@ -276,7 +277,14 @@ Novelo backup.zip
 
 - `transcribe`: `mtmd_bitmap_init_from_audio` + prompt ChatML com `Perform ASR.` (idioma automático),
   `mtmd_helper_eval_chunks`, guloso, sem `<|audio_start|>`/`<|mixed_start|>` (resposta só texto).
-- `generate`: o mesmo modelo como texto, com a gramática JSON.
+- `generate`: um prompt pronto (e talvez uma foto no marcador de mídia), texto saindo, opcionalmente preso a uma
+  gramática GBNF: o Omni descreve a foto, o LFM3-1.7B escreve.
+- `decide` (`fio_decide.h`): uma pergunta ao d1 — o prompt inteiro numa passada só (o modelo não é causal e não
+  tem memória: `llama_encode`), e no fim o maior logit de cada grupo de rótulos ("yes"/"Yes"/"YES"; "A"/" A").
+  `nativeSpellings` dá os tokens de controle (o que ela diz não pode soletrá-los) e `nativeMeta` a temperatura
+  do modelo (`lfm3.decision.temperature.*`). É o que o `/v1/systemone` do llama-server faz pro tipo lfm3-d1
+  (`tools/server/server-decision.cpp`); no lab (`~/novelo-lab/d1port`) o mesmo arquivo compilado no computador
+  deu as mesmas probabilidades nas 60 perguntas de teste (diferença 0,0000).
 
 O prompt de ASR é o mesmo do `llama-server` pro LFM3 (e o do card do LFM3-Omni) (`common_chat_get_asr_prompt`): sistema
 `Perform ASR in <idioma>.` e o áudio sozinho na fala do usuário.
@@ -285,10 +293,32 @@ O build só inclui o nativo com `-Pfio.llama=<pasta do llama.cpp>`. O `release.s
 numa pasta temporária (`tools/fetch-llama.sh`), compila e apaga tudo no fim (a pasta, `app/.cxx` e o
 que o CMake gerou): nada do motor nem do modelo fica no servidor; o modelo só existe no celular,
 baixado do Hugging Face. Sem o nativo, `LocalEngine.available` é falso e Ajustes diz que não vem.
-Arquivos: `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Omni-2B-Q8_0.gguf` (507 MB, visão e áudio). Um modelo
-só ouve (mesmo prompt de ASR), organiza e vê a foto (`nativeGenerate` com a imagem no marcador de mídia; se a
-foto não decodificar, segue só o texto). Até a 1.6 quem ouvia era o LFM3-Audio; os arquivos dele são apagados
-do celular ao abrir (`Spec.LEFTOVERS`).
+Arquivos (`LocalModel`): `LFM3-Omni-2B-Q4_0.gguf` (1,05 GB) + `mmproj-LFM3-Omni-2B-Q8_0.gguf` (507 MB, visão e
+áudio) sempre; com o celular pensando, mais `d1-2B-Q4_0.gguf` (1,05 GB) e `LFM3-1.7B-QAD-Q4_0.gguf` (1,05 GB).
+Uma barra só: as partes vêm uma depois da outra (`wanted.txt` lembra o pedido se o app fechar), a notificação
+diz "Novelo" e não o nome de modelo, e cada parte tem seu `.ok` com o SHA-256 conferido. Um modelo na memória
+por vez (`LocalEngine.use` troca quando o arquivo muda): o d1 com contexto e lote de 8.192 (lê tudo de uma vez),
+os outros com contexto 8.192 e lote 1.024. Até a 1.6 quem ouvia era o LFM3-Audio; até a 1.18 o Omni também
+organizava. O que sobrou disso é apagado ao abrir (`LocalModel.LEFTOVERS`).
+
+## Organizar no celular (1.19.0)
+
+Medido no `~/novelo-lab` (10 falas PT/ES, 23 checagens): o Omni com o prompt grande da API acertava 8/23 e levava
+minutos no celular. O caminho novo (`mind/LocalBrain` + `mind/LocalOrganizer`) acerta 23/23 com o código Kotlin
+do app contra os modelos do lab (`LocalBrainLabTest`, só com `NOVELO_LAB=<cases.json>`):
+
+1. **d1-2B decide**, uma pergunta por passada: é pergunta? é o dia dela? tarefa nova? algo pra guardar? qual tarefa
+   aberta ela terminou? de qual deu notícia? (e, se há nota, se é segredo). Sim a partir de 0,5; tarefa escolhida
+   quando não é "nenhuma" e tem 0,5 ou mais. O estado que ele lê: as tarefas abertas (até 25, a do check-in
+   primeiro; "due today/tomorrow/data") e a fala. Pergunta não traz notícia de tarefa.
+2. **LFM3-1.7B escreve só o decidido**, preso a uma gramática com exatamente esses campos (`diary`, `tasks`,
+   `notes`, `news`, `answer` ou `reply`); vê AGORA com o amanhã já calculado, e as tarefas abertas e o que pode
+   ter a ver só quando é pergunta.
+3. **Plan por regra**: o relato vai pro diário do dia (o `Keeper` junta se já existe); tarefas e notas novas
+   (tarefa com hora lembra 15 min antes; hora sem dia = a próxima vez que ela chega); feita = `done`; notícia
+   entra no texto da tarefa. Fotos mandadas junto ficam com a primeira coisa criada ou mudada.
+4. **Foto**: o Omni descreve (só pra busca); o texto lido nela passa pelo mesmo caminho (sem diário nem
+   pergunta). Foto sem texto só fica no dia.
 
 ## Lançar versão
 

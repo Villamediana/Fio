@@ -363,8 +363,8 @@ private fun IntelligenceStep(onDone: () -> Unit) {
     val st = graph.settings
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
-    // Hers when anything already goes through an API; the Novelo's otherwise.
-    var own by rememberSaveable { mutableStateOf(s.hear == Source.API || s.think == Source.API) }
+    // Hers when her API already thinks; the Novelo's otherwise.
+    var own by rememberSaveable { mutableStateOf(s.think == Source.API) }
 
     fun finish() = scope.launch {
         st.setSetupDone()
@@ -380,16 +380,16 @@ private fun IntelligenceStep(onDone: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Card(selected = !own, onClick = {
                 own = false
-                scope.launch { st.setHear(Source.LOCAL); st.setThink(Source.LOCAL) }
+                scope.launch { st.setThink(Source.LOCAL) }
             }) {
                 Column {
                     Text(t(R.string.setup_ai_novelo), style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
-                    Text(t(R.string.setup_ai_novelo_line, formatBytes(graph.localModel.totalBytes)), style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
+                    Text(t(R.string.setup_ai_novelo_line, formatBytes(LocalModel.ALL.sumOf { it.size })), style = MaterialTheme.typography.bodyMedium, color = FioColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
                 }
             }
             Card(selected = own, onClick = {
                 own = true
-                scope.launch { st.setThink(Source.API); if (s.provider.hears) st.setHear(Source.API) else st.setHear(Source.LOCAL) }
+                scope.launch { st.setThink(Source.API) }
             }) {
                 Column {
                     Text(t(R.string.setup_ai_own), style = MaterialTheme.typography.titleLarge, color = FioColors.Text)
@@ -397,7 +397,14 @@ private fun IntelligenceStep(onDone: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(6.dp))
-            if (own) OwnSetup() else LocalDownload()
+            if (own) {
+                OwnSetup()
+                // Hearing stays on the phone: its ears come down too.
+                Text(t(R.string.setup_hears_here, formatBytes(LocalModel.HEAR.sumOf { it.size })), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
+                LocalDownload()
+            } else {
+                LocalDownload()
+            }
         }
     }
 }
@@ -409,8 +416,8 @@ internal fun LocalDownload(modifier: Modifier = Modifier) {
     val state by model.state.collectAsStateWithLifecycle()
     var waitingWifi by rememberSaveable { mutableStateOf(false) }
     val onWifi = remember { model.onWifi() }
-    // On Wi-Fi it simply starts.
-    LaunchedEffect(Unit) { if (LocalEngine.available && onWifi && state == LocalModel.State.Missing) model.download() }
+    // On Wi-Fi it simply starts (also when the choice changes what has to come).
+    LaunchedEffect(state == LocalModel.State.Missing) { if (LocalEngine.available && onWifi && state == LocalModel.State.Missing) model.download() }
     val percent = NumberFormat.getPercentInstance(Lang.locale)
     Column(modifier.fillMaxWidth().animateContentSize()) {
         when {
@@ -458,8 +465,7 @@ private fun Note(text: String, color: Color) {
 
 /**
  * Her own: whose (a chip each), the key (and the address when that provider has none of its
- * own), tested by itself; then the model that thinks and — when the provider hears — the one that
- * hears. When it doesn't hear (Anthropic, Kimi, OpenRouter), hearing stays on the phone.
+ * own), tested by itself; then the model that thinks. Hearing is always on the phone.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -473,7 +479,7 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
     var status by remember { mutableStateOf<Pair<String, Boolean?>?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var picking by remember { mutableStateOf<Int?>(null) } // 0 = thinks, 1 = hears
+    var picking by remember { mutableStateOf(false) }
     val provider = s.provider
 
     suspend fun connect() {
@@ -503,7 +509,6 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
                     scope.launch {
                         st.setApiProvider(p.id)
                         models = emptyList(); status = null
-                        if (!p.hears) st.setHear(Source.LOCAL) else if (s.hear == Source.LOCAL && s.think == Source.API) st.setHear(Source.API)
                     }
                 })
             }
@@ -524,31 +529,24 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true)
                 Text(text, style = MaterialTheme.typography.bodySmall, color = if (ok == true) FioColors.Success else FioColors.Danger, modifier = Modifier.padding(start = if (loading) 8.dp else 0.dp))
             }
         }
-        if (showModels && s.apiReady) {
-            ModelLine(t(R.string.ai_model_thinks), s.thinkModel) { picking = 0 }
-            if (provider.hears) ModelLine(t(R.string.ai_model_hears), s.hearModel) { picking = 1 }
-        }
-        if (showModels && !provider.hears && s.apiProvider.isNotBlank()) {
-            Text(t(R.string.setup_hears_on_phone, providerName(provider)), style = MaterialTheme.typography.bodySmall, color = FioColors.TextMuted)
-            LocalDownload()
-        }
+        if (showModels && s.apiReady) ModelLine(t(R.string.ai_model_thinks), s.thinkModel) { picking = true }
     }
 
-    picking?.let { job ->
+    if (picking) {
         ModelPicker(
-            title = t(if (job == 0) R.string.ai_model_thinks_title else R.string.ai_model_hears_title),
-            current = if (job == 0) s.thinkModel else s.hearModel,
+            title = t(R.string.ai_model_thinks_title),
+            current = s.thinkModel,
             models = models,
             settings = s,
             onLoad = { scope.launch { connect() } },
             onPick = { m ->
                 scope.launch {
-                    if (job == 0) { st.setThinkModel(m); st.setThink(Source.API) } else { st.setHearModel(m); st.setHear(Source.API) }
+                    st.setThinkModel(m); st.setThink(Source.API)
                     graph.mind.retryPending()
                 }
-                picking = null
+                picking = false
             },
-            onDismiss = { picking = null },
+            onDismiss = { picking = false },
         )
     }
 }

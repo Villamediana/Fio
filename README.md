@@ -20,10 +20,10 @@ Na primeira vez o app pede as permissões, a pasta do backup e quem vai pensar: 
 
 ## Onde roda
 
-Em Ajustes › Inteligência você escolhe, separadamente, quem **ouve** (transcreve) e quem **pensa** (organiza). O idioma da fala é reconhecido sozinho.
+Ouvir é sempre no celular: o LFM3-Omni 2B (Liquid AI, via llama.cpp) transcreve, e o idioma da fala é reconhecido sozinho. Em Ajustes › Inteligência você escolhe só quem **pensa** (organiza):
 
-- **No celular** (Liquid AI, via llama.cpp, sem internet): o LFM3-Omni 2B ouve, organiza e vê as fotos. São 1,56 GB baixados uma vez, em Ajustes.
-- **Por uma API compatível com OpenAI** (OpenAI, Azure AI Foundry, OpenRouter, um servidor local): você informa o endereço e a chave (a conexão é testada sozinha) e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
+- **Inteligência do Novelo** (no celular, sem internet): o d1-2B decide o que há na fala (dia, tarefa, nota, pergunta, tarefa feita ou com novidade), o LFM3-1.7B escreve só isso, e o Omni vê as fotos. São 3,7 GB baixados uma vez, numa barra só.
+- **Sua própria inteligência** (OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter ou outro endereço): você informa a chave (a conexão é testada sozinha) e escolhe o modelo; o celular baixa só o ouvido (1,56 GB). A chave fica cifrada no aparelho (AndroidKeyStore).
 
 Tudo o que você guarda fica no celular. Sai dele só o que vai pra API escolhida.
 

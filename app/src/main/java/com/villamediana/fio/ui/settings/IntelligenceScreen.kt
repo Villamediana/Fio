@@ -82,9 +82,9 @@ import com.villamediana.fio.settings.t
 import com.villamediana.fio.ui.setup.OwnSetup
 
 /**
- * Ajustes › Inteligência: who hears and who thinks (the phone or her API), and only what that
- * choice needs — the model on the phone, or whose API and its key (tested by itself, the same as
- * in the first steps).
+ * Ajustes › Inteligência: who thinks (the Novelo on the phone, or her API) and only what that
+ * choice needs. Hearing is always on the phone (LFM3-Omni), so the download is always here: the
+ * whole of the Novelo's intelligence, or just its ears when her API thinks.
  */
 @Composable
 fun IntelligenceScreen(nav: Nav) {
@@ -94,12 +94,9 @@ fun IntelligenceScreen(nav: Nav) {
     val s by st.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
-    var picking by remember { mutableStateOf<Pick?>(null) }
-    val usesApi = s.hear == Source.API || s.think == Source.API
-    val usesPhone = s.hear == Source.LOCAL || s.think == Source.LOCAL
-    val provider = s.provider
+    var picking by remember { mutableStateOf(false) }
 
-    /** The models of her API, for the list. */
+/** The models of her API, for the list. */
     fun loadModels() {
         scope.launch {
             val k = st.apiKey()
@@ -113,46 +110,24 @@ fun IntelligenceScreen(nav: Nav) {
         PageTop(t(R.string.ai_title)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
-            Group(
-                Modifier,
-                {
-                    WorkLine(
-                        title = t(R.string.ai_hear),
-                        source = s.hear,
-                        model = s.hearModel,
-                        local = local,
-                        localName = graph.localModel.spec.name,
-                        // A provider that doesn't hear: hearing stays on the phone.
-                        apiNote = if (!provider.hears && s.think == Source.API) t(R.string.ai_provider_no_audio, providerName(provider)) else null,
-                        onSource = { src ->
-                            scope.launch { st.setHear(src) }
-                            if (src == Source.API && s.hearModel.isBlank()) picking = Pick.HEAR
-                        },
-                        onPick = { picking = Pick.HEAR },
-                    )
-                },
-                {
-                    WorkLine(
-                        title = t(R.string.ai_think),
-                        source = s.think,
-                        model = s.thinkModel,
-                        local = local,
-                        localName = graph.localModel.spec.name,
-                        onSource = { src ->
-                            scope.launch { st.setThink(src) }
-                            if (src == Source.API && s.thinkModel.isBlank()) picking = Pick.THINK
-                        },
-                        onPick = { picking = Pick.THINK },
-                    )
-                },
-            )
+            Group(Modifier, {
+                ThinkLine(
+                    source = s.think,
+                    model = s.thinkModel,
+                    local = local,
+                    localName = packName(s),
+                    onSource = { src ->
+                        scope.launch { st.setThink(src) }
+                        if (src == Source.API && s.thinkModel.isBlank()) picking = true
+                    },
+                    onPick = { picking = true },
+                )
+            })
 
-            if (usesPhone) {
-                SectionLabel(t(R.string.ai_on_phone))
-                Group(Modifier, { LocalModelLine(graph.localModel, local) })
-            }
+            SectionLabel(t(R.string.ai_on_phone))
+            Group(Modifier, { LocalModelLine(graph.localModel, local, packName(s)) })
 
-            if (usesApi) {
+            if (s.think == Source.API) {
                 SectionLabel(t(R.string.ai_api))
                 OwnSetup(showModels = false)
             }
@@ -160,29 +135,30 @@ fun IntelligenceScreen(nav: Nav) {
         }
     }
 
-    picking?.let { job ->
+    if (picking) {
         ModelPicker(
-            title = t(if (job == Pick.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
-            current = if (job == Pick.HEAR) s.hearModel else s.thinkModel,
+            title = t(R.string.ai_model_thinks_title),
+            current = s.thinkModel,
             models = models,
             settings = s,
             onLoad = { loadModels() },
             onPick = { m ->
                 scope.launch {
-                    if (job == Pick.HEAR) st.setHearModel(m) else st.setThinkModel(m)
+                    st.setThinkModel(m)
                     graph.mind.retryPending()
                 }
-                picking = null
+                picking = false
             },
-            onDismiss = { picking = null },
+            onDismiss = { picking = false },
         )
     }
 }
 
+/** What is on the phone, by name: the Novelo's whole intelligence, or only its ears (her API thinks). */
+internal fun packName(s: FioSettings): String = t(if (s.think == Source.LOCAL) R.string.local_pack_think else R.string.local_pack_hear)
+
 /** A provider's name as she reads it ("Outro" / "Other" / "Otro" for an address of her own). */
 internal fun providerName(p: Provider): String = if (p == Providers.OTHER) t(R.string.provider_other) else p.name
-
-private enum class Pick { HEAR, THINK }
 
 /** The model on the phone in a few words: what it needs or how it is. */
 internal fun localShort(state: LocalModel.State): String = when {
@@ -194,31 +170,26 @@ internal fun localShort(state: LocalModel.State): String = when {
     else -> t(R.string.local_needs_download)
 }
 
-/**
- * One job (hear or think): where it runs on the right; under the name, the model doing it.
- * [apiNote]: the API can't do this job (its provider doesn't hear) — said instead of the choice.
- */
+/** Who thinks: the phone or her API, on the right; under it, what is doing it (her API's model opens the list). */
 @Composable
-private fun WorkLine(
-    title: String,
+private fun ThinkLine(
     source: Source,
     model: String,
     local: LocalModel.State,
     localName: String,
     onSource: (Source) -> Unit,
     onPick: () -> Unit,
-    apiNote: String? = null,
 ) {
-    val api = source == Source.API && apiNote == null
+    val api = source == Source.API
     Row(
         Modifier.fillMaxWidth().clickable(enabled = api, onClick = onPick).padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
+            Text(t(R.string.ai_who_thinks), style = MaterialTheme.typography.titleMedium, color = FioColors.Text)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
-                    apiNote ?: if (api) model.ifBlank { t(R.string.ai_choose_model) } else "$localName · ${localShort(local)}",
+                    if (api) model.ifBlank { t(R.string.ai_choose_model) } else "$localName · ${localShort(local)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (api && model.isBlank()) FioColors.Accent else FioColors.TextMuted,
                     maxLines = 2,
@@ -228,24 +199,22 @@ private fun WorkLine(
                 if (api) Icon(FioIcons.Chevron, null, tint = FioColors.TextFaint, modifier = Modifier.padding(start = 2.dp).size(14.dp))
             }
         }
-        if (apiNote == null) {
-            Segmented(
-                listOf(t(R.string.ai_phone), t(R.string.ai_api)),
-                selected = if (api) 1 else 0,
-                onSelect = { i -> onSource(if (i == 1) Source.API else Source.LOCAL) },
-            )
-        }
+        Segmented(
+            listOf(t(R.string.ai_phone), t(R.string.ai_api)),
+            selected = if (api) 1 else 0,
+            onSelect = { i -> onSource(if (i == 1) Source.API else Source.LOCAL) },
+        )
     }
 }
 
-/** The model that lives on the phone (it hears, thinks and sees): its state, and the one thing to do about it. */
+/** What lives on the phone, as one thing ([name]): its state, and the one thing to do about it. */
 @Composable
-private fun LocalModelLine(model: LocalModel, state: LocalModel.State) {
+private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: String) {
     val total = model.totalBytes
     val percent = NumberFormat.getPercentInstance(Lang.locale)
     Column(Modifier.fillMaxWidth().animateContentSize()) {
         Line(
-            title = model.spec.name,
+            title = name,
             subtitle = when {
                 !LocalEngine.available -> t(R.string.local_not_in_version)
                 state is LocalModel.State.Ready -> t(R.string.local_ready)

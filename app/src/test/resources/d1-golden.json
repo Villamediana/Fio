@@ -1,0 +1,42 @@
+[
+ {
+  "said": "Amanhã eu preciso ligar pro Pedro sobre o contrato às nove, e anota que a senha do wifi da casa da minha mãe é girassol123. Ah, e já paguei o IPVA.",
+  "q": "question",
+  "prompt": "<|startoftext|><|im_start|>user\nHer open tasks:\n#41 Fechar contrato da torre de Campinas (due tomorrow 15:00)\n#52 Pagar o IPVA (due today)\n#57 Presente de aniversário da Ana (reminder tomorrow 09:00)\n\nWhat she just said (automatic transcription):\n\"Amanhã eu preciso ligar pro Pedro sobre o contrato às nove, e anota que a senha do wifi da casa da minha mãe é girassol123. Ah, e já paguei o IPVA.\"\n\n\nQUESTION:\nIs she asking a question, wanting to know something?\n\nReply with yes or no only.<|im_end|>\n<|im_start|>assistant\n<think></think>",
+  "server": [
+   0.04764918385684268,
+   0.9523508161431573
+  ]
+ },
+ {
+  "said": "Amanhã eu preciso ligar pro Pedro sobre o contrato às nove, e anota que a senha do wifi da casa da minha mãe é girassol123. Ah, e já paguei o IPVA.",
+  "q": "done",
+  "prompt": "<|startoftext|><|im_start|>user\nHer open tasks:\n#41 Fechar contrato da torre de Campinas (due tomorrow 15:00)\n#52 Pagar o IPVA (due today)\n#57 Presente de aniversário da Ana (reminder tomorrow 09:00)\n\nWhat she just said (automatic transcription):\n\"Amanhã eu preciso ligar pro Pedro sobre o contrato às nove, e anota que a senha do wifi da casa da minha mãe é girassol123. Ah, e já paguei o IPVA.\"\n\n\nQUESTION:\nWhich of her open tasks does she say she already did, bought, paid or finished?\n\nOptions:\nA None of her open tasks\nB Fechar contrato da torre de Campinas\nC Pagar o IPVA\nD Presente de aniversário da Ana\n\nReply with the option code only.<|im_end|>\n<|im_start|>assistant\n<think></think>",
+  "server": [
+   0.011360060566817681,
+   0.002030844448479089,
+   0.9840794180366451,
+   0.0025296769480582346
+  ]
+ },
+ {
+  "said": "Ya compré el regalo de Ana.",
+  "q": "news",
+  "prompt": "<|startoftext|><|im_start|>user\nHer open tasks:\n#41 Fechar contrato da torre de Campinas (due tomorrow 15:00)\n#52 Pagar o IPVA (due today)\n#57 Presente de aniversário da Ana (reminder tomorrow 09:00)\n\nWhat she just said (automatic transcription):\n\"Ya compré el regalo de Ana.\"\n\n\nQUESTION:\nWhich of her open tasks does she give news about (progress or a change) without finishing it?\n\nOptions:\nA None of her open tasks\nB Fechar contrato da torre de Campinas\nC Pagar o IPVA\nD Presente de aniversário da Ana\n\nReply with the option code only.<|im_end|>\n<|im_start|>assistant\n<think></think>",
+  "server": [
+   0.5786029071340859,
+   0.027743345224738803,
+   0.0210413808120476,
+   0.3726123668291277
+  ]
+ },
+ {
+  "said": "Hoy estuve cansada todo el día. Mañana tengo que llamar al pediatra a las ocho.",
+  "q": "diary",
+  "prompt": "<|startoftext|><|im_start|>user\nHer open tasks:\n#41 Fechar contrato da torre de Campinas (due tomorrow 15:00)\n#52 Pagar o IPVA (due today)\n#57 Presente de aniversário da Ana (reminder tomorrow 09:00)\n\nWhat she just said (automatic transcription):\n\"Hoy estuve cansada todo el día. Mañana tengo que llamar al pediatra a las ocho.\"\n\n\nQUESTION:\nIs she telling about her day: something she lived, did or felt?\n\nReply with yes or no only.<|im_end|>\n<|im_start|>assistant\n<think></think>",
+  "server": [
+   0.9318255140993517,
+   0.06817448590064834
+  ]
+ }
+]

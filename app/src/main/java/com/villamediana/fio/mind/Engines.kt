@@ -39,8 +39,28 @@ interface Ears {
     fun stop() {}
 }
 
+/**
+ * What organizing on the phone gets, as things (the API gets them written out by [Brain.context]):
+ * [said] (for a [photo], what is written in it), the open tasks, the item she answers about,
+ * what may be related, the photo(s) to look at and whether photos were sent with what she said.
+ */
+data class Talk(
+    val said: String,
+    val now: Long,
+    val zone: java.time.ZoneId,
+    val openTasks: List<com.villamediana.fio.data.Entry>,
+    val focus: com.villamediana.fio.data.Entry?,
+    val related: List<com.villamediana.fio.data.Entry>,
+    val photo: Boolean,
+    val image: ByteArray?,
+    val photos: Boolean,
+)
+
 /** Text (and maybe a photo) → the model's raw answer. */
 interface Thinker {
+    /** On the phone the plan is made there, whole ([LocalOrganizer]); null when the API thinks ([answer]). */
+    suspend fun organize(talk: Talk): Plan? = null
+
     /** True when the model that thinks can look at the photo itself (otherwise it gets the text read from it). */
     suspend fun seesImages(): Boolean
 
@@ -56,89 +76,52 @@ interface Thinker {
     fun stop() {}
 }
 
-/** Speech → text, on the phone (LFM3) or through the API chosen in Ajustes. */
+/** Speech → text: always LFM3-Omni, on the phone (whoever thinks). */
 class Hearing(
-    private val settings: Settings,
-    private val api: Api,
     private val engine: LocalEngine,
     private val model: LocalModel,
-    private val tmp: File,
 ) : Ears {
-    fun readiness(s: FioSettings): String? = when (s.hear) {
-        Source.LOCAL -> when {
-            !LocalEngine.available -> t(R.string.need_phone_not_in_version)
-            !model.ready -> t(R.string.need_download, model.spec.name)
-            else -> null
-        }
-        Source.API -> when {
-            !s.apiReady -> t(R.string.need_api)
-            !s.provider.hears -> t(R.string.need_hear_phone, s.provider.name)
-            s.hearModel.isBlank() -> t(R.string.need_hear_model)
-            else -> null
-        }
+    fun readiness(): String? = when {
+        !LocalEngine.available -> t(R.string.need_phone_not_in_version)
+        !model.hearReady -> t(R.string.need_download_pack)
+        else -> null
     }
 
     override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = withContext(Dispatchers.IO) {
-        val s = settings.current()
-        readiness(s)?.let { throw NotReady(Need.HEAR, it) }
+        readiness()?.let { throw NotReady(Need.HEAR, it) }
         val samples = Wav.readFloats(wav)
         if (Pieces.isSilent(samples)) return@withContext ""
-        val by = if (s.hear == Source.LOCAL) "local:$LOCAL_PIECE" else "api:$API_PIECE"
+        val by = "local:$PIECE"
         val start = if (from.by == by) from else Heard(by = by)
         var done = start.text
         if (done.isNotEmpty()) onPartial(done)
-        when (s.hear) {
-            Source.LOCAL -> {
-                val parts = Pieces.cut(samples, maxSeconds = LOCAL_PIECE)
-                for ((i, p) in parts.withIndex()) {
-                    if (i < start.pieces) continue
-                    val before = done
-                    val text = engine.transcribe(model.files, p, null) { partial -> onPartial(join(before, partial)) }
-                    done = join(before, text)
-                    onPartial(done)
-                    onPiece(Heard(done, i + 1, by))
-                }
-                done
-            }
-            Source.API -> {
-                val ep = s.endpoint(settings.apiKey().orEmpty())
-                val parts = if (wav.length() <= 20L * 1024 * 1024) listOf(null) else Pieces.cut(samples, maxSeconds = API_PIECE)
-                for ((i, p) in parts.withIndex()) {
-                    if (i < start.pieces) continue
-                    val file = if (p == null) wav else File(tmp, "piece-${System.nanoTime()}.wav").also { Wav.write(it, p) }
-                    try {
-                        done = join(done, api.transcribe(ep, s.hearModel, file, null))
-                        onPartial(done)
-                        onPiece(Heard(done, i + 1, by))
-                    } finally {
-                        if (p != null) file.delete()
-                    }
-                }
-                done
-            }
+        val parts = Pieces.cut(samples, maxSeconds = PIECE)
+        for ((i, p) in parts.withIndex()) {
+            if (i < start.pieces) continue
+            val before = done
+            val text = engine.transcribe(model.files, p, null) { partial -> onPartial(join(before, partial)) }
+            done = join(before, text)
+            onPartial(done)
+            onPiece(Heard(done, i + 1, by))
         }
+        done
     }
 
     override suspend fun warm() {
-        val s = settings.current()
-        if (s.hear == Source.LOCAL && readiness(s) == null) engine.warm(model.files)
+        if (readiness() == null) engine.warm(model.files)
     }
 
     override fun stop() {
         engine.cancel()
-        api.cancelAll()
     }
 
     private fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
 
     private companion object {
-        /** Seconds per piece: what the model on the phone hears at once, and what goes per request to the API. */
-        const val LOCAL_PIECE = 28
-        const val API_PIECE = 300
+        /** Seconds per piece: what the model on the phone hears at once. */
+        const val PIECE = 28
     }
 }
-
-
 
 /** Text (and maybe a photo) → the model's raw answer, on the phone or through the API. */
 class Thinking(
@@ -147,10 +130,12 @@ class Thinking(
     private val engine: LocalEngine,
     private val model: LocalModel,
 ) : Thinker {
+    private val organizer = LocalOrganizer(engine, model)
+
     fun readiness(s: FioSettings): String? = when (s.think) {
         Source.LOCAL -> when {
             !LocalEngine.available -> t(R.string.need_phone_not_in_version)
-            !model.ready -> t(R.string.need_download, model.spec.name)
+            !model.ready -> t(R.string.need_download_pack)
             else -> null
         }
         Source.API -> when {
@@ -163,7 +148,7 @@ class Thinking(
     /** The API model, and the one on the phone when its projector (eyes and ears) is there. */
     override suspend fun seesImages(): Boolean = when (settings.current().think) {
         Source.API -> true
-        Source.LOCAL -> LocalEngine.available && model.spec.projector != null
+        Source.LOCAL -> LocalEngine.available
     }
 
     /** The photo is looked at lightly (its text comes read by the phone): no need to send more than this. */
@@ -172,10 +157,14 @@ class Thinking(
     /** What each API server took and refused, so a refusal is paid once. */
     private val asks = ApiAsks()
 
-    override suspend fun warm() {
+    /** On the phone hearing comes first (Omni is loaded for it); the API needs nothing ahead. */
+    override suspend fun warm() {}
+
+    override suspend fun organize(talk: Talk): Plan? {
         val s = settings.current()
-        // The instructions too: on the phone they are most of the work of organizing.
-        if (s.think == Source.LOCAL && readiness(s) == null) engine.warm(model.files, Brain.chatmlHead(Brain.SYSTEM))
+        if (s.think != Source.LOCAL) return null
+        readiness(s)?.let { throw NotReady(Need.THINK, it) }
+        return withContext(Dispatchers.IO) { organizer.plan(talk) }
     }
 
     override fun stop() {
@@ -187,14 +176,8 @@ class Thinking(
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
-            Source.LOCAL -> engine.generate(
-                model.files,
-                Brain.chatml(system, if (image != null) LocalEngine.MEDIA + "\n" + user else user),
-                Brain.JSON_GRAMMAR,
-                image,
-                // The instructions are the same every time: the phone runs them once and keeps them.
-                fixed = Brain.chatmlHead(system),
-            )
+            // On the phone the plan is made by [organize]; nothing asks this.
+            Source.LOCAL -> throw IllegalStateException(t(R.string.local_no_answer))
             Source.API -> {
                 val ep = s.endpoint(settings.apiKey().orEmpty())
                 // Asked with little reasoning (organizing doesn't need more, and it answers much

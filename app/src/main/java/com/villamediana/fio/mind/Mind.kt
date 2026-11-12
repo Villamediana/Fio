@@ -547,6 +547,8 @@ class Mind(
         }
         val sentPhotos = sent.take(MAX_SENT_SEEN).mapNotNull(Photo::of)
         val heard = if (photo && said.isBlank()) "(nenhum texto legível na foto)" else said
+        // On the phone the plan is made there, whole: no lookups (what may be related goes with it).
+        thinking.organize(Talk(said, now, z, open, focus, hits, photo, image, photos = sent.isNotEmpty()))?.let { return it }
 
         val recent = live.take(RECENT) // all() comes newest first
         val diary = Brain.todaysDiary(all, now, z)

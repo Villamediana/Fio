@@ -20,12 +20,14 @@ import com.villamediana.fio.mind.MlKitPhotoReader
 import com.villamediana.fio.mind.Thinking
 import com.villamediana.fio.remind.Reminders
 import com.villamediana.fio.settings.Settings
+import com.villamediana.fio.settings.Source
 import com.villamediana.fio.update.Updates
 import com.villamediana.fio.update.createUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import okhttp3.OkHttpClient
 import java.io.File
 import java.time.ZoneId
@@ -50,8 +52,8 @@ class AppGraph(context: Context) {
     val settings: Settings by lazy { Settings(appContext, scope) }
     val api: Api by lazy { Api(http) }
     val engine: LocalEngine by lazy { LocalEngine(java.io.File(appContext.cacheDir, "model")) }
-    /** On the phone: LFM3-Omni hears, thinks and sees. */
-    val localModel: LocalModel by lazy { LocalModel(appContext, scope) }
+    /** On the phone: LFM3-Omni hears and sees; when the phone thinks too, d1 decides and LFM3-1.7B writes. */
+    val localModel: LocalModel by lazy { LocalModel(appContext, scope, settings.now.map { it.think == Source.LOCAL }) }
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
@@ -63,7 +65,7 @@ class AppGraph(context: Context) {
             scope = scope,
             db = db,
             recorder = recorder,
-            hearing = Hearing(settings, api, engine, localModel, appContext.cacheDir),
+            hearing = Hearing(engine, localModel),
             thinking = Thinking(settings, api, engine, localModel),
             keeper = Keeper(db),
             reminders = reminders,

@@ -1,9 +1,9 @@
-// Fio's on-device model: LFM3-Omni through llama.cpp (libllama + libmtmd).
-//
-// Two jobs, one model in memory:
-//   transcribe(): 16 kHz PCM in, the text that was said out ("Perform ASR" system prompt);
+// Novelo's on-device models through llama.cpp (libllama + libmtmd), one in memory at a time:
+//   transcribe(): LFM3-Omni hears — 16 kHz PCM in, the text that was said out ("Perform ASR");
 //   generate():   a rendered chat prompt in (and maybe a photo, at the media marker), text out
-//                 (optionally held to a GBNF grammar: the JSON the brain answers with).
+//                 (optionally held to a GBNF grammar) — Omni looks at photos, LFM3-1.7B writes;
+//   decide():     d1 (a decision model) reads one question's prompt and gives each answer a score
+//                 (fio_decide.h).
 // Text comes back as UTF-8 bytes (Java's modified UTF-8 can't carry emoji), streamed to a
 // TokenSink as it is produced. One call at a time per engine (the Kotlin side holds a mutex).
 
@@ -22,6 +22,7 @@
 #include "llama.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
+#include "fio_decide.h"
 
 #define TAG "FioEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -362,7 +363,7 @@ llama_pos eval_with_image(Engine * e, const std::string & prompt, const std::str
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx, jstring jcache) {
+Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, jstring jmodel, jstring jmmproj, jint threads, jint n_ctx, jint n_batch, jstring jcache) {
     llama_log_set(log_to_android, nullptr);
     mtmd_helper_log_set(log_to_android, nullptr);
     llama_backend_init();
@@ -372,6 +373,8 @@ Java_com_villamediana_fio_local_LocalEngine_nativeLoad(JNIEnv * env, jobject, js
 
     auto * e = new Engine();
     e->cache_path = jstr(env, jcache);
+    // A decision model reads its whole prompt in one pass: its batch is as big as its context.
+    if (n_batch > 0) e->n_batch = n_batch;
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;
     e->model = llama_model_load_from_file(model_path.c_str(), mp);
@@ -535,6 +538,57 @@ Java_com_villamediana_fio_local_LocalEngine_nativeGenerate(JNIEnv * env, jobject
     std::string out = sample_loop(e, bias, gram, n_past, room, sink);
     free_samplers(bias, gram);
     return to_bytes(env, out);
+}
+
+/**
+ * One question to the decision model: [jprompt] rendered (UTF-8), [jgroups] one string per answer
+ * with the spellings of its label separated by U+0001 ("yes\u0001Yes\u0001YES"). Each answer's
+ * score (the best logit of its label's tokens); null when it couldn't be done.
+ */
+JNIEXPORT jfloatArray JNICALL
+Java_com_villamediana_fio_local_LocalEngine_nativeDecide(JNIEnv * env, jobject, jlong h, jbyteArray jprompt, jobjectArray jgroups) {
+    auto * e = reinterpret_cast<Engine *>(h);
+    if (!e) return nullptr;
+    std::vector<std::vector<llama_token>> groups;
+    const jsize n = env->GetArrayLength(jgroups);
+    for (jsize i = 0; i < n; i++) {
+        auto js = (jstring) env->GetObjectArrayElement(jgroups, i);
+        const std::string all = jstr(env, js);
+        env->DeleteLocalRef(js);
+        std::vector<std::string> forms;
+        size_t from = 0;
+        for (size_t at = all.find('\x01'); ; at = all.find('\x01', from)) {
+            forms.push_back(all.substr(from, at == std::string::npos ? std::string::npos : at - from));
+            if (at == std::string::npos) break;
+            from = at + 1;
+        }
+        groups.push_back(fio::label_group(e->vocab, forms));
+    }
+    const std::vector<float> scores = fio::decide(e->ctx, e->vocab, jbytes(env, jprompt), groups);
+    if (scores.empty()) { LOGE("decision failed"); return nullptr; }
+    jfloatArray out = env->NewFloatArray((jsize) scores.size());
+    if (out) env->SetFloatArrayRegion(out, 0, (jsize) scores.size(), scores.data());
+    return out;
+}
+
+/** The control tokens' texts (what she can't write without breaking them), separated by NUL, as UTF-8. */
+JNIEXPORT jbyteArray JNICALL
+Java_com_villamediana_fio_local_LocalEngine_nativeSpellings(JNIEnv * env, jobject, jlong h) {
+    auto * e = reinterpret_cast<Engine *>(h);
+    if (!e) return nullptr;
+    std::string all;
+    for (const auto & s : fio::control_spellings(e->vocab)) { all += s; all += '\0'; }
+    return to_bytes(env, all);
+}
+
+/** A value of the model's metadata ("lfm3.decision.temperature.noul"); null when it has none. */
+JNIEXPORT jstring JNICALL
+Java_com_villamediana_fio_local_LocalEngine_nativeMeta(JNIEnv * env, jobject, jlong h, jstring jkey) {
+    auto * e = reinterpret_cast<Engine *>(h);
+    if (!e) return nullptr;
+    char buf[512];
+    const int n = llama_model_meta_val_str(e->model, jstr(env, jkey).c_str(), buf, sizeof(buf));
+    return n < 0 ? nullptr : env->NewStringUTF(buf);
 }
 
 } // extern "C"

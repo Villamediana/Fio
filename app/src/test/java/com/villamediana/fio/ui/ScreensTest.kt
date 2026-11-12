@@ -133,7 +133,6 @@ class ScreensTest {
             val s = graph.settings
             s.setApiBase(server.url("/openai/v1").toString())
             s.setApiKey("test-key")
-            s.setHear(Source.API); s.setHearModel("whisper")
             s.setThink(Source.API); s.setThinkModel("gpt-6-luna")
             s.setHintSeen()
         }
@@ -156,11 +155,8 @@ class ScreensTest {
         compose.onNodeWithContentDescription("Galeria").assertExists()
         shot("01-home-idle")
 
-        // 2. Something said goes through the API and comes back organized.
-        val wav = File(graph.appContext.filesDir, "captures/voice-test.wav").apply { parentFile?.mkdirs() }
-        Wav.write(wav, FloatArray(Wav.RATE * 3) { (0.3 * sin(2 * PI * 210 * it / Wav.RATE)).toFloat() })
-        val id = runBlocking { graph.db.captures().insert(Capture(createdAt = now, source = "voice", audioPath = wav.path, durationMs = 3000, state = Capture.RECORDED)) }
-        graph.mind.retry(id)
+        // 2. Something written goes through the API (hearing is always on the phone) and comes back organized.
+        graph.mind.write("Amanhã às nove eu preciso ligar pro Pedro sobre o contrato, e lembra de comprar o presente da Ana. Ah, e hoje foi um dia bom.")
         val answer = runBlocking { withTimeout(20_000) { graph.mind.state.first { it is MindState.Answer || it is MindState.Problem } } }
         assertTrue("$answer", answer is MindState.Answer)
         answer as MindState.Answer
@@ -511,12 +507,22 @@ class ScreensTest {
     @Test
     fun theIntelligencePageShowsOnlyWhatTheChoiceNeeds() {
         val nav = Nav()
+        runBlocking { graph.settings.setThink(Source.API) }
         compose.setContent { FioTheme(ThemeMode.LIGHT) { com.villamediana.fio.ui.settings.IntelligenceScreen(nav) } }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvir").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(500)
         shot("30-settings-intelligence")
-        // Hearing and thinking on the API here: its address and key, no button to test (it tests by itself).
+        // Only who thinks is chosen: hearing is always the phone's (its ears are the download here).
+        assertTrue(compose.onAllNodesWithText("Ouvir").fetchSemanticsNodes().isEmpty())
+        // Her API thinks: its address and key, no button to test (it tests by itself).
         assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
+        // The Novelo thinks: the download is its whole intelligence, and no API to fill.
+        runBlocking { graph.settings.setThink(Source.LOCAL) }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Inteligência do Novelo").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty())
+        compose.mainClock.advanceTimeBy(500)
+        shot("30b-settings-intelligence-local")
     }
 
     @Test
@@ -576,12 +582,12 @@ class ScreensTest {
         compose.onNodeWithText("Sua própria inteligência").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Anthropic").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("A Anthropic não ouve áudio", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        // Hearing stays on the phone, whoever thinks: its ears come down.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Pra ouvir você, o Novelo usa o ouvido dele", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
         shot("35-setup-own")
         runBlocking {
             graph.settings.setApiProvider("")
-            graph.settings.setHear(com.villamediana.fio.settings.Source.API)
             graph.settings.setThink(com.villamediana.fio.settings.Source.API)
         }
     }
