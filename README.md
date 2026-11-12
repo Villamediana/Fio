@@ -26,7 +26,7 @@ Ouvir é sempre no celular: o LFM3-Omni 2B (Liquid AI, via llama.cpp) transcreve
 
 Quem **pensa** (organiza) é escolhido em Ajustes › Inteligência:
 
-- **Inteligência do Novelo** (padrão): pronta pra usar, sem chave. 7 dias de teste grátis e depois o **Novelo+** (assinatura mensal na Google Play), com limites por dia e por semana mostrados em barrinhas. Passa pelo servidor do Novelo (`server/`), que guarda a chave dos modelos e conta o uso; nada do que você diz fica lá. A foto vai como o que o Omni viu nela.
+- **Inteligência do Novelo** (padrão): pronta pra usar, sem chave e sem custo. Usa modelos grátis da OpenRouter, escolhidos e trocados sozinhos. A foto vai como o que o Omni viu nela.
 - **Sua própria inteligência** (OpenAI, Anthropic, Kimi, Azure Foundry, OpenRouter ou outro endereço): você informa a chave (a conexão é testada sozinha) e escolhe o modelo. A chave fica cifrada no aparelho (AndroidKeyStore).
 
 Pensar é pela internet. Sem ela, o que você disser fica guardado e vai sozinho quando a rede voltar. Tudo o que você guarda fica no celular; sai dele só o que vai pra organizar (a fala, as tarefas abertas e o que tem a ver), para a OpenRouter ou para a API escolhida.
@@ -37,13 +37,11 @@ O app procura versões novas nas [releases](../../releases) deste repositório e
 
 ## Build
 
-JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular). O app não leva chave nenhuma: a Inteligência do Novelo passa pelo servidor (`server/`, deploy em `server/DEPLOY.md`), cujo endereço vai em `novelo.server` no `gradle.properties` (vazio = o app sai só com a inteligência própria).
+JDK 21, Android SDK 37 e NDK 29 (o NDK só pro motor no celular). A chave da Inteligência do Novelo não fica no repositório: o build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env` (sem ela, o app sai só com a inteligência própria).
 
 ```bash
-./gradlew :app:testGithubDebugUnitTest :app:testPlayDebugUnitTest   # testes das duas versões (NOVELO_SHOTS: prints em app/build/novelo-shots)
-tools/release.sh -n $'- novidade'            # versão GitHub nova, com o motor no celular (ver docs/ARCHITECTURE.md)
-tools/play-bundle.sh                         # versão Google Play: dist/Novelo-<versão>.aab pro Play Console
-(cd server && npm test)                      # o servidor (Node 22.5+, sem dependências)
+./gradlew :app:testDebugUnitTest             # testes (NOVELO_SHOTS: prints das telas em app/build/novelo-shots)
+tools/release.sh -n $'- novidade'            # versão nova, com o motor no celular (ver docs/ARCHITECTURE.md)
 ```
 
 Licenças: llama.cpp (MIT); os modelos LFM3 são baixados do Hugging Face sob a LFM Open License v1.0.

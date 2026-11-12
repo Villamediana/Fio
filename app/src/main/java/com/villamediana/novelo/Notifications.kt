@@ -9,7 +9,6 @@ object Notifications {
     const val CHANNEL_REMIND = "remind"
     const val CHANNEL_CHECKIN = "checkin"
     const val CHANNEL_MIC = "mic"
-    /** Only the GitHub build's (its own updates): made there, in Store.started. */
     const val CHANNEL_UPDATES = "updates"
 
     const val ID_MIC = 1001
@@ -24,6 +23,7 @@ object Notifications {
                 NotificationChannel(CHANNEL_REMIND, t(R.string.channel_remind), NotificationManager.IMPORTANCE_HIGH),
                 NotificationChannel(CHANNEL_CHECKIN, t(R.string.channel_checkin), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_MIC, t(R.string.channel_mic), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
+                NotificationChannel(CHANNEL_UPDATES, t(R.string.channel_updates), NotificationManager.IMPORTANCE_DEFAULT),
             ),
         )
     }

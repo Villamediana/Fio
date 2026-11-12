@@ -69,6 +69,7 @@ import com.villamediana.novelo.ui.components.paper
 import com.villamediana.novelo.ui.home.QuietIcon
 import com.villamediana.novelo.ui.theme.NoveloAccents
 import com.villamediana.novelo.ui.theme.NoveloColors
+import com.villamediana.novelo.ui.update.UpdateRow
 
 /** The parts of Ajustes, each opened in place. */
 private enum class Part { AI, THEME, BACKUP, LANGUAGE }
@@ -90,8 +91,7 @@ fun SettingsScreen(nav: Nav) {
         PageTop(t(R.string.settings)) { nav.back() }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(10.dp))
-            val noveloStatus by graph.novelo.status.collectAsStateWithLifecycle()
-            val ai = intelligenceSummary(s, local, graph.novelo.available, com.villamediana.novelo.ui.plans.planSummary(noveloStatus))
+            val ai = intelligenceSummary(s, local, graph.novelo.available)
             val backup = backupSummary(s, busy)
             Fold(t(R.string.ai_title), ai.first, ai.second, open == Part.AI, { toggle(Part.AI) }) { IntelligenceSection() }
             Fold(
@@ -103,7 +103,7 @@ fun SettingsScreen(nav: Nav) {
             Fold(t(R.string.language), Lang.current.label, false, open == Part.LANGUAGE, { toggle(Part.LANGUAGE) }) { LanguagePicker() }
 
             Spacer(Modifier.height(18.dp))
-            val updateLine: (@Composable () -> Unit)? = com.villamediana.novelo.Store.settingsLine
+            val updateLine: (@Composable () -> Unit)? = if (graph.updates.enabled) ({ UpdateRow() }) else null
             Group(
                 Modifier,
                 {
@@ -163,14 +163,12 @@ private fun Fold(title: String, summary: String, attention: Boolean, open: Boole
 }
 
 /** Who thinks, in a few words (hearing is always on the phone); true when something is missing. */
-internal fun intelligenceSummary(s: NoveloSettings, local: LocalModel.State, novelo: Boolean, plan: Pair<String, Boolean>? = null): Pair<String, Boolean> = when {
+internal fun intelligenceSummary(s: NoveloSettings, local: LocalModel.State, novelo: Boolean): Pair<String, Boolean> = when {
     !(LocalEngine.available && local is LocalModel.State.Ready) -> t(R.string.local_pack_hear) + " · " + localShort(local) to true
     s.think == Source.NOVELO && !novelo -> t(R.string.need_novelo_not_in_version) to true
     s.think == Source.API && !s.apiReady -> t(R.string.ai_missing_api) to true
     s.think == Source.API && s.thinkModel.isBlank() -> t(R.string.ai_missing_model) to true
     s.think == Source.API -> t(R.string.ai_mixed_phone_hears, s.thinkModel) to false
-    // The Novelo's: its plan in a few words (the trial over asks for her).
-    plan != null -> plan
     else -> t(R.string.ai_novelo_summary) to false
 }
 

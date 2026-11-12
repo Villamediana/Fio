@@ -39,26 +39,12 @@ class WhenOnline(appContext: Context, params: WorkerParameters) : CoroutineWorke
          * Once there is a network. A short wait first: a network that is there but doesn't reach
          * the internet (a hotel Wi-Fi) doesn't make it go round and round.
          */
-        fun schedule(context: Context) = schedule(context, delayMs = 30_000L, name = NAME)
-
-        /**
-         * At [at] (ms): what waited for a time (today's limit used up, at the Novelo server's
-         * midnight) goes then by itself, with a network, the app open or not.
-         */
-        fun scheduleAt(context: Context, at: Long, now: Long = System.currentTimeMillis()) =
-            schedule(context, delayMs = (at - now).coerceAtLeast(0) + AT_MARGIN_MS, name = NAME_AT)
-
-        private fun schedule(context: Context, delayMs: Long, name: String) {
+        fun schedule(context: Context) {
             val request = OneTimeWorkRequestBuilder<WhenOnline>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .setInitialDelay(30, TimeUnit.SECONDS)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(name, ExistingWorkPolicy.REPLACE, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(NAME, ExistingWorkPolicy.REPLACE, request)
         }
-
-        private const val NAME_AT = "at-time"
-
-        /** A little after the time, so the server's day has surely turned. */
-        private const val AT_MARGIN_MS = 60_000L
     }
 }

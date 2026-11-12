@@ -110,8 +110,6 @@ class Mind(
     private val clock: () -> Long = System::currentTimeMillis,
     /** A capture stopped for lack of network: what was waiting goes by itself when it comes back. */
     private val offline: () -> Unit = {},
-    /** What waits for a time (today's limit used up) goes by itself then: schedules a retry at that time (ms). */
-    private val later: (Long) -> Unit = {},
 ) {
     private val _state = MutableStateFlow<MindState>(MindState.Idle)
     val state: StateFlow<MindState> = _state
@@ -558,27 +556,16 @@ class Mind(
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
         } catch (e: CancellationException) {
             throw e
-        } catch (e: com.villamediana.novelo.ai.NoPlan) {
-            // The trial is over: kept, and the screen offers Novelo+ or her own intelligence.
-            val msg = t(R.string.no_plan_kept)
-            db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
-            say(MindState.Problem(id, Need.PLAN, msg, c.transcript ?: c.heard))
         } catch (e: Throwable) {
             // Anything at all (an error of the model on the phone too) ends here, on the screen:
             // the progress never stays up with nothing going on behind it.
             val msg = when (e) {
-                // A limit reached (the day's, the week's, the trial's): it waits and goes by itself then.
-                is com.villamediana.novelo.ai.Limit -> limitMessage(e).also { later(e.resetAt) }
-                is com.villamediana.novelo.ai.ServerBusy -> t(R.string.novelo_busy).also { later(minOf(e.resetAt.takeIf { it > 0 } ?: Long.MAX_VALUE, clock() + BUSY_RETRY_MS)) }
-                is com.villamediana.novelo.ai.NoveloUnavailable -> t(R.string.novelo_unavailable)
                 is com.villamediana.novelo.ai.ApiException -> t(R.string.api_answered, e.code, e.message.orEmpty())
                 is IOException -> t(R.string.offline_kept).also { offline() }
                 else -> e.message ?: e.javaClass.simpleName
             }
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = msg, tries = 0))
-            // The trial's limit reached: the screen offers Novelo+ too.
-            val need = if (e is com.villamediana.novelo.ai.Limit && e.trial) Need.PLAN else null
-            say(MindState.Problem(id, need, msg, c.transcript ?: c.heard))
+            say(MindState.Problem(id, null, msg, c.transcript ?: c.heard))
         }
     }
 
@@ -621,9 +608,7 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos)
-        // One thing she said (or a photo alone): counted once by the Novelo's server, however many looks.
-        val turn = Turn(c.id.toString(), photo)
-        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image, turn)) ?: throw IllegalStateException(t(R.string.bad_format))
+        var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first, image)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
         val looked = ArrayList<String>()
@@ -639,7 +624,7 @@ class Mind(
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
             val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos)
-            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image, turn))
+            plan = Brain.parse(thinking.answer(Brain.SYSTEM, next, image))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }
         // Still asking after the last look: it answers with what it has.
@@ -670,16 +655,6 @@ class Mind(
         _state.value = state
     }
 
-    /** What a limit reached says: of the day, of the week, or of the whole trial; talks or photos. */
-    private fun limitMessage(e: com.villamediana.novelo.ai.Limit): String {
-        val n = e.limit ?: 0
-        return when {
-            !e.weekly -> t(if (e.photo) R.string.limit_photos else R.string.limit_talks, n)
-            e.trial -> t(if (e.photo) R.string.limit_trial_photos else R.string.limit_trial_talks, n)
-            else -> t(if (e.photo) R.string.limit_week_photos else R.string.limit_week_talks, n)
-        }
-    }
-
     companion object {
         /** Shorter than this is a slip of the finger, not a thought. */
         const val MIN_MS = 700L
@@ -689,9 +664,6 @@ class Mind(
 
         /** Runs that never ended (the app fell in the middle) before it waits for a hand. */
         const val MAX_TRIES = 3
-
-        /** The Novelo's server with its day full: tried again after this much (or at its midnight, if sooner). */
-        const val BUSY_RETRY_MS = 30 * 60_000L
 
         /** How many times the model may ask to look something up for one thing said. */
         const val MAX_LOOKUPS = 2

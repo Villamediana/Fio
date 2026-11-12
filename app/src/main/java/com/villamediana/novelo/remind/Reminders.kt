@@ -89,18 +89,6 @@ class Reminders(private val context: Context, private val db: NoveloDatabase) : 
 
         fun requestCode(entryId: Long, kind: Int): Int = (entryId * 2 + kind).toInt()
         fun notificationId(entryId: Long, kind: Int): Int = 10_000 + requestCode(entryId, kind)
-
-        /**
-         * Reminders can go off at the very minute: the GitHub build always can (USE_EXACT_ALARM); the
-         * Play build once she allows "Alarmes e lembretes" (SCHEDULE_EXACT_ALARM). Without it a reminder
-         * still comes, near the time.
-         */
-        fun onTime(context: Context): Boolean =
-            Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-
-        /** The system page where she allows it for Novelo (allowing it re-arms the reminders: RearmReceiver). */
-        fun onTimeSettings(context: Context): Intent =
-            Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:" + context.packageName))
     }
 }
 
