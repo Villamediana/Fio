@@ -1,0 +1,13 @@
+# docker compose up -d   (o .env ao lado, gerado por: npm run setup)
+services:
+  novelo:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/novelo.db
+    ports:
+      # Só pra máquina: o HTTPS fica no proxy (Caddy/nginx/Cloudflare Tunnel) na frente.
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./data:/app/data

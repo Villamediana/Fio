@@ -1,0 +1,11 @@
+{
+  "name": "novelo-server",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --no-warnings src/main.js",
+    "setup": "node tools/setup.js",
+    "test": "node --test --no-warnings test/*.test.js"
+  }
+}

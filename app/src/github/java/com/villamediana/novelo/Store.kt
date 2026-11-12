@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import com.villamediana.novelo.billing.Billing
+import com.villamediana.novelo.billing.TestBilling
 import com.villamediana.novelo.settings.t
 import com.villamediana.novelo.ui.update.UpdateHost
 import com.villamediana.novelo.ui.update.UpdateRow
@@ -25,6 +27,9 @@ object Store {
         val graph = NoveloApplication.graph
         createUpdates(graph.appContext, graph.http, graph.scope)
     }
+
+    /** Novelo+ here is simulated: the same screens, nothing charged (the server takes it as a test purchase). */
+    val billing: Billing get() = TestBilling(NoveloApplication.graph.novelo)
 
     /** As the app starts, before anything else: a crash leaves its first lines (the update sheet shows why). */
     fun early(app: Application) {

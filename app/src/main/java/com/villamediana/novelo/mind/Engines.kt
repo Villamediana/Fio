@@ -13,7 +13,7 @@ import com.villamediana.novelo.settings.NoveloSettings
 import com.villamediana.novelo.settings.Settings
 import com.villamediana.novelo.settings.Source
 import com.villamediana.novelo.settings.Lang
-import com.villamediana.novelo.ai.NoveloModels
+import com.villamediana.novelo.ai.NoveloServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -21,7 +21,8 @@ import java.io.File
 /** Something is missing before Novelo can hear or think (the button still records: nothing is lost). */
 class NotReady(val what: Need, message: String) : Exception(message)
 
-enum class Need { HEAR, THINK }
+/** What is missing: the ears (download), who thinks (set up), or a plan (the trial is over). */
+enum class Need { HEAR, THINK, PLAN }
 
 /** What was heard so far of a recording: the text of its first [pieces] pieces, cut the [by] way. */
 data class Heard(val text: String = "", val pieces: Int = 0, val by: String? = null)
@@ -58,12 +59,21 @@ interface Thinker {
 
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
 
+    /**
+     * The same, saying which thing she said or photographed it is ([turn]): the Novelo's server
+     * counts each one once a day, however many looks it takes.
+     */
+    suspend fun answer(system: String, user: String, image: ByteArray?, turn: Turn): String = answer(system, user, image)
+
     /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
     suspend fun warm() {}
 
     /** Lets go of what is going on now (the model on the phone or the request), so a stop is quick. */
     fun stop() {}
 }
+
+/** One thing she said or wrote ([photo] false), or a photo sent alone, by its capture's [id]. */
+data class Turn(val id: String, val photo: Boolean)
 
 /** Speech → text: always LFM3-Omni, on the phone (whoever thinks). */
 class Hearing(
@@ -131,14 +141,14 @@ class Hearing(
 
 /**
  * Text (and maybe a photo) → the model's raw answer, always online: the Novelo's own intelligence
- * (free models, [NoveloModels]) or her API. The same prompt either way.
+ * (through the Novelo's server, [NoveloServer]: no key in the app) or her API. The same prompt either way.
  */
 class Thinking(
     private val settings: Settings,
     private val api: Api,
     private val engine: LocalEngine,
     private val model: LocalModel,
-    private val novelo: NoveloModels,
+    private val novelo: NoveloServer,
 ) : Thinker {
     fun readiness(s: NoveloSettings): String? = when (s.think) {
         Source.NOVELO -> if (novelo.available) null else t(R.string.need_novelo_not_in_version)
@@ -177,15 +187,17 @@ class Thinking(
         }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    override suspend fun answer(system: String, user: String, image: ByteArray?): String = withContext(Dispatchers.IO) {
+    override suspend fun answer(system: String, user: String, image: ByteArray?): String = answer(system, user, image, Turn("", photo = false))
+
+    override suspend fun answer(system: String, user: String, image: ByteArray?, turn: Turn): String = withContext(Dispatchers.IO) {
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
             Source.NOVELO -> {
-                // The photo goes as what Omni saw in it (free models may not look at photos).
+                // The photo goes as what Omni saw in it (only text leaves the phone: lighter, cheaper).
                 val look = image?.let { seen(it) }
                 val words = if (look == null) user else user.trimEnd() + "\n\nO QUE SE VÊ NA FOTO (o celular olhou):\n" + look + "\n"
-                novelo.answer(system, words) { Brain.parse(it) != null }
+                novelo.answer(system, words, turn.id, turn.photo)
             }
             Source.API -> {
                 val ep = s.endpoint(settings.apiKey().orEmpty())

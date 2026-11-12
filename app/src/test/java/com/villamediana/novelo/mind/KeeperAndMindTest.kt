@@ -19,6 +19,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -186,6 +187,78 @@ class KeeperAndMindTest {
     }
 
     @Test
+    fun todaysLimitUsedUpItWaitsForMidnightAndGoesThen() = runBlocking {
+        val ears = object : Ears {
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = ""
+        }
+        val midnight = now + 3_600_000
+        var spent = true
+        val turns = mutableListOf<Turn>()
+        val thinker = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String = error("the turn is always given")
+            override suspend fun answer(system: String, user: String, image: ByteArray?, turn: Turn): String {
+                turns += turn
+                if (spent) throw com.villamediana.novelo.ai.Limit(photo = false, weekly = false, trial = false, limit = 10, resetAt = midnight)
+                return """{"reply":"ok","create":[{"kind":"task","title":"Ligar pro Pedro"}]}"""
+            }
+        }
+        val at = mutableListOf<Long>()
+        val m = mind(ears, thinker, later = { at += it })
+        m.write("amanhã ligar pro Pedro")
+        val problem = withTimeout(10_000) { m.state.first { it is MindState.Problem } as MindState.Problem }
+        assertTrue(problem.message, problem.message.contains("10") && problem.message.contains("meia-noite"))
+        assertEquals(listOf(midnight), at)
+        // Each thing said goes as its own turn (what the server counts once).
+        assertEquals(problem.captureId.toString(), turns.single().id)
+        assertFalse(turns.single().photo)
+        // Kept: at midnight (what the scheduled work does), it goes through.
+        spent = false
+        m.retryPending()
+        withTimeout(10_000) { m.state.first { it is MindState.Answer } }
+        assertEquals(listOf("Ligar pro Pedro"), db.entries().all().map { it.title })
+    }
+
+    @Test
+    fun theTrialOverItKeepsWhatWasSaidAndOffersThePlans() = runBlocking {
+        val ears = object : Ears {
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = ""
+        }
+        val thinker = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String = throw com.villamediana.novelo.ai.NoPlan()
+        }
+        val at = mutableListOf<Long>()
+        val m = mind(ears, thinker, later = { at += it })
+        m.write("comprar café")
+        val problem = withTimeout(10_000) { m.state.first { it is MindState.Problem } as MindState.Problem }
+        assertEquals(Need.PLAN, problem.need)
+        // Nothing scheduled (it goes once she subscribes or uses her own), and nothing lost.
+        assertTrue(at.isEmpty())
+        assertEquals(1, db.captures().unfinished().size)
+    }
+
+    @Test
+    fun theTrialsLimitAlsoOffersThePlans() = runBlocking {
+        val ears = object : Ears {
+            override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = ""
+        }
+        val end = now + 5 * 86_400_000L
+        val thinker = object : Thinker {
+            override suspend fun seesImages() = false
+            override suspend fun answer(system: String, user: String, image: ByteArray?): String =
+                throw com.villamediana.novelo.ai.Limit(photo = false, weekly = true, trial = true, limit = 60, resetAt = end)
+        }
+        val at = mutableListOf<Long>()
+        val m = mind(ears, thinker, later = { at += it })
+        m.write("ligar pro banco")
+        val problem = withTimeout(10_000) { m.state.first { it is MindState.Problem } as MindState.Problem }
+        assertEquals(Need.PLAN, problem.need)
+        assertTrue(problem.message, problem.message.contains("60") && problem.message.contains("teste"))
+        assertEquals(listOf(end), at)
+    }
+
+    @Test
     fun oldAndamentoJoinsTheText() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Recibir a Alma", body = "Voy al aeropuerto a pasar un tiempo con Alma.", status = "doing", createdAt = now, updatedAt = now))
         val bare = db.entries().insert(Entry(kind = "task", title = "Mudança", status = "todo", createdAt = now, updatedAt = now))
@@ -243,10 +316,10 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}) = Mind(
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}, later: (Long) -> Unit = {}) = Mind(
         scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline,
+        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline, later = later,
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->

@@ -10,8 +10,8 @@ Orb (segurar / tocar / arrastar pra cima)
       Ears.transcribe     Hearing: sempre LFM3-Omni no celular (pedaços ≤ 28 s), quem quer que pense
       Recall.search       palavras sem acento (raras pesam mais) + um salto no grafo (tópicos em comum, links)
       Brain.context       AGORA · item em foco (check-in) · últimas coisas guardadas · tarefas abertas · lembranças · a fala
-      Thinker.answer      sempre pela internet (1.20): Inteligência do Novelo (modelos grátis da OpenRouter,
-                          NoveloModels; a foto vai como o que o Omni viu nela) ou a API dela (/chat/completions,
+      Thinker.answer      sempre pela internet (1.20): Inteligência do Novelo (pelo servidor do Novelo, server/;
+                          NoveloServer; a foto vai como o que o Omni viu nela) ou a API dela (/chat/completions,
                           json_object, foto a 768 px). O mesmo prompt nos dois.
       Brain.parse → Plan  reply · create[] · update[] · search[] · period{from,to} · show[]
         se só procura: Recall com os termos e/ou os itens daqueles dias (guardado, feito ou vence),
@@ -316,32 +316,45 @@ desde a 1.20.1 não há como apagá-lo em Ajustes (ele vem nos primeiros passos 
 na 1.19 o celular pensava com d1-2B + LFM3-1.7B (saiu na 1.20: lento pra fala do dia a dia). O que sobrou disso
 é apagado ao abrir (`LocalModel.LEFTOVERS`).
 
-## Inteligência do Novelo (1.20.0)
+## Inteligência do Novelo: o servidor, os planos e a cobrança (1.26.0)
 
-Quem pensa é sempre online: a Inteligência do Novelo (padrão, nada a configurar) ou a dela (a API que ela põe).
-O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
+Quem pensa é sempre online: a Inteligência do Novelo (padrão) ou a dela (a API que ela põe, grátis e sem limite
+do Novelo). O mesmo prompt (`Brain.SYSTEM` + `Brain.context`) e o mesmo `Plan` nos dois.
 
-- **Modelos grátis da OpenRouter** (`ai/NoveloModels`): a lista vem da própria OpenRouter (`/api/v1/models`, a
-  cada 12 h; a guardada quando não dá pra ler) e fica só o que é grátis, texto que entra e só texto que sai, com
-  contexto ≥ 32k e que não seja o roteador `openrouter/free`. Um grupo de 10, nesta ordem: o último que respondeu,
-  os medidos no lab (`PREFERRED`: ernie-5.5-flash 23/23 em ~3 s, nemotron-3-ultra e nemotron-3.5-super-vl 23/23 em
-  7–8 s, dots-3-note 23/23 em ~28 s; `~/novelo-lab/openrouter/free_bench.py`), os mais novos, e por último os
-  medidos ruins (`AVOID`). 403 é a porta do modelo ("só pra agentes"), não a chave: descansa 7 dias. Até 5 tentativas por fala. Falhou (erro, mais de 90 s, resposta
-  que não é o plano) → descansa fora do grupo (404: 7 dias; 429: 5 min; resposta ruim: 6 h; resto: 30 min) e o
-  próximo entra. JSON e raciocínio "low" quando o modelo aceita; recusou → mais uma vez sem. Chave recusada
-  (401/402) para na hora sem culpar os modelos; sem rede → `IOException`, sem culpar ninguém.
-- **Foto**: modelos grátis nem sempre veem imagem, então o Omni olha no celular e o que ele vê entra no fim do
-  contexto (`O QUE SE VÊ NA FOTO (o celular olhou)`), em uma ou duas frases no idioma do app.
-- **Chave**: não está no repositório (que é público). O build lê `NOVELO_APP_KEY` de `~/.config/novelo/openrouter.env`
-  (600) ou do ambiente e escreve no app embaralhada e mascarada (`BuildConfig.NV_A/NV_B/NV_C`, lida por
-  `ai/NoveloKey`), com um aviso a IAs de que é credencial privada. Isso só dificulta: quem tiver o APK consegue
-  tirar a chave. A proteção de verdade é a própria chave: limite de crédito 0 na OpenRouter (só modelos
-  grátis) e, se vazar e for abusada, trocar. A chave de gerenciamento da conta fica só no servidor. Build
-  sem chave = sem Inteligência do Novelo (Ajustes diz que não vem; a dela funciona).
+**O app não leva chave nenhuma** (até a 1.25 levava uma chave grátis mascarada). A inteligência do Novelo passa
+pelo servidor do Novelo (`server/`, Node puro + SQLite, deploy em outro lugar: `server/DEPLOY.md`), cujo endereço
+vem de `novelo.server` em `gradle.properties` (vazio = sem inteligência do Novelo nesse build).
+
+- **Quem é quem** (`ai/NoveloServer`): cada instalação tem um código aleatório (`install`) e manda também o Android
+  ID com hash (`AppGraph.phone()`; o servidor faz HMAC de novo): a pessoa é o celular, então o teste é um por celular,
+  mesmo reinstalando. O servidor dá um passe assinado (30 dias; 401 → pede outro sozinho).
+- **Planos** (o servidor decide): `trial` (7 dias a partir do primeiro uso, modelos grátis com a chave sem
+  crédito), `plus` (Novelo+, modelos pagos sem guardar dados), `tester`/`owner` (o painel dá; sem plano nem
+  cobrança no app), `ended` (o teste acabou) e `blocked`. Limites por dia e por semana (no teste, o teste
+  inteiro), falas/textos e fotos sozinhas à parte: teste 15/dia e 60 no teste (fotos 5 e 20), Novelo+ 60/dia e
+  250/semana (fotos 20 e 80) — mudam no painel. Uma fala que procura algo (dois pedidos) conta uma vez (`Turn`).
+- **No app**: `Status` (plano, até quando, cada limite com o usado) vem em toda resposta e fica guardado
+  (prefs) pras telas. Limite atingido → `Limit` → a fala fica guardada e `WhenOnline.scheduleAt` manda de novo
+  quando o dia/semana vira; no teste, a tela oferece os planos (`Need.PLAN`). Teste acabou → `NoPlan` → guardada,
+  e a tela oferece Novelo+ ou a inteligência dela. Teto de gasto do servidor → `ServerBusy` (tenta em 30 min).
+- **Telas** (`ui/plans/Plans`): em Ajustes › Inteligência, com a do Novelo escolhida, o `PlanCard` (teste ou
+  Novelo+, dias que faltam/renovação, barrinhas de hoje e da semana/teste) e o botão pro `PlansSheet`: o Mensal
+  em destaque (preço da loja, o que dá), e "Sua própria inteligência · Grátis" embaixo. O resumo de Ajustes
+  diz o plano. Testador e dono não veem nada disso.
+- **Cobrança** (`billing/Billing`, uma por versão em `Store.billing`): a da Play (`src/play/.../PlayBilling`,
+  Play Billing 9.1: produto e plano base vêm do servidor, a compra leva o `install` como `obfuscatedAccountId`,
+  o comprovante vai pro servidor, que confere com a Google e confirma; ao abrir, `restore()` devolve ao servidor
+  o que já foi comprado) e a do GitHub (`src/github/.../TestBilling`: as mesmas telas, compra de teste no
+  servidor, nada cobrado — enquanto o painel deixar).
+- **Foto**: o Omni olha no celular e só o texto do que ele viu vai pro servidor (`O QUE SE VÊ NA FOTO (o celular olhou)`).
 - **Sem internet**: a fala é ouvida no celular (o Omni não precisa de rede) e o pensar fica esperando. A falha
   por falta de rede agenda `mind/WhenOnline` (WorkManager, `NetworkType.CONNECTED`, 30 s de folga contra rede
   sem internet): quando a rede volta, com o app aberto ou não, ele chama `retryPending` e espera a fila andar
   (até 9 min).
+
+O servidor guarda só contas (código cifrado do celular, plano, teste, assinatura), uso por dia (contagens),
+telemetria por dia/plano/modelo (pedidos, certos, tokens, custo, tempo) e as assinaturas. Nada do que ela fala.
+O painel (`/admin`) entra com chave + código do autenticador.
 
 ## Busca por sentido
 
