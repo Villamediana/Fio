@@ -16,6 +16,22 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+/** A list the model may also write as one value ("search": "currículo"): read as a list of it. */
+object Strings : kotlinx.serialization.json.JsonTransformingSerializer<List<String>>(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>())) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = oneOrMany(element)
+}
+
+/** The same for ids ("show": 12). */
+object Longs : kotlinx.serialization.json.JsonTransformingSerializer<List<Long>>(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<Long>())) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = oneOrMany(element)
+}
+
+private fun oneOrMany(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
+    is kotlinx.serialization.json.JsonArray -> kotlinx.serialization.json.JsonArray(e.filter { it !is kotlinx.serialization.json.JsonNull })
+    is kotlinx.serialization.json.JsonNull -> kotlinx.serialization.json.JsonArray(emptyList())
+    else -> kotlinx.serialization.json.JsonArray(listOf(e))
+}
+
 /** What the model decided to do with one thing said. */
 @Serializable
 data class Plan(
@@ -23,19 +39,15 @@ data class Plan(
     val create: List<NewItem> = emptyList(),
     val update: List<Change> = emptyList(),
     /** The model needs to look something up before answering: words to search for… */
-    val search: List<String> = emptyList(),
+    @Serializable(with = Strings::class) val search: List<String> = emptyList(),
     /** …and/or a stretch of days to look at ("o que fiz ontem", "o que vence semana que vem"). */
     val period: Period? = null,
     /** Entries that answer a question, to show. */
-    val show: List<Long> = emptyList(),
+    @Serializable(with = Longs::class) val show: List<Long> = emptyList(),
     /** Photos that answer a question (foto#N → N), to show. */
-    @SerialName("show_photos") val showPhotos: List<Long> = emptyList(),
-    /** The photo just taken: what it is and what can be seen in it, in her words — what the search finds it by later (never on screen). */
-    @SerialName("photo_description") val photoDescription: String? = null,
+    @SerialName("show_photos") @Serializable(with = Longs::class) val showPhotos: List<Long> = emptyList(),
     /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
     @SerialName("keep_audio") val keepAudio: Boolean = false,
-    /** The files she sent, in order: what each one is, in a short sentence — what the search finds it by. */
-    @SerialName("file_descriptions") val fileDescriptions: List<String> = emptyList(),
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
@@ -49,15 +61,15 @@ data class NewItem(
     val kind: String,
     val title: String,
     val body: String = "",
-    val tags: List<String> = emptyList(),
+    @Serializable(with = Strings::class) val tags: List<String> = emptyList(),
     val entities: List<NamedTopic> = emptyList(),
     val due: String? = null,
     @SerialName("remind_at") val remindAt: String? = null,
     @SerialName("check_in_at") val checkInAt: String? = null,
-    val steps: List<String> = emptyList(),
+    @Serializable(with = Strings::class) val steps: List<String> = emptyList(),
     val status: String? = null,
     val sensitive: Boolean = false,
-    val related: List<Long> = emptyList(),
+    @Serializable(with = Longs::class) val related: List<Long> = emptyList(),
     /** The photos sent with what she said stay with this item. */
     val photos: Boolean = false,
     /** The files she sent live in this item. */
@@ -71,8 +83,8 @@ data class NamedTopic(val name: String, val type: String = "topic")
 data class Change(
     val id: Long,
     val status: String? = null,
-    @SerialName("steps_done") val stepsDone: List<String> = emptyList(),
-    @SerialName("add_steps") val addSteps: List<String> = emptyList(),
+    @SerialName("steps_done") @Serializable(with = Strings::class) val stepsDone: List<String> = emptyList(),
+    @SerialName("add_steps") @Serializable(with = Strings::class) val addSteps: List<String> = emptyList(),
     val title: String? = null,
     /** What is new about it ("falei com o fornecedor, manda amanhã"), joined to its text: an item is one text. */
     val append: String? = null,
@@ -93,7 +105,7 @@ data class Change(
  * A file she sent, as the model sees it: its name, type and size, and at most the beginning of its
  * first page ([peek], empty when there is none to read) — never the whole of it.
  */
-data class FileSeen(val name: String, val mime: String?, val size: Long, val peek: String = "")
+data class FileSeen(val name: String, val mime: String?, val size: Long, val peek: String = "", val about: String? = null)
 
 /** The last exchange: what she said (or that it was a photo), Novelo's answer, the items it made or changed ("criado"…). */
 data class Before(val at: Long, val said: String, val reply: String, val photo: Boolean = false, val items: List<Pair<Entry, String>> = emptyList(), val file: String? = null)
@@ -129,10 +141,9 @@ Como preencher:
 - sensitive: true para senhas, números de documento, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - related: ids de itens do contexto que tratam do mesmo assunto.
-- photo_description: quando ela tirou uma foto, diga o que é e o que se vê nela — lugar, pessoas, bichos, coisas, cores, o momento — em uma ou duas frases, no idioma dela, com as palavras que ela usaria pra procurar essa foto depois. Só o que dá pra ver, nada inventado. Esse texto é só pra achar a foto; ela não o vê.
 - A foto já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item. Crie ou mude itens só com o que a foto traz pra guardar ou fazer (um texto, um papel, um recibo, um aviso, um quadro); uma foto de um momento só ganha a "reply".
-- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho. Em photo_description, o que são e o que se vê nelas, só pra busca.
-- Arquivos (O ARQUIVO QUE ELA MANDOU, OS ARQUIVOS QUE ELA MANDOU JUNTO): você vê só o nome, o tipo e, às vezes, o começo da primeira página — nunca o arquivo inteiro. Cada arquivo fica num lugar só: marque "files": true no item a que ele pertence — em geral uma nota sobre ele (crie uma, com um título que diz o que ele é, quando não há), ou o item de que ele faz parte (a tarefa de mandar o currículo). Quando ele é só parte do dia dela, não marque nenhum: ele fica no diário do dia. Não copie o conteúdo do arquivo pros itens. Em file_descriptions, um por arquivo e na ordem: o que ele é, numa frase curta no idioma dela, com as palavras que ela usaria pra procurá-lo — pelo nome, pelo começo, pelo que ela disse e pelo contexto; sem inventar.
+- Fotos mandadas junto (AS FOTOS QUE ELA MANDOU JUNTO): o que ela diz é o que fazer com elas — são do que ela está falando. Marque "photos": true no item que você criar ou mudar a que elas pertencem (a tarefa de comprar o que aparece, a nota sobre aquilo, a tarefa a que ela junta mais fotos); ali ficam guardadas, quantas forem. O diário do dia já mostra as fotos sozinho.
+- Arquivos (O ARQUIVO QUE ELA MANDOU, OS ARQUIVOS QUE ELA MANDOU JUNTO): você vê o nome, o tipo e o que ele é (o celular olhou o começo dele) — nunca o arquivo inteiro. Cada arquivo fica num lugar só: marque "files": true no item a que ele pertence — em geral uma nota sobre ele (crie uma, com um título que diz o que ele é, quando não há), ou o item de que ele faz parte (a tarefa de mandar o currículo). Quando ele é só parte do dia dela, não marque nenhum: ele fica no diário do dia. Não copie o conteúdo do arquivo pros itens.
 - keep_audio: true quando ela falou (não escreveu) e o som do que gravou é o que vale guardar, porque as palavras não dão conta dele — uma melodia que ela canta ou cantarola pra não esquecer, um som que quer mostrar. O áudio fica junto do que você criar ou mudar. Quando o texto basta, deixe de fora.
 - Se, pra responder, faltar algo que não está no contexto, peça pra procurar e deixe o resto vazio: "search" com as palavras a procurar e/ou "period" com o intervalo de dias (from e to, AAAA-MM-DD) quando a pergunta é sobre um tempo — o que foi guardado, feito ou vence nesses dias. Você recebe os resultados e responde em seguida.
 - reply: uma frase curta e calorosa, no idioma dela, dizendo o que ficou guardado ou respondendo a pergunta.
@@ -144,7 +155,7 @@ Os campos que existem:
 - reply
 - create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, check_in_at, steps, status, sensitive, related, photos, files}]
 - update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, check_in_at, entities, delete, photos, files}]
-- search, period {from, to}, show, show_photos, photo_description, file_descriptions, keep_audio
+- search, period {from, to}, show, show_photos, keep_audio
 """.trim()
 
     /**
@@ -173,6 +184,8 @@ Os campos que existem:
         /** The files she sent: with what she said, or alone ([fileAlone]: nothing said, only the file). */
         files: List<FileSeen> = emptyList(),
         fileAlone: Boolean = false,
+        /** What the photo (or the photos sent with it) shows, as the phone saw it. */
+        seen: String? = null,
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -253,6 +266,7 @@ Os campos que existem:
                 append('\n')
             }
         }
+        seen?.trim()?.takeIf { it.isNotEmpty() }?.let { append("\nO QUE SE VÊ (o celular olhou):\n").append(it.take(SEEN)).append('\n') }
         if (fileAlone) {
             // Nothing said: the file is the whole of it.
             append("\nO ARQUIVO QUE ELA MANDOU (sem dizer nada):\n")
@@ -287,7 +301,10 @@ Os campos que existem:
         append('"').append(f.name.take(120)).append('"')
         FileKind.label(f.name, f.mime)?.let { append(" · ").append(it) }
         if (f.size > 0) append(" · ").append(FileKind.size(f.size))
-        f.peek.trim().takeIf { it.isNotEmpty() }?.let { append("\n   começo da primeira página: \"").append(it.take(PEEK).replace('\n', ' ')).append('"') }
+        // What it is, as the phone said; only when it said nothing, the start of it.
+        val about = f.about?.trim()?.takeIf { it.isNotEmpty() }
+        if (about != null) append(" · o que é: ").append(about.take(SEEN))
+        else f.peek.trim().takeIf { it.isNotEmpty() }?.let { append("\n   começo da primeira página: \"").append(it.take(PEEK).replace('\n', ' ')).append('"') }
     }
 
     /** One photo in a line the model can point to (foto#id): when, what it shows, what is written in it. */
@@ -411,6 +428,9 @@ ws     ::= [ \t\n]{0,20}
 
     /** The most of a file's first page the model gets (a peek, never the document). */
     const val PEEK = 800
+
+    /** The most of what the phone saw in a photo, or says a file is. */
+    private const val SEEN = 400
     private val PT = Locale.forLanguageTag("pt-BR")
     private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private val DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd")

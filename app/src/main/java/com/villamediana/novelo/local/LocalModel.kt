@@ -112,8 +112,11 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
      * Not enough room on the phone: it says so (how much it needs, how much there is) and doesn't start.
      * Android's download goes on with the app in the background or closed (its notification shows it).
      */
+    @Synchronized
     fun download(wifiOnly: Boolean = false) {
         if (_state.value is State.Downloading || _state.value == State.Ready || _state.value == State.Checking) return
+        // Coming from now on: a second tap (or another screen) doesn't start it again.
+        _state.value = State.Downloading(0f, 0, totalBytes, if (wifiOnly && !onWifi()) Waiting.WIFI else null)
         scope.launch(Dispatchers.IO) {
             val missing = PARTS.filter { File(dir, it.name).length() != it.size }.sumOf { it.size }
             val free = dir.usableSpace
@@ -122,7 +125,24 @@ class LocalModel(private val context: Context, private val scope: CoroutineScope
                 return@launch
             }
             wanted.writeText(if (wifiOnly) "wifi" else "any")
-            next()
+            if (!next()) { refresh(); return@launch }
+            follow()
+        }
+    }
+
+    /**
+     * Waiting for the Wi-Fi, she wants it now on her mobile data: the part coming starts again,
+     * allowed on any network (and so do the ones after it).
+     */
+    fun useMobileData() {
+        watch?.cancel()
+        scope.launch(Dispatchers.IO) {
+            PARTS.forEach { part ->
+                activeId(part)?.let { runCatching { manager.remove(it) } }
+                File(dir, part.name + ".id").delete()
+            }
+            wanted.writeText("any")
+            if (!next()) { refresh(); return@launch }
             follow()
         }
     }

@@ -11,6 +11,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -39,7 +40,12 @@ fun PrivacySection() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val s by graph.settings.now.collectAsStateWithLifecycle()
-    val can = remember { Unlock.available(context) }
+    // Asked again each time she comes back (she may have just set a lock in Android's settings).
+    var can by remember { androidx.compose.runtime.mutableStateOf(Unlock.available(context)) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        can = Unlock.available(context)
+        onPauseOrDispose {}
+    }
 
     fun flip() {
         if (!can) return

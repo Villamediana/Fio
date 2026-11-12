@@ -56,6 +56,12 @@ interface Thinker {
     /** The long side of the photo it gets, in px (a small model on the phone wants a smaller one). */
     suspend fun imageSide(): Int = 1600
 
+    /**
+     * It looks at the photo itself (her model); false: it gets only what the phone saw in it (the
+     * Novelo's intelligence — the phone's look is enough, and nothing more goes out).
+     */
+    suspend fun looksItself(): Boolean = true
+
     suspend fun answer(system: String, user: String, image: ByteArray? = null): String
 
     /** Gets ready while she is still talking (the model on the phone loads in the meantime). */
@@ -152,6 +158,8 @@ class Thinking(
     /** Her API looks at the photo itself; for the Novelo's, Omni looks at it on the phone and says what it sees. */
     override suspend fun seesImages(): Boolean = true
 
+    override suspend fun looksItself(): Boolean = settings.current().think == Source.API
+
     /** The photo is looked at lightly (its text comes read by the phone): no need to send more than this. */
     override suspend fun imageSide(): Int = 768
 
@@ -164,29 +172,12 @@ class Thinking(
         novelo.cancel()
     }
 
-    /**
-     * What Omni sees in the photo, in a sentence or two (and the writing in it), in the app's
-     * language; null when it can't look (not downloaded, or it couldn't read the photo).
-     */
-    private suspend fun seen(image: ByteArray): String? {
-        if (!LocalEngine.available || !model.ready) return null
-        val ask = "Describe this photo in one or two sentences, in ${Lang.current.label}: the place, the people, animals and things, " +
-            "the colours, the moment, and any writing you can read. Only what can be seen, nothing made up. Plain text."
-        return runCatching {
-            LocalEngine.clean(engine.generate(model.files, Brain.chatml(ask, LocalEngine.MEDIA), grammar = null, image = image, maxTokens = 200))
-        }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
-    }
-
     override suspend fun answer(system: String, user: String, image: ByteArray?): String = withContext(Dispatchers.IO) {
         val s = settings.current()
         readiness(s)?.let { throw NotReady(Need.THINK, it) }
         when (s.think) {
-            Source.NOVELO -> {
-                // The photo goes as what Omni saw in it (free models may not look at photos).
-                val look = image?.let { seen(it) }
-                val words = if (look == null) user else user.trimEnd() + "\n\nO QUE SE VÊ NA FOTO (o celular olhou):\n" + look + "\n"
-                novelo.answer(system, words) { Brain.parse(it) != null }
-            }
+            // The photo comes as what Omni saw in it, already in the words (free models may not look at photos).
+            Source.NOVELO -> novelo.answer(system, user) { Brain.parse(it) != null }
             Source.API -> {
                 val ep = s.endpoint(settings.apiKey().orEmpty())
                 // Asked with little reasoning (organizing doesn't need more, and it answers much

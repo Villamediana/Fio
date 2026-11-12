@@ -30,6 +30,18 @@ class BrainTest {
     }
 
     @Test
+    fun oneValueWhereAListGoesIsReadAsAList() {
+        // A model writing one value for a list (common with one file, one word to look up) still answers.
+        val plan = Brain.parse("""{"reply":"ok","create":[{"kind":"note","title":"Meu currículo","files":true,"steps":"revisar","related":12}],"search":"curriculo","show":7,"show_photos":null}""")!!
+        assertEquals(listOf("curriculo"), plan.search)
+        assertEquals(listOf(7L), plan.show)
+        assertTrue(plan.showPhotos.isEmpty())
+        assertEquals(listOf("revisar"), plan.create.single().steps)
+        assertEquals(listOf(12L), plan.create.single().related)
+        assertTrue(plan.create.single().files)
+    }
+
+    @Test
     fun nullsAndMissingFieldsAreFine() {
         val plan = Brain.parse("""{"reply":"ok","create":[{"kind":"note","title":"Senha do wifi","body":"abc123","due":null,"remind_at":null,"sensitive":true}]}""")!!
         assertTrue(plan.create.single().sensitive)

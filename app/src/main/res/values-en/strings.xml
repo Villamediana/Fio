@@ -292,6 +292,10 @@
         <item quantity="one">%d photo</item>
         <item quantity="other">%d photos</item>
     </plurals>
+    <plurals name="files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
     <plurals name="sounds">
         <item quantity="one">%d audio</item>
         <item quantity="other">%d audios</item>
@@ -336,4 +340,5 @@
     <string name="file_in_diary">in the day\'s diary</string>
     <string name="file_gone">This file is no longer on the phone</string>
     <string name="file_no_app">No app on the phone opens this file</string>
+    <string name="file_not_brought">Couldn\'t bring: %1$s</string>
 </resources>

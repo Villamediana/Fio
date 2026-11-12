@@ -86,8 +86,11 @@ object Readable {
     /** Where a file kept goes in the backup: Arquivos/<ano>/<data hora> (<id>) <its own name>. */
     fun filePath(c: Capture, zone: ZoneId): String {
         val at = Instant.ofEpochMilli(c.createdAt).atZone(zone)
-        val name = c.fileName.orEmpty().ifBlank { c.filePath?.let { File(it).name } ?: "arquivo" }.replace('/', '-').replace('\\', '-')
-        return "$FILES/${at.year}/${at.format(PHOTO)} (${c.id}) $name"
+        val name = c.fileName.orEmpty().ifBlank { c.filePath?.let { File(it).name } ?: "arquivo" }
+        // Safe for any folder it is opened in (no : ? * … ), its type kept at the end.
+        val ext = name.substringAfterLast('.', "").takeIf { it.isNotEmpty() && it.length <= 8 && it != name }
+        val base = fileName(if (ext != null) name.substringBeforeLast('.') else name).take(100).trim()
+        return "$FILES/${at.year}/${at.format(PHOTO)} (${c.id}) $base" + (ext?.let { "." + fileName(it) } ?: "")
     }
 
     /** An old folder's snapshot: Backups/fio 2026-11-11 14.32.05.json. */

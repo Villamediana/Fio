@@ -243,10 +243,19 @@ class KeeperAndMindTest {
     private class Synced : ReminderSync { val ids = mutableListOf<Long>(); override suspend fun sync(entryIds: List<Long>) { ids += entryIds } }
     private object NoPhotos : PhotoReader { override suspend fun text(file: File) = ""; override suspend fun jpeg(file: File, side: Int) = ByteArray(0) }
 
-    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}, peek: FilePeek = NoPeek) = Mind(
+    /** Omni, as the tests have it: says [photo] for every photo and [files] in turn for the files; keeps what it was asked. */
+    private class Says(val photo: String? = null, vararg files: String) : About {
+        private val next = ArrayDeque(files.toList())
+        val photos = mutableListOf<ByteArray>()
+        val asked = mutableListOf<Pair<FileSeen, String?>>()
+        override suspend fun photo(image: ByteArray): String? { photos += image; return photo }
+        override suspend fun file(file: FileSeen, said: String?, look: ByteArray?): String? { asked += file to said; return next.removeFirstOrNull() }
+    }
+
+    private fun mind(ears: Ears, thinker: Thinker, sync: ReminderSync = Synced(), recorder: Recorder = Recorder(), mic: com.villamediana.novelo.mind.MicHolder = NoMic, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO), photos: PhotoReader = NoPhotos, offline: () -> Unit = {}, peek: FilePeek = NoPeek, about: About = NoAbout) = Mind(
         scope = scope,
         db = db, recorder = recorder, hearing = ears, thinking = thinker, keeper = keeper(), reminders = sync,
-        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline, peek = peek,
+        photos = photos, mic = mic, dir = tmp.root, zone = { zone }, clock = { now }, offline = offline, peek = peek, about = about,
     )
 
     private fun voiceFile(): File = tmp.newFile("v.wav").also { f ->
@@ -320,9 +329,10 @@ class KeeperAndMindTest {
 
     @Test
     fun photosWaitAndGoWithWhatSheSays() = runBlocking {
-        val made = """{"reply":"Anotei: comprar pra Alma.","create":[{"kind":"task","title":"Comprar o tênis azul pra Alma","photos":true}],"photo_description":"tênis azul numa vitrine"}"""
+        val made = """{"reply":"Anotei: comprar pra Alma.","create":[{"kind":"task","title":"Comprar o tênis azul pra Alma","photos":true}]}"""
         val thinker = FakeThinker(ArrayDeque(listOf(made)))
-        val m = mind(FakeEars(""), thinker)
+        val omni = Says("tênis azul numa vitrine")
+        val m = mind(FakeEars(""), thinker, about = omni)
         m.stage(listOf(jpegFile("a.jpg") to now - 60_000, jpegFile("b.jpg") to now - 30_000, jpegFile("c.jpg") to now))
         assertEquals(3, m.staged.value.size)
         // One let go before sending.
@@ -335,6 +345,9 @@ class KeeperAndMindTest {
         // One look for all: what she wrote with the two photos.
         val prompt = thinker.prompts.single()
         assertTrue(prompt, prompt.contains("AS FOTOS QUE ELA MANDOU JUNTO (2, na imagem, em ordem):"))
+        // What they show, said once by Omni on the phone (one look at both) — the model gets it.
+        assertEquals(1, omni.photos.size)
+        assertTrue(prompt, prompt.contains("O QUE SE VÊ (o celular olhou):\ntênis azul numa vitrine"))
         val said = db.backup().captures().single { it.source == Capture.TEXT }
         val sent = db.captures().attachedTo(said.id)
         assertEquals(2, sent.size)
@@ -358,19 +371,22 @@ class KeeperAndMindTest {
 
     @Test
     fun aFileSentAloneGoesToTheNoteTheModelMakesForIt() = runBlocking {
-        val made = """{"reply":"Guardei seu currículo.","create":[{"kind":"note","title":"Meu currículo","files":true}],"file_descriptions":["currículo do Miguel, desenvolvedor"]}"""
+        val made = """{"reply":"Guardei seu currículo.","create":[{"kind":"note","title":"Meu currículo","files":true}]}"""
         val thinker = FakeThinker(ArrayDeque(listOf(made)))
         val peek = FirstPage("Miguel Villamediana · Desenvolvedor de software · São Paulo")
-        val m = mind(FakeEars(""), thinker, peek = peek)
+        val omni = Says(null, "currículo do Miguel, desenvolvedor")
+        val m = mind(FakeEars(""), thinker, peek = peek, about = omni)
         m.stageFiles(listOf(picked("a") to "CV Miguel 2026.pdf"))
         assertEquals(listOf("CV Miguel 2026.pdf"), m.staged.value.map { it.name })
         m.sendStaged()
         answered(m)
-        // The model saw the name, the type and the start of the first page — never more.
+        // Omni read the start of the first page and said what it is; the model got that — never the file.
+        assertEquals("Miguel Villamediana · Desenvolvedor de software · São Paulo", omni.asked.single().first.peek)
+        assertNull(omni.asked.single().second)
         val prompt = thinker.prompts.single()
         assertTrue(prompt, prompt.contains("O ARQUIVO QUE ELA MANDOU (sem dizer nada):"))
-        assertTrue(prompt, prompt.contains("\"CV Miguel 2026.pdf\" · PDF · 2 KB"))
-        assertTrue(prompt, prompt.contains("começo da primeira página: \"Miguel Villamediana · Desenvolvedor de software · São Paulo\""))
+        assertTrue(prompt, prompt.contains("\"CV Miguel 2026.pdf\" · PDF · 2 KB · o que é: currículo do Miguel, desenvolvedor"))
+        assertTrue(prompt, !prompt.contains("começo da primeira página"))
         assertEquals(listOf("CV Miguel 2026.pdf"), peek.peeked)
         // Kept under its own name, with what it is; in the note only (not in the day's diary).
         val file = db.backup().captures().single { it.source == Capture.FILE }
@@ -386,8 +402,8 @@ class KeeperAndMindTest {
 
     @Test
     fun aFileInNoItemLivesInTheDaysDiary() = runBlocking {
-        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Guardei no seu dia.","file_descriptions":["foto da planta da casa"]}""")))
-        val m = mind(FakeEars(""), thinker)
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Guardei no seu dia."}""")))
+        val m = mind(FakeEars(""), thinker, about = Says(null, "planta da casa"))
         m.stageFiles(listOf(picked("b") to "planta.dwg"))
         m.sendStaged()
         answered(m)
@@ -397,22 +413,26 @@ class KeeperAndMindTest {
         val lib = com.villamediana.novelo.data.Library(db, Synced())
         assertEquals(listOf(file.id), lib.dayFiles(day).first().map { it.id })
         assertNull(lib.files().first().single().home)
+        assertEquals("planta da casa", file.description)
     }
 
     @Test
     fun filesSentWithWhatSheSaysGoWhereSheSays() = runBlocking {
         val task = db.entries().insert(Entry(kind = "task", title = "Mandar o contrato pro Pedro", status = "todo", createdAt = now - 86_400_000, updatedAt = now - 86_400_000))
-        val made = """{"reply":"Juntei à tarefa.","update":[{"id":$task,"files":true}],"file_descriptions":["contrato de aluguel do apartamento","planilha de gastos de novembro"]}"""
+        val made = """{"reply":"Juntei à tarefa.","update":[{"id":$task,"files":true}]}"""
         val thinker = FakeThinker(ArrayDeque(listOf(made)))
-        val m = mind(FakeEars(""), thinker, peek = FirstPage("CONTRATO DE LOCAÇÃO"))
+        val omni = Says(null, "contrato de aluguel do apartamento", "planilha de gastos de novembro")
+        val m = mind(FakeEars(""), thinker, peek = FirstPage("CONTRATO DE LOCAÇÃO"), about = omni)
         m.stageFiles(listOf(picked("c") to "contrato.docx", picked("d") to "gastos.xlsx"))
         m.write("esse é o contrato que tenho que mandar pro Pedro")
         answered(m)
         assertTrue(m.staged.value.isEmpty())
         val prompt = thinker.prompts.single()
         assertTrue(prompt, prompt.contains("OS ARQUIVOS QUE ELA MANDOU JUNTO (2, em ordem):"))
-        assertTrue(prompt, prompt.contains("1. \"contrato.docx\" · DOCX"))
-        assertTrue(prompt, prompt.contains("2. \"gastos.xlsx\" · XLSX"))
+        assertTrue(prompt, prompt.contains("1. \"contrato.docx\" · DOCX · 2 KB · o que é: contrato de aluguel do apartamento"))
+        assertTrue(prompt, prompt.contains("2. \"gastos.xlsx\" · XLSX · 2 KB · o que é: planilha de gastos de novembro"))
+        // Omni knew what she said with them.
+        assertEquals(listOf("esse é o contrato que tenho que mandar pro Pedro"), omni.asked.map { it.second }.distinct())
         val said = db.backup().captures().single { it.source == Capture.TEXT }
         val sent = db.captures().filesWith(said.id)
         assertEquals(listOf("contrato de aluguel do apartamento", "planilha de gastos de novembro"), sent.map { it.description })
@@ -706,9 +726,8 @@ class KeeperAndMindTest {
 
     @Test
     fun aPhotoKeepsWhatItShowsAndAQuestionBringsItBack() = runBlocking {
-        val described = """{"reply":"Que lindo!","photo_description":"Alma no aeroporto de Guarulhos com a mala azul"}"""
-        val thinker = FakeThinker(ArrayDeque(listOf(described)))
-        val m = mind(FakeEars(""), thinker, photos = ReadsText("GRU T2"))
+        val thinker = FakeThinker(ArrayDeque(listOf("""{"reply":"Que lindo!"}""")))
+        val m = mind(FakeEars(""), thinker, photos = ReadsText("GRU T2"), about = Says("Alma no aeroporto de Guarulhos com a mala azul"))
         m.photo(tmp.newFile("alma.jpg"))
         val a = answered(m)
         val photo = db.captures().get(a.captureId)!!
@@ -782,7 +801,7 @@ class KeeperAndMindTest {
 
     @Test
     fun photosFromTheGalleryGoOneByOneEachOnTheDayItWasTaken() = runBlocking {
-        val seen = """{"reply":"Guardei.","photo_description":"praia"}"""
+        val seen = """{"reply":"Guardei."}"""
         val thinker = FakeThinker(ArrayDeque(listOf(seen, seen)))
         val m = mind(FakeEars(""), thinker, photos = ReadsText("Ubatuba"))
         val lastWeek = LocalDateTime.of(2026, 11, 4, 16, 20).atZone(zone).toInstant().toEpochMilli()

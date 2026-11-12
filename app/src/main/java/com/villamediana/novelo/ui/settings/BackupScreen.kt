@@ -78,7 +78,7 @@ fun BackupSection() {
             // On the app's scope: leaving the screen never leaves a bringing-back halfway.
             graph.scope.launch {
                 back = backups.chooseAndBringBack(uri)?.let { (kept, restored) ->
-                    t(R.string.setup_backup_back, moment(kept.at), Backups.note(restored.entries, restored.photos, restored.sounds))
+                    t(R.string.setup_backup_back, moment(kept.at), Backups.note(restored.entries, restored.photos, restored.sounds, restored.files))
                 }
             }
         }

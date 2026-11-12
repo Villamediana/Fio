@@ -49,11 +49,11 @@ class Backup(
     private val lock = Mutex()
 
     /** What went: how many items and photos, the file written (null: nothing changed); [empty]: nothing in the app to keep. */
-    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false, val sounds: Int = 0, val aside: String? = null)
+    data class Saved(val entries: Int, val photos: Int, val snapshot: String?, val empty: Boolean = false, val sounds: Int = 0, val aside: String? = null, val files: Int = 0)
 
     data class Kept(val name: String, val at: Long)
 
-    data class Restored(val entries: Int, val photos: Int, val sounds: Int = 0)
+    data class Restored(val entries: Int, val photos: Int, val sounds: Int = 0, val files: Int = 0)
 
     /** Where the backup goes, to show ("Documents/Novelo backup.zip"). */
     fun place(root: Shelf): String = root.name + "/" + FILE
@@ -65,7 +65,7 @@ class Backup(
             if (snap.entries.isEmpty() && snap.captures.isEmpty()) return@withContext Saved(0, 0, null, empty = true)
             val state = readState(key)
             val same = sha(json.encodeToString(Snapshot.serializer(), snap.copy(madeAt = 0)).toByteArray(Charsets.UTF_8))
-            val counted = Saved(snap.entries.size, snap.photoCount, null, sounds = snap.soundCount)
+            val counted = Saved(snap.entries.size, snap.photoCount, null, sounds = snap.soundCount, files = snap.files.size)
             val there = FILE in root.files()
             if (same == state.last && there) return@withContext counted
             // Made whole on the phone first, then it goes over the one in the folder.
@@ -251,7 +251,7 @@ class Backup(
         // A file's own folder goes with it.
         File(dir, "files").listFiles()?.forEach { if (it.isDirectory && it.list().isNullOrEmpty()) it.delete() }
         runCatching { reminders.sync((before + entryIds).distinct()) }
-        return Restored(snap.entries.size, restored.size, sounds.size)
+        return Restored(snap.entries.size, restored.size, sounds.size, files.size)
     }
 
     /** The folder the backup was before it became one file (Novelo/ or Fio/ with Backups/, or the chosen one itself). */
