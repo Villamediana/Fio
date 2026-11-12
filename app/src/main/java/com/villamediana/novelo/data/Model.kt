@@ -57,6 +57,8 @@ data class Entry(
     val captureId: Long? = null,
     /** How its reminder comes back (JSON of [com.villamediana.novelo.remind.Repeat]); null: once. */
     val repeat: String? = null,
+    /** Its place in the tasks list, when she moved it by hand (null: by its due day, the newest first). */
+    val position: Long? = null,
 ) {
     val kindEnum: Kind get() = Kind.of(kind) ?: Kind.NOTE
     val statusEnum: Status? get() = Status.of(status)

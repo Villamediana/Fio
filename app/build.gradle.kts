@@ -58,8 +58,8 @@ android {
         applicationId = "com.villamediana.novelo"
         minSdk = 29
         targetSdk = 36
-        versionCode = 57
-        versionName = "1.34.0"
+        versionCode = 58
+        versionName = "1.35.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "HAS_LOCAL_ENGINE", withNative.toString())
         buildConfigField("String", "NV_NOTICE", "\"" + listOf(
@@ -206,6 +206,8 @@ dependencies {
     implementation(libs.okhttp)
     // A digital (ou a senha do celular) pra ver o que é sensível, quando ela quer.
     implementation(libs.androidx.biometric)
+    // Holding an item and dragging it (steps, the tasks list).
+    implementation(libs.reorderable)
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
 

@@ -1,5 +1,7 @@
 package com.villamediana.novelo.ui.library
 
+import sh.calvin.reorderable.ReorderableItem
+
 import com.villamediana.novelo.R
 import com.villamediana.novelo.settings.t
 import androidx.compose.animation.AnimatedVisibility
@@ -321,11 +323,29 @@ private fun Entries(
     dayPhotos: DayPhotosIndex = DayPhotosIndex.EMPTY,
 ) {
     val searched = terms != null
+    // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); let go, the
+    // group's order is kept.
+    val movable = filter == Filter.TASKS && !searched
+    val graph = com.villamediana.novelo.NoveloApplication.graph
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    var shown by remember(sections) { mutableStateOf(sections) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorder = sh.calvin.reorderable.rememberReorderableLazyListState(listState) { from, to ->
+        val group = shown.indexOfFirst { (_, list) -> list.any { it.id == from.key } }
+        val list = shown.getOrNull(group)?.second ?: return@rememberReorderableLazyListState
+        val a = list.indexOfFirst { it.id == from.key }
+        val b = list.indexOfFirst { it.id == to.key }
+        if (a < 0 || b < 0) return@rememberReorderableLazyListState // another group, or a label: it stays in its own
+        shown = shown.toMutableList().also { it[group] = it[group].first to list.toMutableList().apply { add(b, removeAt(a)) } }
+        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentFrequentTick)
+    }
+    val groups = if (movable) shown else sections
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
     ) {
-        if (!searched && sections.all { it.second.isEmpty() }) {
+        if (!searched && groups.all { it.second.isEmpty() }) {
             item { Empty(filter) }
         }
         if (photos.isNotEmpty()) {
@@ -343,12 +363,13 @@ private fun Entries(
             }
             item(key = "files-gap") { Spacer(Modifier.height(6.dp)) }
         }
-        sections.forEach { (label, items) ->
+        groups.forEach { (label, items) ->
             if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
             // One block per group: the cards touch, only the ends are round.
             itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
                 val shape = groupShape(i, items.size, outer = 22.dp)
-                Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
+                @Composable
+                fun card(modifier: Modifier) {
                     if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape, photos = dayPhotos.of(e.id))
                     else EntryCard(
                         e,
@@ -360,7 +381,28 @@ private fun Entries(
                         showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
                         inToday = !searched && filter == Filter.TODAY,
                         shape = shape,
+                        modifier = modifier,
                     )
+                }
+                if (movable) {
+                    ReorderableItem(reorder, key = e.id) { dragging ->
+                        Box(
+                            Modifier
+                                .padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)
+                                .graphicsLayer { if (dragging) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12f; this.shape = shape; clip = true } }
+                                .longPressDraggableHandle(
+                                    onDragStarted = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
+                                    onDragStopped = {
+                                        shown.firstOrNull { (_, list) -> list.any { it.id == e.id } }?.second?.map { it.id }?.let { ids ->
+                                            graph.scope.launch { graph.library.reorder(ids) }
+                                        }
+                                    },
+                                )
+                                .testTag("task-$i"),
+                        ) { card(Modifier) }
+                    }
+                } else {
+                    Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) { card(Modifier) }
                 }
             }
         }
@@ -553,11 +595,13 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         }
         Filter.TASKS -> {
             val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }
-            val sortKey: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
+            // Moved by hand: in that order; the ones not moved yet (new ones) first, by due day, the newest first.
+            val byDue: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
+            val sortKey = compareBy<Entry>({ if (it.position == null) 0 else 1 }, { it.position ?: 0L }, byDue)
             buildList {
-                add(t(R.string.status_doing) to byStatus[Status.DOING].orEmpty().sortedBy(sortKey))
-                add(t(R.string.status_todo) to byStatus[Status.TODO].orEmpty().sortedBy(sortKey))
-                add(t(R.string.status_waiting) to byStatus[Status.WAITING].orEmpty().sortedBy(sortKey))
+                add(t(R.string.status_doing) to byStatus[Status.DOING].orEmpty().sortedWith(sortKey))
+                add(t(R.string.status_todo) to byStatus[Status.TODO].orEmpty().sortedWith(sortKey))
+                add(t(R.string.status_waiting) to byStatus[Status.WAITING].orEmpty().sortedWith(sortKey))
                 if (showDone) add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
             }
         }
