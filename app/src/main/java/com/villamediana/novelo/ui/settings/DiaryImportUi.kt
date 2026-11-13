@@ -173,7 +173,11 @@ internal fun DiaryImportBody(
             when (s) {
                 DiaryImport.State.Idle -> {}
                 is DiaryImport.State.Opening -> Working(t(R.string.import_opening), s.name)
-                is DiaryImport.State.Recognizing -> Working(t(R.string.import_recognizing), s.name, t(R.string.import_recognizing_line))
+                is DiaryImport.State.Recognizing -> Working(
+                    t(R.string.import_recognizing),
+                    s.name,
+                    if (s.attempt > 1) t(R.string.import_recognizing_again, s.attempt, DiaryImport.TRIES) else t(R.string.import_recognizing_line),
+                )
                 is DiaryImport.State.Saving -> Working(
                     if (s.backingUp) t(R.string.import_backing) else t(R.string.import_saving),
                     listOfNotNull(

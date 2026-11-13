@@ -410,8 +410,8 @@
         <item quantity="other">%d without a date are left out</item>
     </plurals>
     <plurals name="import_unread">
-        <item quantity="one">1 file didn’t open</item>
-        <item quantity="other">%d files didn’t open</item>
+        <item quantity="one">1 file didn’t open as JSON</item>
+        <item quantity="other">%d files didn’t open as JSON</item>
     </plurals>
     <plurals name="import_new">
         <item quantity="one">1 new day in the diary</item>
@@ -448,4 +448,5 @@
     <string name="import_choose_file_line">TXT, Markdown, JSON, CSV or ZIP</string>
     <string name="import_choose_folder">A folder</string>
     <string name="import_choose_folder_line">With the folders inside: Omni sees how it is laid out</string>
+    <string name="import_recognizing_again">The pattern before got nothing out: Omni is looking again (%1$d of %2$d).</string>
 </resources>

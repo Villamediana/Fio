@@ -135,7 +135,7 @@ class DiaryImportTest {
         val read = Recipes.apply(r, files.texts, zone)
         assertEquals(listOf("Março", "Segundo dia."), read.found.map { it.title })
         assertEquals(LocalDate.of(2024, 3, 2), day(read.found[1].at))
-        assertTrue(Sample.of("export.zip", files.texts, files.others).contains("Diario/ — 2 de texto (.md), 1 outros (.jpg): 2024-03-01.md"))
+        assertTrue(Sample.of("export.zip", files.texts, files.others).contains("Diario/ 2 texto (.md): 2024-03-01.md, 2024-03-02.md"))
     }
 
     private fun zipOf(vararg files: Pair<String, ByteArray>): ByteArray = ByteArrayOutputStream().also { out ->
@@ -161,8 +161,8 @@ class DiaryImportTest {
         assertEquals(3, files.texts.size)
         assertEquals(3, files.photos)
         val sample = Sample.of("diario.zip", files.texts, files.others)
-        assertTrue(sample, sample.contains("meu-diario/fotos/ — 2 fotos (.jpg, sem data dentro)"))
-        assertTrue(sample, sample.contains("meu-diario/ — 1 outros (.db)"))
+        assertTrue(sample, sample.contains("meu-diario/fotos/sem-nome.jpg (foto)"))
+        assertTrue(sample, sample.contains("meu-diario/dados.db (outro)"))
         assertTrue(sample, sample.contains("--- meu-diario/notas/Ideias.md"))
 
         val r = recipe(
@@ -245,11 +245,18 @@ class DiaryImportTest {
         assertEquals(1, files.photos)
         assertEquals(1, files.others.count { !it.isPhoto })
 
-        // Alike folders as one line, and one text of each kind.
+        // Alike folders told together with what each has inside, the formats, and one text of each kind.
         val sample = Sample.of("diario-2026-11-13.zip", files.texts, files.others)
-        assertTrue(sample, sample.contains("diario-2026-11-13/2022-01-23/ e mais 1 pastas assim (diario-2026-11-13/2024-12-17/) — 4 de texto (.html .txt): entrada.html, texto.txt"))
-        assertTrue(sample, sample.contains("--- diario-2026-11-13/diario.txt"))
-        assertTrue(sample, sample.contains("--- diario-2026-11-13/2022-01-23/texto.txt (1 KB, começo; há 2 assim)"))
+        assertTrue(sample, sample.contains("diario-2026-11-13/diario.txt (texto)"))
+        assertTrue(sample, sample.contains("diario-2026-11-13/ tem 3 pastas assim (2022-01-23/, 2024-12-17/, 2024-12-25 - Natal/); dentro de cada uma:"))
+        assertTrue(sample, sample.contains("  texto.txt — 3 texto (.txt), em todas"))
+        assertTrue(sample, sample.contains("  entrada.html — 2 HTML (.html), em 2 delas"))
+        assertTrue(sample, sample.contains("  fotos/01.jpg — 1 fotos (.jpg, sem data dentro), em 1 delas"))
+        assertTrue(sample, sample.contains("Os textos: 4 texto, 2 HTML — nenhum é JSON, nenhum é CSV."))
+        assertTrue(sample, sample.contains("--- diario-2026-11-13/2022-01-23/texto.txt (texto, 1 KB, começo; há 3 assim)"))
+        assertEquals(setOf("text"), Sample.shapes(files.texts))
+        assertTrue(OmniRecipe.grammar(setOf("text")).contains("shape ::= \"\\\"text\\\"\"\n"))
+        assertFalse(OmniRecipe.grammar(setOf("text")).contains("json\\\"\" |"))
 
         // The date nearest the file in the path: the day's folder, not the export's.
         val read = Recipes.apply(oneGoalRecipe, files.texts, zone, files.others)
@@ -270,6 +277,27 @@ class DiaryImportTest {
         assertEquals(1, read.photos.size)
     }
 
+    @Test fun whenNothingComesOutOmniLooksAgainOnItsOwnSeeingWhatItGot() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val asked = mutableListOf<Pair<String, Set<String>>>()
+        val answers = ArrayDeque(listOf(
+            // JSON when nothing is JSON: can't be.
+            """{"app": "Day One", "about": "…", "shape": "json", "entries": "entries"}""",
+            // A text recipe whose line matches nothing.
+            """{"app": "Texto", "about": "…", "shape": "text", "start": "^NADA$"}""",
+            """{"app": "Texto", "about": "Cada entrada começa com a data.", "shape": "text", "start": "^(?<date>\\d{4}-\\d{2}-\\d{2})$", "date_format": "iso"}""",
+        ))
+        val importer = DiaryImport(scope = scope, ready = { null }, ask = { _, user, shapes -> asked += user to shapes; answers.removeFirst() }, keep = { error("no") }, backup = { true }, zone = { zone })
+        importer.open("diario.txt") { "2024-01-15\nPrimeiro.\n2024-01-16\nSegundo.".byteInputStream() }
+        val ready = withTimeout(5_000) { importer.state.first { it is DiaryImport.State.Ready || it is DiaryImport.State.Failed } } as DiaryImport.State.Ready
+        assertEquals(2, ready.reading.found.size)
+        assertEquals(DiaryImport.TRIES, asked.size)
+        assertEquals(setOf("text"), asked[0].second)
+        assertTrue(asked[1].first.contains("A RESPOSTA ANTERIOR NÃO RODOU"))
+        assertTrue(asked[2].first.contains("UMA RECEITA ANTERIOR NÃO SERVIU"))
+        assertTrue(asked[2].first.contains("O QUE ELA DEU: 0 entradas com data"))
+    }
+
     @Test fun aZipInsideAZipIsOpenedToo() {
         val inner = zipOf("2024-03-01.txt" to "Dentro.".toByteArray())
         val files = Unpack.files("fora.zip", zipOf("export/dentro.zip" to inner).inputStream())
@@ -284,7 +312,7 @@ class DiaryImportTest {
 
     @Test fun aZipWithNothingToReadSaysWhatIsInIt() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val importer = DiaryImport(scope = scope, ready = { null }, ask = { _, _ -> "" }, keep = { error("no") }, backup = { true }, stage = { stage() })
+        val importer = DiaryImport(scope = scope, ready = { null }, ask = { _, _, _ -> "" }, keep = { error("no") }, backup = { true }, stage = { stage() })
         val zip = zipOf("app/dados.db" to ByteArray(4000) { 0 }, "app/config.bin" to ByteArray(100) { 0 })
         importer.open("diario.zip") { zip.inputStream() }
         val failed = withTimeout(5_000) { importer.state.first { it is DiaryImport.State.Failed } } as DiaryImport.State.Failed
@@ -344,7 +372,7 @@ class DiaryImportTest {
         val importer = DiaryImport(
             scope = scope,
             ready = { null },
-            ask = { _, user ->
+            ask = { _, user, _ ->
                 asked += user
                 """{"app": "Texto", "about": "Cada entrada começa com a data.", "shape": "text", "start": "^(?<date>\\d{4}-\\d{2}-\\d{2})$", "date_format": "iso"}"""
             },
