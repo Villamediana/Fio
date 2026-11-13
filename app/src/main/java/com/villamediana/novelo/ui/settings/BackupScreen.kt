@@ -66,7 +66,7 @@ import java.util.Locale
  * Under the folder: when the last one went (or that it is going, or what went wrong).
  */
 @Composable
-fun BackupSection(onSeeDiary: () -> Unit = {}) {
+fun BackupSection() {
     val graph = NoveloApplication.graph
     val backups = graph.backups
     val s by graph.settings.now.collectAsStateWithLifecycle()
@@ -108,8 +108,6 @@ fun BackupSection(onSeeDiary: () -> Unit = {}) {
                 else Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
             }
         },
-        // Another app's diary into this one (its pattern recognized by the intelligence she chose); a backup after.
-        { DiaryImportLine(onSeeDiary) },
     )
 }
 
