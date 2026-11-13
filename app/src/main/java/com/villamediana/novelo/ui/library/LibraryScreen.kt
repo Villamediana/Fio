@@ -344,85 +344,99 @@ private fun Entries(
         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentFrequentTick)
     }
     val groups = if (movable) shown else sections
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
-    ) {
-        if (!searched && groups.all { it.second.isEmpty() }) {
-            item { Empty(filter) }
-        }
-        if (photos.isNotEmpty()) {
-            item(key = "label-photos") { SectionLabel(t(R.string.photos), Modifier.animateItem()) }
-            item(key = "photos") { PhotoRow(photos, side = 16.dp, height = 150.dp, tag = "found-photo") }
-            item(key = "photos-gap") { Spacer(Modifier.height(14.dp)) }
-        }
-        if (files.isNotEmpty()) {
-            item(key = "label-files") { SectionLabel(t(R.string.tab_files), Modifier.animateItem()) }
-            itemsIndexed(files, key = { _, f -> "file-${f.id}" }) { i, f ->
-                val context = androidx.compose.ui.platform.LocalContext.current
-                Box(Modifier.animateItem().padding(bottom = 8.dp)) {
-                    com.villamediana.novelo.ui.entry.FileRow(f, onClick = { com.villamediana.novelo.ui.entry.openFile(context, f) }, where = where(f), modifier = Modifier.testTag("found-file-$i"))
+    // Diário: the month of each line of the list (the day's label goes with its day), for the
+    // handle that crosses it (FastScroll).
+    val diary = filter == Filter.DIARY && !searched
+    val months = remember(groups, diary) {
+        if (!diary) emptyList()
+        else groups.flatMap { (label, items) -> if (items.isEmpty()) emptyList() else listOfNotNull(items.first().takeIf { label != null }) + items }.map { month(it.createdAt) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize().testTag("entries"),
+            state = listState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
+        ) {
+            if (!searched && groups.all { it.second.isEmpty() }) {
+                item { Empty(filter) }
+            }
+            if (photos.isNotEmpty()) {
+                item(key = "label-photos") { SectionLabel(t(R.string.photos), Modifier.animateItem()) }
+                item(key = "photos") { PhotoRow(photos, side = 16.dp, height = 150.dp, tag = "found-photo") }
+                item(key = "photos-gap") { Spacer(Modifier.height(14.dp)) }
+            }
+            if (files.isNotEmpty()) {
+                item(key = "label-files") { SectionLabel(t(R.string.tab_files), Modifier.animateItem()) }
+                itemsIndexed(files, key = { _, f -> "file-${f.id}" }) { i, f ->
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    Box(Modifier.animateItem().padding(bottom = 8.dp)) {
+                        com.villamediana.novelo.ui.entry.FileRow(f, onClick = { com.villamediana.novelo.ui.entry.openFile(context, f) }, where = where(f), modifier = Modifier.testTag("found-file-$i"))
+                    }
+                }
+                item(key = "files-gap") { Spacer(Modifier.height(6.dp)) }
+            }
+            groups.forEach { (label, items) ->
+                if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
+                // One block per group: the cards touch, only the ends are round.
+                itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
+                    val shape = groupShape(i, items.size, outer = 22.dp)
+                    @Composable
+                    fun card(modifier: Modifier) {
+                        if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape, photos = dayPhotos.of(e.id))
+                        else EntryCard(
+                            e,
+                            onClick = { open(e.id) },
+                            terms = terms.orEmpty(),
+                            onToggle = { toggle(e.id) },
+                            showKind = searched || filter == Filter.ALL || filter == Filter.TODAY,
+                            // Where the group already says it, the card doesn't again.
+                            showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
+                            inToday = !searched && filter == Filter.TODAY,
+                            shape = shape,
+                            modifier = modifier,
+                        )
+                    }
+                    if (movable) {
+                        ReorderableItem(reorder, key = e.id) { dragging ->
+                            Box(
+                                Modifier
+                                    .padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)
+                                    .graphicsLayer { if (dragging) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12f; this.shape = shape; clip = true } }
+                                    .longPressDraggableHandle(
+                                        onDragStarted = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
+                                        onDragStopped = {
+                                            shown.firstOrNull { (_, list) -> list.any { it.id == e.id } }?.second?.map { it.id }?.let { ids ->
+                                                graph.scope.launch { graph.library.reorder(ids) }
+                                            }
+                                        },
+                                    )
+                                    .testTag("task-$i"),
+                            ) { card(Modifier) }
+                        }
+                    } else {
+                        Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) { card(Modifier) }
+                    }
                 }
             }
-            item(key = "files-gap") { Spacer(Modifier.height(6.dp)) }
-        }
-        groups.forEach { (label, items) ->
-            if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
-            // One block per group: the cards touch, only the ends are round.
-            itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
-                val shape = groupShape(i, items.size, outer = 22.dp)
-                @Composable
-                fun card(modifier: Modifier) {
-                    if (filter == Filter.DIARY && !searched) DiaryCard(e, onClick = { open(e.id) }, shape = shape, photos = dayPhotos.of(e.id))
-                    else EntryCard(
-                        e,
-                        onClick = { open(e.id) },
-                        terms = terms.orEmpty(),
-                        onToggle = { toggle(e.id) },
-                        showKind = searched || filter == Filter.ALL || filter == Filter.TODAY,
-                        // Where the group already says it, the card doesn't again.
-                        showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
-                        inToday = !searched && filter == Filter.TODAY,
-                        shape = shape,
-                        modifier = modifier,
+            if (!searched && filter == Filter.TASKS) {
+                val done = all.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
+                if (done > 0) item(key = "done-toggle") {
+                    Text(
+                        if (showDone) t(R.string.done_hide) else t(R.string.done_show, done),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = NoveloColors.TextMuted,
+                        modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable(onClick = onShowDone).padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
-                if (movable) {
-                    ReorderableItem(reorder, key = e.id) { dragging ->
-                        Box(
-                            Modifier
-                                .padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)
-                                .graphicsLayer { if (dragging) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12f; this.shape = shape; clip = true } }
-                                .longPressDraggableHandle(
-                                    onDragStarted = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
-                                    onDragStopped = {
-                                        shown.firstOrNull { (_, list) -> list.any { it.id == e.id } }?.second?.map { it.id }?.let { ids ->
-                                            graph.scope.launch { graph.library.reorder(ids) }
-                                        }
-                                    },
-                                )
-                                .testTag("task-$i"),
-                        ) { card(Modifier) }
-                    }
-                } else {
-                    Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) { card(Modifier) }
-                }
             }
         }
-        if (!searched && filter == Filter.TASKS) {
-            val done = all.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
-            if (done > 0) item(key = "done-toggle") {
-                Text(
-                    if (showDone) t(R.string.done_hide) else t(R.string.done_show, done),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = NoveloColors.TextMuted,
-                    modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable(onClick = onShowDone).padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-            }
-        }
+        if (diary) FastScroll(listState, labelAt = { months.getOrNull(it) })
     }
 }
+
+/** "Janeiro 2022": where the diary's handle is. */
+private fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+    Instant.ofEpochMilli(at).atZone(zone).let { d -> d.month.getDisplayName(TextStyle.FULL_STANDALONE, PT).replaceFirstChar { it.titlecase(PT) } + " " + d.year }
 
 /** The tabs shown, in order. Conexões is hidden for now (the drawing stays in ui/graph). */
 private val TABS = Filter.entries - Filter.LINKS
@@ -595,7 +609,13 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
             val doing = open.filter { it.statusEnum == Status.DOING && it !in late && it !in due }
             val said = all.filter { it.createdAt >= startToday && it.kindEnum != Kind.TASK }
             val doneToday = tasks.filter { it.doneAt != null && it.doneAt >= startToday }
-            listOf(t(R.string.section_late) to late, t(R.string.section_for_today) to due, DOING to doing, t(R.string.section_kept_today) to said, t(R.string.section_done_today) to doneToday)
+            listOfNotNull(
+                t(R.string.section_late) to late,
+                t(R.string.section_for_today) to due,
+                DOING to doing,
+                (t(R.string.section_kept_today) to said).takeIf { SHOW_KEPT_TODAY },
+                t(R.string.section_done_today) to doneToday,
+            )
         }
         Filter.TASKS -> {
             val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }
@@ -615,6 +635,12 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.GALLERY, Filter.FILES, Filter.LINKS -> emptyList()
     }
 }
+
+/**
+ * Hoje › "Guardado hoje" (the notes and diary said today) is hidden for now, to keep the tab to what
+ * is to be done; it stays here to come back (Miguel, 1.42.0).
+ */
+internal const val SHOW_KEPT_TODAY = false
 
 private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<String?, List<Entry>>> =
     list.sortedByDescending { it.createdAt }

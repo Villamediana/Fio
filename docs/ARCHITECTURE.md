@@ -461,6 +461,17 @@ Na 1.37.0, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede
 dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`). Na 1.38.0, o deslize do início
 pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 
+## Diário longo (1.42.0)
+
+- **Alça na borda** (`ui/library/FastScroll.kt`, só no Diário sem busca, lista com 30+ linhas): aparece quando a
+  lista anda e some 1,5 s depois (sumida, não pega toque); segurada e arrastada, a lista vai junto
+  (`scrollToItem`) e uma etiqueta ao lado do dedo diz o mês ("Abril 2026") — a primeira entrada fica a um arrasto.
+- **Volta pro mesmo lugar**: a biblioteca fica num `SaveableStateHolder` (`rememberLibraryKept` no `NoveloRoot`)
+  enquanto estiver na pilha; abrir uma entrada e voltar mantém o scroll de cada aba e a busca. Voltou pra home,
+  o estado é apagado e entra do topo.
+- **Hoje sem "Guardado hoje"**: oculto por `SHOW_KEPT_TODAY = false` em `sectionsFor` (o código fica, pra voltar
+  se o Miguel quiser).
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -54,6 +56,7 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
     }
 
     BackHandler(enabled = nav.stack.size > 1) { nav.back() }
+    val library = rememberLibraryKept(nav)
 
     Box(Modifier.fillMaxSize().background(NoveloColors.Background)) {
         AnimatedContent(
@@ -80,7 +83,7 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
         ) { screen ->
             when (screen) {
                 Screen.Home -> HomeScreen(nav, talkAbout = talk, onTalkHandled = onAskHandled)
-                is Screen.Library -> LibraryScreen(nav, screen)
+                is Screen.Library -> library.SaveableStateProvider(LIBRARY_KEPT) { LibraryScreen(nav, screen) }
                 is Screen.Entry -> EntryScreen(nav, screen.id)
                 Screen.Settings -> SettingsScreen(nav)
                 Screen.Camera -> CameraScreen(nav)
@@ -89,3 +92,17 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
         UpdateHost()
     }
 }
+
+/**
+ * The library keeps where it was (each tab's scroll, the search) while an entry is open over it —
+ * back from the entry, the list is where she left it. Out of the stack (back home), it starts over.
+ */
+@Composable
+internal fun rememberLibraryKept(nav: Nav): SaveableStateHolder {
+    val kept = rememberSaveableStateHolder()
+    val inStack = nav.stack.any { it is Screen.Library }
+    LaunchedEffect(inStack) { if (!inStack) kept.removeState(LIBRARY_KEPT) }
+    return kept
+}
+
+internal const val LIBRARY_KEPT = "library"
