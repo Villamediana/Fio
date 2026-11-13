@@ -39,8 +39,6 @@ object NoveloIcons {
     val Bell: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_bell)
     val Steps: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_steps)
     val Pencil: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_pencil)
-    /** The quill, to write instead of talking (Home). */
-    val Quill: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_quill)
     val Send: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_send)
     val FlashOn: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_on)
     val FlashOff: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_flash_off)
