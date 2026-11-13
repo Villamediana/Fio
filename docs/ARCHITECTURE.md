@@ -120,7 +120,6 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
-| `importer/` | `DiaryImport` (Ajustes › Backup › Importar diário) + `Unpack` (zip pelo índice, pasta), `DayFolders` (uma pasta por dia → entradas e fotos), `Folder` (a pasta escolhida) |
 | `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
@@ -452,26 +451,11 @@ só). Aba Tarefas: segurar e arrastar muda a ordem dentro do grupo (fazendo, a f
 `Entry.position` (Room v9), salvo ao soltar (`Library.reorder`); tarefa sem posição (nova) vem antes, pelo
 prazo, a mais nova primeiro.
 
-## Importar diário (1.40.0)
+## Importar diário (1.36.0 – 1.40.0, removido na 1.41.0)
 
-Ajustes › Backup › Importar diário: **um ZIP ou uma pasta, com uma pasta por dia** — o export do One Goal
-(`OneGoal/server/routes/journal.js` `/export.zip`). Sem modelo nenhum (de 1.36 a 1.39 o Omni lia uma amostra e
-escrevia uma "receita"; errava o padrão e o Miguel tirou: "é simples, pastas com as datas e dentro a entrada em
-texto").
-
-- `Unpack`: o zip é copiado pra `cacheDir/import` e lido com `ZipFile` (o índice do fim: o zip do One Goal é
-  stored + bit 3, que `ZipInputStream` lia vazio); zip dentro de zip também. A pasta vem de `OpenDocumentTree`
-  (`importer/Folder.kt`, subpastas pelo `DocumentsContract`, cada arquivo um `Unpack.Piece`). Textos até 40 MB no
-  total; fotos copiadas com o nome pelo SHA-1.
-- `DayFolders.read`: entrada = `.txt`/`.md` cuja pasta de cima começa com a data (`2024-12-17` ou
-  `2024-12-17 - Natal`), meio-dia daquele dia. A primeira linha, quando é a própria data (`17/12/2024` ou
-  `2024-12-17`, com o título depois de ` — `/` - `), vira o título e sai do texto. Foto em qualquer lugar dentro da
-  pasta do dia (`fotos/01.jpg`) vai pra aquele dia. Fora disso nada conta (`diario.txt` com tudo, `.html`, áudio,
-  vídeo).
-- A folha mostra quantas entradas/dias/fotos, o período, três entradas e as fotos. "Importar": `Library.importAll`
-  — um diário por dia (`DayDiary.merge`: o dia que já tem diário ganha só o que falta; importar de novo não
-  duplica), foto vira `Capture` solta (`photo`, `DONE`) em `captures/photo-import-<sha1>` (aparece na galeria e no
-  diário do dia, não entra duas vezes, sem descrição) — e logo depois `Backups.save()`. Roda no escopo do app.
+Ajustes › Backup › Importar diário trazia o export do One Goal (zip ou pasta, uma pasta por dia) pro diário e
+pra galeria. Serviu pra trazer o diário uma vez e saiu na 1.41.0 a pedido do Miguel (código no histórico do
+git, `importer/` até `b514cce`).
 
 Na 1.37.0, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede pra dividir o relato como ela
 dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`). Na 1.38.0, o deslize do início
