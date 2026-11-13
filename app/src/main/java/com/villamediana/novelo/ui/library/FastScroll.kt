@@ -49,10 +49,11 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * A long list crossed by its edge (the diary, years of days). While the list moves, a small handle
- * slides in on the right where you are; the finger takes it anywhere along that edge (not only on
- * the handle), the handle comes under it and the list goes with it, and a tag beside the finger says
- * where it is ([labelAt], the month) — the first entry is one drag down. The list still for a moment,
+ * A long list crossed by its edge (every tab of the library: years of days, a gallery, many tasks).
+ * While the list moves, a small handle slides in on the right where you are; the finger takes it
+ * anywhere along that edge (not only on the handle), the handle comes under it and the list goes
+ * with it, and a tag beside the finger says where it is ([labelAt]: the month, or the group in Hoje
+ * and Tarefas) — the first entry is one drag down. The list still for a moment,
  * the handle fades and slides away and the edge is the list's again; it moves, the handle comes back.
  *
  * Nothing jumps: where the handle sits is measured so it only ever glides ([scrolled]); a finger held

@@ -344,12 +344,19 @@ private fun Entries(
         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentFrequentTick)
     }
     val groups = if (movable) shown else sections
-    // Diário: the month of each line of the list (the day's label goes with its day), for the
-    // handle that crosses it (FastScroll).
-    val diary = filter == Filter.DIARY && !searched
-    val months = remember(groups, diary) {
-        if (!diary) emptyList()
-        else groups.flatMap { (label, items) -> if (items.isEmpty()) emptyList() else listOfNotNull(items.first().takeIf { label != null }) + items }.map { month(it.createdAt) }
+    // The handle that crosses the list (FastScroll), in every tab: what each line of the list says
+    // where it is — its month where the tab goes by day (a day's label with its day), its group
+    // (Atrasadas, A fazer…) in Hoje and Tarefas.
+    val byGroup = filter == Filter.TODAY || filter == Filter.TASKS
+    val tags = remember(groups, searched, byGroup) {
+        if (searched) emptyList()
+        else buildList<String?> {
+            groups.forEach { (label, items) ->
+                if (items.isEmpty()) return@forEach
+                if (label != null) add(if (byGroup) label else month(items.first().createdAt))
+                items.forEach { add(if (byGroup) label else month(it.createdAt)) }
+            }
+        }
     }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -430,12 +437,12 @@ private fun Entries(
                 }
             }
         }
-        if (diary) FastScroll(listState, labelAt = { months.getOrNull(it) })
+        if (!searched) FastScroll(listState, labelAt = { tags.getOrNull(it) ?: tags.lastOrNull() })
     }
 }
 
-/** "Janeiro 2022": where the diary's handle is. */
-private fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+/** "Janeiro 2022": where the handle on the edge is (FastScroll). */
+internal fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(at).atZone(zone).let { d -> d.month.getDisplayName(TextStyle.FULL_STANDALONE, PT).replaceFirstChar { it.titlecase(PT) } + " " + d.year }
 
 /** The tabs shown, in order. Conexões is hidden for now (the drawing stays in ui/graph). */

@@ -45,15 +45,21 @@ internal fun FilesTab(files: List<KeptFile>, empty: @Composable () -> Unit) {
         files.groupBy { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }
             .map { (d, list) -> Dates.day(d.atStartOfDay(zone).toInstant().toEpochMilli(), zone, today).replaceFirstChar { it.titlecase(Locale.getDefault()) } to list }
     }
-    LazyColumn(Modifier.fillMaxSize().testTag("files-list"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
-        days.forEach { (label, list) ->
-            item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
-            itemsIndexed(list, key = { _, f -> f.id }) { _, f ->
-                Box(Modifier.animateItem().padding(bottom = 8.dp)) {
-                    FileRow(f, onClick = { openFile(context, f) }, where = where(f), onLongClick = { removing = f })
+    // The handle on the edge: the month of each line (a day's label with its day).
+    val months = remember(days) { days.flatMap { (_, list) -> listOf(month(list.first().at)) + list.map { month(it.at) } } }
+    val state = androidx.compose.foundation.lazy.rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize().testTag("files-list"), state = state, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
+            days.forEach { (label, list) ->
+                item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
+                itemsIndexed(list, key = { _, f -> f.id }) { _, f ->
+                    Box(Modifier.animateItem().padding(bottom = 8.dp)) {
+                        FileRow(f, onClick = { openFile(context, f) }, where = where(f), onLongClick = { removing = f })
+                    }
                 }
             }
         }
+        FastScroll(state, labelAt = { months.getOrNull(it) })
     }
 }
 
