@@ -12,6 +12,7 @@ import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.NoveloSettings
 import com.villamediana.novelo.settings.Settings
 import com.villamediana.novelo.settings.Source
+import com.villamediana.novelo.settings.Job
 import com.villamediana.novelo.settings.Lang
 import com.villamediana.novelo.ai.NoveloModels
 import kotlinx.coroutines.Dispatchers
@@ -66,21 +67,47 @@ interface Thinker {
     fun stop() {}
 }
 
-/** Speech → text: always LFM3-Omni, on the phone (whoever thinks). */
+/**
+ * Speech → text: the Novelo's ears (LFM3-Omni, on the phone, while she talks too) or her API's
+ * transcription model (the whole recording when she stops; pieces of [API_PIECE] s when it is too big
+ * to go in one request).
+ */
 class Hearing(
+    private val settings: Settings,
+    private val api: Api,
     private val engine: LocalEngine,
     private val model: LocalModel,
+    private val tmp: File,
 ) : Ears {
-    fun readiness(): String? = when {
-        !LocalEngine.available -> t(R.string.need_phone_not_in_version)
-        !model.ready -> t(R.string.need_download_ears)
-        else -> null
+    fun readiness(s: NoveloSettings): String? = when (s.hear) {
+        Source.NOVELO -> when {
+            !LocalEngine.available -> t(R.string.need_phone_not_in_version)
+            !model.ready -> t(R.string.need_download_ears)
+            else -> null
+        }
+        Source.API -> {
+            val a = s.api(Job.HEAR)
+            when {
+                !a.ready -> t(R.string.need_hear_api)
+                !a.provider.hears -> t(R.string.need_hear_provider, a.provider.name)
+                a.model.isBlank() -> t(R.string.need_hear_model)
+                else -> null
+            }
+        }
     }
 
     override suspend fun transcribe(wav: File, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String = withContext(Dispatchers.IO) {
-        readiness()?.let { throw NotReady(Need.HEAR, it) }
+        val s = settings.current()
+        readiness(s)?.let { throw NotReady(Need.HEAR, it) }
         val samples = Wav.readFloats(wav)
         if (Pieces.isSilent(samples)) return@withContext ""
+        when (s.hear) {
+            Source.NOVELO -> onPhone(samples, from, onPiece, onPartial)
+            Source.API -> byApi(s, wav, samples, from, onPiece, onPartial)
+        }
+    }
+
+    private suspend fun onPhone(samples: FloatArray, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String {
         val by = BY
         val start = if (from.by == by) from else Heard(by = by)
         var done = start.text
@@ -96,15 +123,42 @@ class Hearing(
             onPartial(done)
             onPiece(Heard(done, i + 1, by, parts.size))
         }
-        done
+        return done
+    }
+
+    /** Her API: one request when the recording fits in it, otherwise a piece at a time (each kept, like on the phone). */
+    private suspend fun byApi(s: NoveloSettings, wav: File, samples: FloatArray, from: Heard, onPiece: suspend (Heard) -> Unit, onPartial: (String) -> Unit): String {
+        val a = s.api(Job.HEAR)
+        val ep = a.endpoint(settings.apiKey(Job.HEAR).orEmpty())
+        val by = API_BY
+        val start = if (from.by == by) from else Heard(by = by)
+        var done = start.text
+        if (done.isNotEmpty()) onPartial(done)
+        val parts: List<FloatArray?> = if (wav.length() <= API_WHOLE_BYTES) listOf(null) else Pieces.cut(samples, maxSeconds = API_PIECE)
+        if (parts.size > 1 && start.pieces < parts.size) onPiece(Heard(done, start.pieces, by, parts.size))
+        for ((i, p) in parts.withIndex()) {
+            if (i < start.pieces) continue
+            val file = if (p == null) wav else File(tmp, "piece-${System.nanoTime()}.wav").also { Wav.write(it, p) }
+            try {
+                done = join(done, api.transcribe(ep, a.model, file, null))
+            } finally {
+                if (p != null) file.delete()
+            }
+            onPartial(done)
+            onPiece(Heard(done, i + 1, by, parts.size))
+        }
+        return done
     }
 
     override suspend fun warm() {
-        if (readiness() == null) engine.warm(model.files)
+        val s = settings.current()
+        if (s.hear == Source.NOVELO && readiness(s) == null) engine.warm(model.files)
     }
 
+    /** Only the ears on the phone hear while she talks; her API hears it all when she stops. */
     override suspend fun ahead(wav: File, heard: Heard, at: Int, onPartial: (String) -> Unit): Pair<Heard, Int>? = withContext(Dispatchers.IO) {
-        if (readiness() != null) return@withContext null
+        val s = settings.current()
+        if (s.hear != Source.NOVELO || readiness(s) != null) return@withContext null
         val recorded = Wav.samplesSoFar(wav)
         if (recorded - at <= PIECE * Wav.RATE) return@withContext null
         val piece = Pieces.nextWhole(Wav.readRange(wav, at, recorded), PIECE) ?: return@withContext null
@@ -116,6 +170,7 @@ class Hearing(
 
     override fun stop() {
         engine.cancel()
+        api.cancelAll()
     }
 
     private fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
@@ -129,6 +184,13 @@ class Hearing(
          * starts over instead of going on from pieces that don't match. "p": cut at the pauses (1.21).
          */
         const val BY = "local:${PIECE}p"
+
+        /** Her API: a recording up to this size goes whole (the APIs take 25 MB; a WAV of ~10 min). */
+        const val API_WHOLE_BYTES = 20L * 1024 * 1024
+
+        /** Bigger than that: pieces of 5 minutes, cut at the pauses. */
+        const val API_PIECE = 300
+        const val API_BY = "api:${API_PIECE}p"
     }
 }
 

@@ -87,6 +87,7 @@ import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.AppLang
 import com.villamediana.novelo.settings.Lang
 import com.villamediana.novelo.settings.Source
+import com.villamediana.novelo.settings.Job
 import com.villamediana.novelo.settings.t
 import com.villamediana.novelo.ui.components.NoveloIcons
 import com.villamediana.novelo.ui.components.Pill
@@ -555,41 +556,44 @@ private fun Note(text: String, color: Color) {
 }
 
 /**
- * Her own: whose (a chip each), the key (and the address when that provider has none of its
- * own), tested by itself; then the model that thinks. Hearing is always on the phone.
+ * Her own API for a [job] (who hears, or who thinks): whose (one line that opens the list — for
+ * hearing only those that hear), the key (and the address when that provider has none of its own),
+ * tested by itself; then the model. The same provider as the other job's: its key, with one tap.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true, onReady: (OwnReady) -> Unit = {}) {
+internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showModels: Boolean = true, onReady: (OwnReady) -> Unit = {}) {
     val graph = NoveloApplication.graph
     val st = graph.settings
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
-    var base by remember { mutableStateOf(s.apiBase) }
+    val a = s.api(job)
+    val other = if (job == Job.HEAR) Job.THINK else Job.HEAR
+    val o = s.api(other)
+    var base by remember { mutableStateOf(a.base) }
     var key by remember { mutableStateOf("") }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
     var status by remember { mutableStateOf<Pair<String, Boolean?>?>(null) }
     var loading by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     var choosingProvider by remember { mutableStateOf(false) }
-    val provider = s.provider
-    // Whose it is, once she chose (an address from before, without a provider, is "Outro").
-    val chosen = s.apiProvider.isNotBlank() || s.apiBase.isNotBlank()
+    val provider = a.provider
+    val chosen = a.chosen
     val ready = when {
         !chosen -> OwnReady.PROVIDER
-        !s.apiReady -> OwnReady.KEY
+        !a.ready -> OwnReady.KEY
         status?.second != true -> OwnReady.CONNECTION
-        s.thinkModel.isBlank() -> OwnReady.MODEL
+        a.model.isBlank() -> OwnReady.MODEL
         else -> OwnReady.READY
     }
     LaunchedEffect(ready) { onReady(ready) }
 
     suspend fun connect() {
-        if (base.isNotBlank() && base.trim().trimEnd('/') != s.apiBase) st.setApiBase(base)
-        if (key.isNotBlank()) { st.setApiKey(key); key = "" }
-        val now = st.current()
-        val k = st.apiKey()
-        if (!now.apiReady || k.isNullOrBlank()) { status = null; return }
+        if (base.isNotBlank() && base.trim().trimEnd('/') != st.current().api(job).base) st.setApiBase(job, base)
+        if (key.isNotBlank()) { st.setApiKey(job, key); key = "" }
+        val now = st.current().api(job)
+        val k = st.apiKey(job)
+        if (!now.ready || k.isNullOrBlank()) { status = null; return }
         loading = true
         runCatching { withContext(Dispatchers.IO) { graph.api.models(now.endpoint(k)) } }
             .onSuccess { models = it; status = (if (it.isEmpty()) t(R.string.api_connected) else t(R.string.api_connected_models, it.size)) to true }
@@ -599,14 +603,14 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
     }
 
     LaunchedEffect(provider.id, base, key) {
-        if (key.isBlank() && base.trim().trimEnd('/') == s.apiBase && !s.apiReady) return@LaunchedEffect
-        delay(if (key.isBlank() && base.trim().trimEnd('/') == s.apiBase) 0 else 900)
+        if (key.isBlank() && base.trim().trimEnd('/') == a.base && !a.ready) return@LaunchedEffect
+        delay(if (key.isBlank() && base.trim().trimEnd('/') == a.base) 0 else 900)
         connect()
     }
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Whose it is: one line that opens the list (calmer than a row of names).
-        ChoiceLine(t(R.string.ai_provider_title), if (chosen) providerName(provider) else null, tag = "provider-line") { choosingProvider = true }
+        ChoiceLine(t(R.string.ai_provider_title), if (chosen) providerName(provider) else null, tag = "provider-line-${job.name.lowercase()}") { choosingProvider = true }
         // The fields only once she said whose it is.
         if (!chosen) return@Column
         if (provider.base == null) SetupField(t(R.string.api_address), base, { base = it }, provider.baseHint, KeyboardType.Uri)
@@ -614,9 +618,24 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
             t(R.string.api_key),
             key,
             { key = it },
-            if (s.hasApiKey) t(R.string.api_key_saved) else t(R.string.api_key_paste),
+            if (a.hasKey) t(R.string.api_key_saved) else t(R.string.api_key_paste),
             secret = true,
         )
+        // The same provider as the other job, with its key saved: that key, with one tap (her choice, never by itself).
+        if (!a.hasKey && o.hasKey && o.chosen && o.providerId == a.providerId) {
+            Pill(
+                t(if (other == Job.THINK) R.string.api_same_key_thinks else R.string.api_same_key_hears),
+                selected = true,
+                onClick = {
+                    scope.launch {
+                        st.shareKey(other, job)
+                        base = st.current().api(job).base
+                        connect()
+                    }
+                },
+                modifier = Modifier.testTag("same-key-${job.name.lowercase()}"),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (loading) {
                 CircularProgressIndicator(Modifier.size(12.dp), color = NoveloColors.Accent, strokeWidth = 1.5.dp)
@@ -626,14 +645,17 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
             }
         }
         // The model only once it connected (its list comes from there).
-        if (showModels && s.apiReady && status?.second == true) ModelLine(t(R.string.ai_model_thinks), s.thinkModel) { picking = true }
+        if (showModels && a.ready && status?.second == true) {
+            ModelLine(t(if (job == Job.HEAR) R.string.ai_model_hears else R.string.ai_model_thinks), a.model, tag = "model-line-${job.name.lowercase()}") { picking = true }
+        }
     }
 
     if (choosingProvider) {
         NoveloSheet(onDismissRequest = { choosingProvider = false }) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
                 Text(t(R.string.ai_provider_title), style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text, modifier = Modifier.padding(bottom = 10.dp))
-                Providers.all.forEach { p ->
+                // Hearing: only those that turn speech into text.
+                Providers.all.filter { job == Job.THINK || it.hears }.forEach { p ->
                     val on = chosen && p.id == provider.id
                     Row(
                         Modifier
@@ -642,7 +664,7 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
                             .clickable {
                                 choosingProvider = false
                                 scope.launch {
-                                    st.setApiProvider(p.id)
+                                    st.setApiProvider(job, p.id)
                                     models = emptyList(); status = null
                                 }
                             }
@@ -659,14 +681,15 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
 
     if (picking) {
         ModelPicker(
-            title = t(R.string.ai_model_thinks_title),
-            current = s.thinkModel,
+            title = t(if (job == Job.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
+            current = a.model,
             models = models,
-            settings = s,
+            ready = a.ready,
             onLoad = { scope.launch { connect() } },
             onPick = { m ->
                 scope.launch {
-                    st.setThinkModel(m); st.setThink(Source.API)
+                    st.setModel(job, m)
+                    if (job == Job.HEAR) st.setHear(Source.API) else st.setThink(Source.API)
                     graph.mind.retryPending()
                 }
                 picking = false
@@ -677,7 +700,7 @@ internal fun OwnSetup(modifier: Modifier = Modifier, showModels: Boolean = true,
 }
 
 @Composable
-private fun ModelLine(title: String, model: String, onClick: () -> Unit) = ChoiceLine(title, model.ifBlank { null }, empty = t(R.string.ai_choose_model), onClick = onClick)
+private fun ModelLine(title: String, model: String, tag: String? = null, onClick: () -> Unit) = ChoiceLine(title, model.ifBlank { null }, empty = t(R.string.ai_choose_model), tag = tag, onClick = onClick)
 
 /** A choice as one line: what it is, what is chosen (or, in the accent, that it is still to choose). */
 @Composable

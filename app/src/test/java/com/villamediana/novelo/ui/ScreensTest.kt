@@ -1158,22 +1158,40 @@ class ScreensTest {
 
     @Test
     fun theIntelligencePageShowsOnlyWhatTheChoiceNeeds() {
-        val nav = Nav()
-        runBlocking { graph.settings.setThink(Source.API) }
-        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { Box(Modifier.fillMaxSize().background(NoveloColors.Background).padding(16.dp)) { com.villamediana.novelo.ui.settings.IntelligenceSection() } } }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isNotEmpty() }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
-        compose.mainClock.advanceTimeBy(500)
-        shot("30-settings-intelligence")
-        // Only who thinks is chosen: hearing is always the phone's (its ears are the download here).
-        assertTrue(compose.onAllNodesWithText("Ouvir").fetchSemanticsNodes().isEmpty())
-        // Her API thinks: its address and key, no button to test (it tests by itself).
-        assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
-        // The Novelo thinks: the download is its whole intelligence, and no API to fill.
-        runBlocking { graph.settings.setThink(Source.NOVELO) }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty() }
-        compose.mainClock.advanceTimeBy(500)
-        shot("30b-settings-intelligence-local")
+        runBlocking { graph.settings.setThink(Source.API); graph.settings.setHear(Source.NOVELO) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { Box(Modifier.fillMaxSize().background(NoveloColors.Background).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp)) { com.villamediana.novelo.ui.settings.IntelligenceSection() } } }
+        try {
+            // Who hears and who thinks, each the Novelo or her API.
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Quem ouve").assertExists()
+            // The Novelo hears: its ears are the download here (no API that hears to fill).
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
+            assertTrue(compose.onAllNodesWithText("API de quem ouve").fetchSemanticsNodes().isEmpty())
+            // Her API thinks: its provider and key, no button to test (it tests by itself).
+            compose.onNodeWithText("API de quem pensa").assertExists()
+            assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
+            compose.mainClock.advanceTimeBy(500)
+            shot("30-settings-intelligence")
+            // Her API hears: its own provider (only those that hear), key and model; no download.
+            runBlocking { graph.settings.setHear(Source.API); graph.settings.setThink(Source.NOVELO) }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("API de quem ouve").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isEmpty() }
+            assertTrue(compose.onAllNodesWithText("API de quem pensa").fetchSemanticsNodes().isEmpty())
+            compose.onNodeWithTag("provider-line-hear").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("OpenAI").fetchSemanticsNodes().isNotEmpty() }
+            for (deaf in listOf("Anthropic", "OpenRouter", "Kimi")) assertTrue(deaf, compose.onAllNodesWithText(deaf).fetchSemanticsNodes().isEmpty())
+            compose.onNodeWithText("OpenAI").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(500)
+            shot("30b-settings-intelligence-hears-api")
+            // Both the Novelo's: nothing to fill, only the ears.
+            runBlocking { graph.settings.setHear(Source.NOVELO) }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty() }
+            compose.mainClock.advanceTimeBy(500)
+            shot("30c-settings-intelligence-novelo")
+        } finally {
+            runBlocking { graph.settings.setHear(Source.NOVELO); graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "") }
+        }
     }
 
     @Test
@@ -1260,12 +1278,12 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(800)
         shot("34-setup-intelligence")
         compose.onNodeWithText("Sua própria inteligência").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("provider-line").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("provider-line-think").fetchSemanticsNodes().isNotEmpty() }
         // Her own goes on only when it is whole, and the button says what is missing: whose it is…
         compose.onNodeWithText("Escolha de quem é a IA").assertExists()
         assertTrue(compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isEmpty())
         // (one line that opens the list, not a row of names)
-        compose.onNodeWithTag("provider-line").performClick()
+        compose.onNodeWithTag("provider-line-think").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(500)
         shot("34b-setup-provider")

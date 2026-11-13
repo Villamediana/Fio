@@ -56,6 +56,8 @@ import com.villamediana.novelo.local.LocalEngine
 import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.NoveloSettings
 import com.villamediana.novelo.settings.Source
+import com.villamediana.novelo.settings.Job
+import androidx.compose.ui.platform.testTag
 import com.villamediana.novelo.ui.Nav
 import com.villamediana.novelo.ui.components.NoveloIcons
 import com.villamediana.novelo.ui.components.paper
@@ -82,8 +84,10 @@ import com.villamediana.novelo.settings.t
 import com.villamediana.novelo.ui.setup.OwnSetup
 
 /**
- * Ajustes › Inteligência (opened in place): who thinks (the Novelo's own intelligence, or her API)
- * and only what that choice needs. Hearing is always on the phone (LFM3-Omni): its download is here.
+ * Ajustes › Inteligência (opened in place): who hears (the Novelo's ears on the phone, or her API)
+ * and who thinks (the Novelo's own intelligence, or her API), and only what those choices need:
+ * the ears' download when the Novelo hears (and the way to take them off the phone), each API's
+ * provider and key when it is hers.
  */
 @Composable
 fun IntelligenceSection() {
@@ -93,61 +97,98 @@ fun IntelligenceSection() {
     val s by st.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
-    var picking by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf<Job?>(null) }
+    var deleting by remember { mutableStateOf(false) }
 
-/** The models of her API, for the list. */
-    fun loadModels() {
+    /** The models of her API for [job], for the list. */
+    fun loadModels(job: Job) {
         scope.launch {
-            val k = st.apiKey()
-            val now = st.current()
-            if (!now.apiReady || k.isNullOrBlank()) return@launch
-            runCatching { withContext(Dispatchers.IO) { graph.api.models(now.endpoint(k)) } }.onSuccess { models = it }
+            val k = st.apiKey(job)
+            val a = st.current().api(job)
+            if (!a.ready || k.isNullOrBlank()) return@launch
+            runCatching { withContext(Dispatchers.IO) { graph.api.models(a.endpoint(k)) } }.onSuccess { models = it }
         }
     }
 
     Column(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
-            Group(Modifier, {
-                ThinkLine(
+        Group(
+            Modifier,
+            {
+                SourceLine(
+                    title = t(R.string.ai_who_hears),
+                    source = s.hear,
+                    model = s.hearModel,
+                    tag = "hear",
+                    onSource = { src ->
+                        scope.launch { st.setHear(src); graph.mind.retryPending() }
+                        if (src == Source.API && s.hearModel.isBlank() && s.api(Job.HEAR).ready) { models = emptyList(); picking = Job.HEAR }
+                    },
+                    onPick = { models = emptyList(); picking = Job.HEAR },
+                )
+            },
+            {
+                SourceLine(
+                    title = t(R.string.ai_who_thinks),
                     source = s.think,
                     model = s.thinkModel,
+                    tag = "think",
                     onSource = { src ->
-                        scope.launch { st.setThink(src) }
-                        if (src == Source.API && s.thinkModel.isBlank()) picking = true
+                        scope.launch { st.setThink(src); graph.mind.retryPending() }
+                        if (src == Source.API && s.thinkModel.isBlank()) { models = emptyList(); picking = Job.THINK }
                     },
-                    onPick = { picking = true },
+                    onPick = { models = emptyList(); picking = Job.THINK },
                 )
-            })
+            },
+        )
 
-            // The ears come in the first steps and stay (only uninstalling takes them): nothing here
-            // once they are on the phone; the line shows only if they went missing, to bring them back.
-            if (local != LocalModel.State.Ready) {
-                SectionLabel(t(R.string.ai_on_phone))
-                Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear)) })
-            }
+        // The ears: to download when the Novelo hears; and, once on the phone, to take them off.
+        if (s.hear == Source.NOVELO || local !is LocalModel.State.Missing) {
+            SectionLabel(t(R.string.ai_on_phone))
+            Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear), onDelete = { deleting = true }) })
+        }
 
-            if (s.think == Source.API) {
-                SectionLabel(t(R.string.ai_api))
-                OwnSetup(showModels = false)
-            }
+        if (s.hear == Source.API) {
+            SectionLabel(t(R.string.ai_api_hears))
+            OwnSetup(job = Job.HEAR, showModels = false)
+        }
+        if (s.think == Source.API) {
+            SectionLabel(t(R.string.ai_api_thinks))
+            OwnSetup(job = Job.THINK, showModels = false)
         }
     }
 
-    if (picking) {
+    picking?.let { job ->
         ModelPicker(
-            title = t(R.string.ai_model_thinks_title),
-            current = s.thinkModel,
+            title = t(if (job == Job.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
+            current = s.api(job).model,
             models = models,
-            settings = s,
-            onLoad = { loadModels() },
+            ready = s.api(job).ready,
+            onLoad = { loadModels(job) },
             onPick = { m ->
                 scope.launch {
-                    st.setThinkModel(m)
+                    st.setModel(job, m)
                     graph.mind.retryPending()
                 }
-                picking = false
+                picking = null
             },
-            onDismiss = { picking = false },
+            onDismiss = { picking = null },
+        )
+    }
+
+    if (deleting) {
+        com.villamediana.novelo.ui.sheets.ConfirmDialog(
+            title = t(R.string.local_delete_title),
+            line = if (s.hear == Source.NOVELO) t(R.string.local_delete_line_hears, formatBytes(graph.localModel.totalBytes)) else t(R.string.local_delete_line, formatBytes(graph.localModel.totalBytes)),
+            yes = t(R.string.local_delete),
+            onYes = {
+                deleting = false
+                scope.launch {
+                    // Let go of it first if it is loaded, then off the phone.
+                    runCatching { graph.engine.releaseIfIdle(0) }
+                    graph.localModel.delete()
+                }
+            },
+            onDismiss = { deleting = false },
         )
     }
 }
@@ -165,32 +206,34 @@ internal fun localShort(state: LocalModel.State): String = when {
     else -> t(R.string.local_needs_download)
 }
 
-/** Who thinks: the Novelo's own intelligence or her API, on the right; under it, what is doing it (her API's model opens the list). */
+/** Who does a job (hears, thinks): the Novelo or her API, on the right; under it, her API's model (it opens the list). */
 @Composable
-private fun ThinkLine(
+private fun SourceLine(
+    title: String,
     source: Source,
     model: String,
+    tag: String,
     onSource: (Source) -> Unit,
     onPick: () -> Unit,
 ) {
     val api = source == Source.API
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = api, onClick = onPick).padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth().clickable(enabled = api, onClick = onPick).padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp).testTag("source-$tag"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(t(R.string.ai_who_thinks), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
             // The Novelo's needs no words under it (the choice says it); her API shows its model.
             if (api) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(
                     model.ifBlank { t(R.string.ai_choose_model) },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (api && model.isBlank()) NoveloColors.Accent else NoveloColors.TextMuted,
+                    color = if (model.isBlank()) NoveloColors.Accent else NoveloColors.TextMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (api) Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.padding(start = 2.dp).size(14.dp))
+                Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.padding(start = 2.dp).size(14.dp))
             }
         }
         Segmented(
@@ -202,11 +245,11 @@ private fun ThinkLine(
 }
 
 /**
- * What lives on the phone, as one thing ([name]): its state, and the one thing to do about it.
- * Off Wi-Fi, the download asks first: wait for it, or download anyway.
+ * What lives on the phone, as one thing ([name]): its state, and the one thing to do about it
+ * (download, stop, or take it off). Off Wi-Fi, the download asks first: wait for it, or download anyway.
  */
 @Composable
-private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: String) {
+private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: String, onDelete: () -> Unit) {
     val total = model.totalBytes
     val percent = NumberFormat.getPercentInstance(Lang.locale)
     var askWifi by remember { mutableStateOf(false) }
@@ -229,8 +272,8 @@ private fun LocalModelLine(model: LocalModel, state: LocalModel.State, name: Str
                 }, primary = true, size = 40.dp)
                 is LocalModel.State.Downloading -> IconAction(NoveloIcons.Stop, t(R.string.local_stop_download), { model.cancel() }, size = 40.dp)
                 LocalModel.State.Checking -> CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
-                // Hearing needs it: once here it stays (nothing to delete it with).
-                LocalModel.State.Ready -> Unit
+                // Off the phone (asked first): she hears by her API, or wants the room back.
+                LocalModel.State.Ready -> IconAction(NoveloIcons.Trash, t(R.string.local_delete), onDelete, size = 40.dp)
             }
         }
         if (askWifi && (state == LocalModel.State.Missing || state is LocalModel.State.Failed)) {
@@ -275,13 +318,14 @@ internal fun ModelPicker(
     title: String,
     current: String,
     models: List<String>,
-    settings: NoveloSettings,
+    /** Her API for this job is set up (its list can come). */
+    ready: Boolean,
     onLoad: () -> Unit,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var typed by remember { mutableStateOf(current) }
-    LaunchedEffect(Unit) { if (models.isEmpty() && settings.apiReady) onLoad() }
+    LaunchedEffect(Unit) { if (models.isEmpty() && ready) onLoad() }
     NoveloSheet(onDismissRequest = onDismiss) {
         Text(title, style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text, modifier = Modifier.padding(horizontal = 24.dp))
         Spacer(Modifier.height(12.dp))
@@ -291,7 +335,7 @@ internal fun ModelPicker(
                 IconAction(NoveloIcons.Check, t(R.string.ai_use), { onPick(typed.trim()) }, modifier = Modifier.padding(start = 8.dp), primary = true)
             }
         }
-        if (!settings.apiReady) {
+        if (!ready) {
             Text(t(R.string.ai_fill_to_load), style = MaterialTheme.typography.bodySmall, color = NoveloColors.TextMuted, modifier = Modifier.padding(24.dp))
         }
         val filtered = models.filter { typed.isBlank() || it.contains(typed.trim(), ignoreCase = true) || it == current }

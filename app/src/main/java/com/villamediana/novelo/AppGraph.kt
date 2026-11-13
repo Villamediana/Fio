@@ -55,7 +55,7 @@ class AppGraph(context: Context) {
     val settings: Settings by lazy { Settings(appContext, scope) }
     val api: Api by lazy { Api(http) }
     val engine: LocalEngine by lazy { LocalEngine(java.io.File(appContext.cacheDir, "model")) }
-    /** On the phone: LFM3-Omni hears (and looks at photos for the Novelo's intelligence). */
+    /** On the phone: LFM3-Omni hears (when she chose the Novelo's ears) and looks at photos and files. */
     val localModel: LocalModel by lazy {
         LocalModel(appContext, scope).also { model ->
             // What waited for the download goes as soon as it is here.
@@ -79,7 +79,7 @@ class AppGraph(context: Context) {
             scope = scope,
             db = db,
             recorder = recorder,
-            hearing = Hearing(engine, localModel),
+            hearing = Hearing(settings, api, engine, localModel, appContext.cacheDir),
             thinking = Thinking(settings, api, engine, localModel, novelo),
             keeper = Keeper(db),
             reminders = reminders,
