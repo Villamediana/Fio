@@ -60,6 +60,7 @@ import com.villamediana.novelo.local.LocalEngine
 import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.NoveloSettings
 import com.villamediana.novelo.settings.Source
+import com.villamediana.novelo.settings.Job
 import com.villamediana.novelo.settings.ThemeMode
 import com.villamediana.novelo.ui.Nav
 import com.villamediana.novelo.ui.components.NoveloIcons
@@ -163,14 +164,22 @@ private fun Fold(title: String, summary: String, attention: Boolean, open: Boole
     }
 }
 
-/** Who thinks, in a few words (hearing is always on the phone); true when something is missing. */
-internal fun intelligenceSummary(s: NoveloSettings, local: LocalModel.State, novelo: Boolean): Pair<String, Boolean> = when {
-    !(LocalEngine.available && local is LocalModel.State.Ready) -> t(R.string.local_pack_hear) + " · " + localShort(local) to true
-    s.think == Source.NOVELO && !novelo -> t(R.string.need_novelo_not_in_version) to true
-    s.think == Source.API && !s.apiReady -> t(R.string.ai_missing_api) to true
-    s.think == Source.API && s.thinkModel.isBlank() -> t(R.string.ai_missing_model) to true
-    s.think == Source.API -> t(R.string.ai_mixed_phone_hears, s.thinkModel) to false
-    else -> t(R.string.ai_novelo_summary) to false
+/** Who hears and who thinks, in a few words; true when something is missing. */
+internal fun intelligenceSummary(s: NoveloSettings, local: LocalModel.State, novelo: Boolean): Pair<String, Boolean> {
+    val hear = s.api(Job.HEAR)
+    val think = s.api(Job.THINK)
+    return when {
+        s.hear == Source.NOVELO && !(LocalEngine.available && local is LocalModel.State.Ready) -> t(R.string.local_pack_hear) + " · " + localShort(local) to true
+        s.hear == Source.API && !hear.ready -> t(R.string.ai_missing_hear_api) to true
+        s.hear == Source.API && hear.model.isBlank() -> t(R.string.ai_missing_hear_model) to true
+        s.think == Source.NOVELO && !novelo -> t(R.string.need_novelo_not_in_version) to true
+        s.think == Source.API && !think.ready -> t(R.string.ai_missing_api) to true
+        s.think == Source.API && think.model.isBlank() -> t(R.string.ai_missing_model) to true
+        else -> listOf(
+            if (s.hear == Source.NOVELO) t(R.string.ai_hears_phone) else t(R.string.ai_hears_with, hear.model),
+            if (s.think == Source.NOVELO) t(R.string.ai_thinks_novelo) else t(R.string.ai_thinks_with, think.model),
+        ).joinToString(" · ") to false
+    }
 }
 
 /** The backup in a few words; true when it needs her. */

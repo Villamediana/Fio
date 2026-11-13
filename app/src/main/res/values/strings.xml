@@ -140,7 +140,6 @@
     <string name="local_pack_hear">Ouvido do Novelo</string>
     <string name="local_file_damaged_any">chegou com defeito; baixe de novo</string>
     <string name="ai_novelo">Novelo</string>
-    <string name="ai_novelo_summary">Inteligência do Novelo · ouve no celular</string>
     <string name="need_novelo_not_in_version">a inteligência do Novelo não vem nesta versão — use a sua em Ajustes</string>
     <string name="need_download_ears">baixe o ouvido do Novelo em Ajustes › Inteligência</string>
     <string name="ai_on_phone">No celular</string>
@@ -207,9 +206,8 @@
     <string name="backup">Backup</string>
     <string name="version">versão %1$s</string>
     <string name="language">Idioma</string>
-    <string name="ai_missing_api">falta a chave da API</string>
-    <string name="ai_missing_model">falta escolher o modelo</string>
-    <string name="ai_mixed_phone_hears">ouve no celular · pensa com %1$s</string>
+    <string name="ai_missing_api">falta a API de quem pensa</string>
+    <string name="ai_missing_model">falta o modelo que pensa</string>
     <string name="backup_doing">fazendo…</string>
     <string name="backup_daily_last">todo dia · último %1$s</string>
     <string name="backup_daily">todo dia</string>
@@ -372,4 +370,25 @@
     <string name="reminder_save">Salvar</string>
     <string name="reminder_remove">Tirar lembrete</string>
     <string name="step_edit">Escrever de novo</string>
+    <!-- Quem ouve (1.55) -->
+    <string name="ai_who_hears">Quem ouve</string>
+    <string name="ai_api_hears">API de quem ouve</string>
+    <string name="ai_api_thinks">API de quem pensa</string>
+    <string name="ai_model_hears">Modelo que ouve</string>
+    <string name="ai_model_hears_title">Modelo que transcreve</string>
+    <string name="local_delete">Apagar do celular</string>
+    <string name="local_delete_title">Apagar o ouvido do Novelo?</string>
+    <string name="local_delete_line">Libera %1$s. Pra voltar a ouvir no celular, é só baixar de novo.</string>
+    <string name="local_delete_line_hears">É ele que ouve você agora: até baixar de novo (%1$s), o Novelo não ouve.</string>
+    <string name="need_hear_api">configure a API de quem ouve em Ajustes</string>
+    <string name="need_hear_provider">%1$s não transcreve áudio — escolha outra API pra ouvir em Ajustes</string>
+    <string name="need_hear_model">escolha o modelo que ouve em Ajustes</string>
+    <string name="ai_missing_hear_api">falta a API de quem ouve</string>
+    <string name="ai_missing_hear_model">falta o modelo que ouve</string>
+    <string name="ai_hears_phone">ouve no celular</string>
+    <string name="ai_hears_with">ouve com %1$s</string>
+    <string name="ai_thinks_novelo">Inteligência do Novelo</string>
+    <string name="ai_thinks_with">pensa com %1$s</string>
+    <string name="api_same_key_thinks">Usar a mesma chave de quem pensa</string>
+    <string name="api_same_key_hears">Usar a mesma chave de quem ouve</string>
 </resources>

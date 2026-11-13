@@ -72,8 +72,15 @@ redondos só nas pontas). Ajustes (1.22) é uma página só: Inteligência, Tema
 poucas palavras como está (no acento quando falta algo) que abre ali mesmo, um de cada vez (`Fold`): o que abre
 fica dentro do mesmo cartão, com os cartões de dentro na cor da página (1.22.1). Embaixo, o Novelo e a atualização.
 O atalho por gesto da 1.22.0 saiu na 1.22.1.
-Inteligência mostra só "Quem pensa" (Novelo ou API; ouvir é sempre do celular) e o que a escolha pede — o
-download do ouvido (sempre) e, quando a API pensa, o endereço e a chave dela, com a conexão testada sozinha um instante depois de mudar. O idioma da fala é
+Inteligência mostra "Quem ouve" e "Quem pensa" (cada um Novelo ou API, 1.55) e o que as escolhas pedem — o
+download do ouvido quando o Novelo ouve (e a lixeira pra tirá-lo do celular, com confirmação, sempre que ele está lá) e,
+pra cada API dela, provedor, endereço e chave próprios (`Job.HEAR`/`Job.THINK`, `ApiSetup`; a Anthropic pensa mas não
+ouve, então quem ouve só lista provedores com `hears`), com a conexão testada sozinha um instante depois de mudar. Mesmo
+provedor nas duas: "Usar a mesma chave de quem pensa/ouve" copia a chave com um toque (nunca sozinho). Ouvir pela API
+(`Hearing.byApi`): a gravação inteira quando para de falar (até 20 MB), ou pedaços de 5 min nas pausas, cada um guardado
+(`api:300p`); só o ouvido do celular ouve enquanto ela fala. A chave de quem ouve é `hear_by` (a antiga `hear` do Fio
+podia dizer "api"). Sem o ouvido no celular, fotos e arquivos ficam sem a descrição do Omni (o texto lido nelas segue)
+e a busca por sentido vira só por palavras. O idioma da fala é
 sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
 costurada.
 

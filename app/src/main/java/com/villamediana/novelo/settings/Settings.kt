@@ -27,11 +27,11 @@ import com.villamediana.novelo.ai.Api
 import com.villamediana.novelo.ai.Provider
 import com.villamediana.novelo.ai.Providers
 
-/** Where hearing (speech → text) or thinking (organizing) happens. */
 /**
- * Who thinks: the Novelo's own intelligence (free models online, nothing to set up) or hers (her
- * API). Hearing is always on the phone. The Novelo's keeps the key "local" it had when it thought
- * on the phone (until 1.19): whoever chose the Novelo stays with it.
+ * Who hears and who thinks. Hearing: the Novelo's ears on the phone (Omni, downloaded once) or her
+ * API (a transcription model). Thinking: the Novelo's own intelligence (free models online, nothing
+ * to set up) or her API. The Novelo's keeps the key "local" it had when it thought on the phone
+ * (until 1.19): whoever chose the Novelo stays with it.
  */
 enum class Source(val key: String) {
     NOVELO("local"), API("api");
@@ -50,8 +50,31 @@ enum class ThemeMode(val key: String) {
     }
 }
 
+/** Which of her API settings: the one that thinks or the one that hears — each its own (Anthropic thinks but doesn't hear). */
+enum class Job { THINK, HEAR }
+
+/** Her API for one [Job]: whose it is, the address she typed, whether its key is saved, and the model. */
+data class ApiSetup(val providerId: String, val base: String, val hasKey: Boolean, val model: String) {
+    val provider: Provider get() = Providers.of(providerId)
+
+    /** Whose it is, once she chose (an address from before, without a provider, is "Outro"). */
+    val chosen: Boolean get() = providerId.isNotBlank() || base.isNotBlank()
+
+    /** The address asked: the provider's own, or the one she typed (Foundry, another). */
+    val address: String get() = provider.base ?: base
+
+    val ready: Boolean get() = address.isNotBlank() && hasKey
+
+    fun endpoint(key: String): Api.Endpoint = Api.Endpoint(address, key, provider.wire)
+}
+
 data class NoveloSettings(
+    /** Who hears: the Novelo's ears on the phone, or her API. */
     val hear: Source = Source.NOVELO,
+    /** Her API that hears (its own provider, address, key and model). */
+    val hearProvider: String = "",
+    val hearBase: String = "",
+    val hasHearKey: Boolean = false,
     val hearModel: String = "",
     val think: Source = Source.NOVELO,
     val thinkModel: String = "",
@@ -86,6 +109,12 @@ data class NoveloSettings(
     val apiReady: Boolean get() = apiAddress.isNotBlank() && hasApiKey
 
     fun endpoint(key: String): Api.Endpoint = Api.Endpoint(apiAddress, key, provider.wire)
+
+    /** Her API for [job]. */
+    fun api(job: Job): ApiSetup = when (job) {
+        Job.THINK -> ApiSetup(apiProvider, apiBase, hasApiKey, thinkModel)
+        Job.HEAR -> ApiSetup(hearProvider, hearBase, hasHearKey, hearModel)
+    }
 }
 
 private val Context.store: DataStore<Preferences> by preferencesDataStore("settings")
@@ -96,8 +125,11 @@ class Settings(private val context: Context, scope: CoroutineScope) {
 
     val flow: Flow<NoveloSettings> = store.data.map { p ->
         NoveloSettings(
-            hear = Source.of(p[HEAR]),
-            hearModel = p[HEAR_MODEL].orEmpty(),
+            hear = Source.of(p[HEAR_BY]),
+            hearProvider = p[HEAR_API_PROVIDER].orEmpty(),
+            hearBase = p[HEAR_API_BASE].orEmpty(),
+            hasHearKey = !p[HEAR_API_KEY].isNullOrEmpty(),
+            hearModel = p[HEAR_API_MODEL].orEmpty(),
             think = Source.of(p[THINK]),
             thinkModel = p[THINK_MODEL].orEmpty(),
             apiBase = p[API_BASE].orEmpty(),
@@ -120,18 +152,43 @@ class Settings(private val context: Context, scope: CoroutineScope) {
 
     suspend fun current(): NoveloSettings = flow.first()
 
-    suspend fun apiKey(): String? = store.data.first()[API_KEY]?.let { vault.open(it) }
+    suspend fun apiKey(job: Job = Job.THINK): String? = store.data.first()[keys(job).key]?.let { vault.open(it) }
 
-    suspend fun setHear(source: Source) = store.edit { it[HEAR] = source.key }
-    suspend fun setHearModel(model: String) = store.edit { it[HEAR_MODEL] = model.trim() }
+    suspend fun setHear(source: Source) = store.edit { it[HEAR_BY] = source.key }
     suspend fun setThink(source: Source) = store.edit { it[THINK] = source.key }
-    suspend fun setThinkModel(model: String) = store.edit { it[THINK_MODEL] = model.trim() }
-    suspend fun setApiBase(url: String) = store.edit { it[API_BASE] = url.trim().trimEnd('/') }
-    suspend fun setApiProvider(id: String) = store.edit { it[API_PROVIDER] = id }
+    suspend fun setThinkModel(model: String) = setModel(Job.THINK, model)
+    suspend fun setApiBase(url: String) = setApiBase(Job.THINK, url)
+    suspend fun setApiProvider(id: String) = setApiProvider(Job.THINK, id)
+    suspend fun setApiKey(key: String) = setApiKey(Job.THINK, key)
     suspend fun setSetupDone() = store.edit { it[SETUP_DONE] = true }
-    suspend fun setApiKey(key: String) = store.edit { p ->
+
+    suspend fun setModel(job: Job, model: String) = store.edit { it[keys(job).model] = model.trim() }
+    suspend fun setApiBase(job: Job, url: String) = store.edit { it[keys(job).base] = url.trim().trimEnd('/') }
+    suspend fun setApiProvider(job: Job, id: String) = store.edit { it[keys(job).provider] = id }
+    suspend fun setApiKey(job: Job, key: String) = store.edit { p ->
         val k = key.trim()
-        if (k.isEmpty()) p.remove(API_KEY) else p[API_KEY] = vault.seal(k)
+        if (k.isEmpty()) p.remove(keys(job).key) else p[keys(job).key] = vault.seal(k)
+    }
+
+    /** The other job's key and address for this one (she tapped "usar a mesma chave"): the same provider, the same account. */
+    suspend fun shareKey(from: Job, to: Job) = store.edit { p ->
+        val f = keys(from)
+        val t = keys(to)
+        p[f.key]?.let { p[t.key] = it }
+        p[f.base]?.let { p[t.base] = it }
+    }
+
+    /** Where each job's API lives in the store. */
+    private class Keys(
+        val provider: Preferences.Key<String>,
+        val base: Preferences.Key<String>,
+        val key: Preferences.Key<String>,
+        val model: Preferences.Key<String>,
+    )
+
+    private fun keys(job: Job): Keys = when (job) {
+        Job.THINK -> Keys(API_PROVIDER, API_BASE, API_KEY, THINK_MODEL)
+        Job.HEAR -> Keys(HEAR_API_PROVIDER, HEAR_API_BASE, HEAR_API_KEY, HEAR_API_MODEL)
     }
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
@@ -157,8 +214,12 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     }
 
     private companion object {
-        val HEAR = stringPreferencesKey("hear")
-        val HEAR_MODEL = stringPreferencesKey("hear_model")
+        /** Who hears (1.55). Not the old "hear" of the Fio, which may still say "api" from back then. */
+        val HEAR_BY = stringPreferencesKey("hear_by")
+        val HEAR_API_PROVIDER = stringPreferencesKey("hear_api_provider")
+        val HEAR_API_BASE = stringPreferencesKey("hear_api_base")
+        val HEAR_API_KEY = stringPreferencesKey("hear_api_key_sealed")
+        val HEAR_API_MODEL = stringPreferencesKey("hear_api_model")
         val THINK = stringPreferencesKey("think")
         val THINK_MODEL = stringPreferencesKey("think_model")
         val API_BASE = stringPreferencesKey("api_base")

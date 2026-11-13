@@ -140,7 +140,6 @@
     <string name="local_pack_hear">Novelo\'s ears</string>
     <string name="local_file_damaged_any">it arrived damaged; download it again</string>
     <string name="ai_novelo">Novelo</string>
-    <string name="ai_novelo_summary">Novelo\'s intelligence · hears on the phone</string>
     <string name="need_novelo_not_in_version">Novelo\'s intelligence isn\'t in this version — use your own in Settings</string>
     <string name="need_download_ears">download Novelo\'s ears in Settings › Intelligence</string>
     <string name="ai_on_phone">On the phone</string>
@@ -207,9 +206,8 @@
     <string name="backup">Backup</string>
     <string name="version">version %1$s</string>
     <string name="language">Language</string>
-    <string name="ai_missing_api">the API key is missing</string>
-    <string name="ai_missing_model">a model still needs choosing</string>
-    <string name="ai_mixed_phone_hears">hears on the phone · thinks with %1$s</string>
+    <string name="ai_missing_api">the API that thinks is missing</string>
+    <string name="ai_missing_model">the model that thinks is missing</string>
     <string name="backup_doing">backing up…</string>
     <string name="backup_daily_last">every day · last %1$s</string>
     <string name="backup_daily">every day</string>
@@ -372,4 +370,25 @@
     <string name="reminder_save">Save</string>
     <string name="reminder_remove">Remove reminder</string>
     <string name="step_edit">Rewrite</string>
+    <!-- Quem ouve (1.55) -->
+    <string name="ai_who_hears">Who hears</string>
+    <string name="ai_api_hears">API that hears</string>
+    <string name="ai_api_thinks">API that thinks</string>
+    <string name="ai_model_hears">Model that hears</string>
+    <string name="ai_model_hears_title">Transcription model</string>
+    <string name="local_delete">Delete from the phone</string>
+    <string name="local_delete_title">Delete Novelo\'s ears?</string>
+    <string name="local_delete_line">Frees %1$s. To hear on the phone again, just download it again.</string>
+    <string name="local_delete_line_hears">It\'s what hears you now: until you download it again (%1$s), Novelo can\'t hear.</string>
+    <string name="need_hear_api">set up the API that hears in Settings</string>
+    <string name="need_hear_provider">%1$s doesn\'t transcribe audio — pick another API to hear in Settings</string>
+    <string name="need_hear_model">choose the model that hears in Settings</string>
+    <string name="ai_missing_hear_api">the API that hears is missing</string>
+    <string name="ai_missing_hear_model">the model that hears is missing</string>
+    <string name="ai_hears_phone">hears on the phone</string>
+    <string name="ai_hears_with">hears with %1$s</string>
+    <string name="ai_thinks_novelo">Novelo\'s intelligence</string>
+    <string name="ai_thinks_with">thinks with %1$s</string>
+    <string name="api_same_key_thinks">Use the same key as the one that thinks</string>
+    <string name="api_same_key_hears">Use the same key as the one that hears</string>
 </resources>
