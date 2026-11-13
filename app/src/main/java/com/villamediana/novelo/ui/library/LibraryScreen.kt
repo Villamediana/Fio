@@ -111,6 +111,7 @@ import com.villamediana.novelo.ui.components.NoveloIcons
 import com.villamediana.novelo.ui.components.GroupGap
 import com.villamediana.novelo.ui.components.PT
 import com.villamediana.novelo.ui.components.SWIPE_FOLLOW
+import com.villamediana.novelo.ui.components.SWIPE_LEAVING_MS
 import com.villamediana.novelo.ui.components.SectionLabel
 import com.villamediana.novelo.ui.components.StitchColor
 import com.villamediana.novelo.ui.components.paper
@@ -234,12 +235,15 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (pull <= 0f) return Velocity.Zero
-                if (swipeGoes(pull, available.x, density) == 1) back()
                 // Gone or not, the lean goes back — and all the way, even when a quick touch cuts
                 // the way back short: the screen reused when she comes right back (before its way
-                // out ended) must not stay off-center.
+                // out ended) must not stay off-center. Going, it keeps the finger's way while it
+                // leaves and is back in the middle after (see swipeNav).
+                val going = swipeGoes(pull, available.x, density) == 1
+                if (going) back()
                 try {
-                    animate(pull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> pull = v }
+                    if (going) delay(SWIPE_LEAVING_MS)
+                    else animate(pull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> pull = v }
                 } finally {
                     pull = 0f
                 }

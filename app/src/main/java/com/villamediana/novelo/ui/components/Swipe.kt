@@ -13,16 +13,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** How much of the finger's way the screen goes along with it: a hint of the move, not the move. */
-const val SWIPE_FOLLOW = 0.3f
+/**
+ * How much of the finger's way the screen goes along with it: all of it, like the tabs. A hint
+ * (0.3) felt like the screen pushing back ("o swipe resiste").
+ */
+const val SWIPE_FOLLOW = 1f
+
+/** How long a screen takes to leave (the way out of NoveloRoot): the lean stays until then. */
+const val SWIPE_LEAVING_MS = 420L
 
 /** A sideways swipe is a move when it went far enough, or was quick and not tiny. */
 fun swipeGoes(dx: Float, velocity: Float, density: Density): Int = with(density) {
-    val far = 72.dp.toPx()
+    val far = 56.dp.toPx()
     val some = 24.dp.toPx()
-    val quick = 800.dp.toPx()
+    val quick = 400.dp.toPx()
     when {
         dx < -far || (dx < -some && velocity < -quick) -> -1
         dx > far || (dx > some && velocity > quick) -> 1
@@ -47,6 +54,14 @@ fun Modifier.swipeNav(onLeft: (() -> Unit)?, onRight: (() -> Unit)?, follow: Mut
             val from = follow?.floatValue ?: return
             if (from != 0f) scope.launch { animate(from, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f)) { v, _ -> follow.floatValue = v } }
         }
+        // Going: the screen keeps going the finger's way while it leaves (springing back to the
+        // middle under the way out looked like a stumble), and is back in the middle after.
+        fun leave() {
+            val f = follow ?: return
+            if (f.floatValue != 0f) scope.launch {
+                try { delay(SWIPE_LEAVING_MS) } finally { f.floatValue = 0f }
+            }
+        }
         detectHorizontalDragGestures(
             onDragStart = { tracker.resetTracking(); dx = 0f },
             onDragEnd = {
@@ -57,8 +72,7 @@ fun Modifier.swipeNav(onLeft: (() -> Unit)?, onRight: (() -> Unit)?, follow: Mut
                 }
                 // Gone or not, the lean goes back: a screen reused on the way back (she returned
                 // before its way out ended) must not stay off-center.
-                go?.invoke()
-                settle()
+                if (go != null) { go(); leave() } else settle()
             },
             onDragCancel = { settle() },
         ) { change, amount ->
