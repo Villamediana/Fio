@@ -6,6 +6,17 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.villamediana.novelo.ui.theme.Motion
 import androidx.compose.foundation.combinedClickable
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
@@ -54,8 +65,9 @@ import java.time.ZoneId
 
 /**
  * The files an item holds — and, on the day's diary, the day's files that live in no item — under
- * its text: one quiet line each; a tap opens it in the app she picks. [hidden]: something sensitive
- * not shown yet (the names blurred, a tap asks to see).
+ * its text, each with what it looks like (a PDF's first page, a photo, the first words: [FileCard]);
+ * a tap opens it in the app she picks. [hidden]: something sensitive not shown yet (only the lines,
+ * the names blurred and no preview; a tap asks to see).
  */
 @Composable
 internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boolean = false, onReveal: () -> Unit = {}) {
@@ -71,13 +83,11 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
     var removing by remember { androidx.compose.runtime.mutableStateOf<KeptFile?>(null) }
     Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         files.forEachIndexed { i, f ->
-            FileRow(
-                f,
-                onClick = { if (hidden) onReveal() else openFile(context, f) },
-                onLongClick = { if (hidden) onReveal() else removing = f },
-                hidden = hidden,
-                modifier = Modifier.testTag(if (hidden) "entry-file-hidden-$i" else "entry-file-$i"),
-            )
+            if (hidden) {
+                FileRow(f, onClick = onReveal, onLongClick = onReveal, hidden = true, modifier = Modifier.testTag("entry-file-hidden-$i"))
+            } else {
+                FileCard(f, onClick = { openFile(context, f) }, onLongClick = { removing = f }, index = i, modifier = Modifier.testTag("entry-file-$i"))
+            }
         }
     }
     removing?.let { f -> RemoveFile(f) { removing = null } }
@@ -89,41 +99,105 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
  */
 @Composable
 internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modifier, hidden: Boolean = false, where: String? = null, onLongClick: (() -> Unit)? = null) {
-    val shape = RoundedCornerShape(18.dp)
     Row(
         modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(NoveloColors.Surface)
-            .stitched(shape, StitchColor, inset = 5.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = onLongClick?.let { t(R.string.file_remove) })
+            .fileFrame(onClick, onLongClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(NoveloColors.Accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Icon(NoveloIcons.File, null, tint = NoveloColors.Accent, modifier = Modifier.size(22.dp))
+        FileLine(f, hidden, where)
+    }
+}
+
+/**
+ * One file in an item: what it looks like on top — a PDF's first page (the top of it), a photo, a
+ * frame of a video, or the first words of a text, a document or a sheet ([FilePreview]) — and its
+ * line under it. While the preview is made its place waits, quiet; with nothing to show (sound, a
+ * kind without one, a file that won't open) it is the line alone.
+ */
+@Composable
+internal fun FileCard(f: KeptFile, onClick: () -> Unit, onLongClick: (() -> Unit)?, modifier: Modifier = Modifier, index: Int = 0) {
+    val expected = remember(f.name, f.mime) { FilePreview.expected(f) }
+    val preview = if (expected) rememberFilePreview(f) else FilePreview.None
+    Column(modifier.fileFrame(onClick, onLongClick).animateContentSize(Motion.soft())) {
+        val window = Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        // The waiting place gives way to the preview softly (the card grows with it).
+        Crossfade(preview, animationSpec = tween(260), label = "file-preview") { p ->
+            when (p) {
+                null -> Box(window.height(PREVIEW_WAIT).background(NoveloColors.Surface2))
+                is FilePreview.Picture -> {
+                    BoxWithConstraints(window.testTag("entry-file-preview-$index")) {
+                        // As tall as it is, but no more than a peek: a page shows its top.
+                        val tall = (maxWidth / p.aspect).coerceAtMost(PREVIEW_MAX)
+                        Image(
+                            p.bitmap.asImageBitmap(),
+                            null,
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.TopCenter,
+                            modifier = Modifier.fillMaxWidth().height(tall).border(1.dp, NoveloColors.Line, RoundedCornerShape(12.dp)),
+                        )
+                    }
+                }
+                is FilePreview.Words -> Text(
+                    p.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NoveloColors.TextMuted,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = window.background(NoveloColors.Surface2).padding(horizontal = 14.dp, vertical = 12.dp).testTag("entry-file-preview-$index"),
+                )
+                FilePreview.None -> Unit
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        // Hidden: blurred where Android blurs; elsewhere the name doesn't show at all.
-        val veil = if (hidden && Build.VERSION.SDK_INT >= 31) Modifier.blur(8.dp) else Modifier
-        Column(Modifier.weight(1f).then(veil)) {
-            Text(
-                if (hidden && Build.VERSION.SDK_INT < 31) "••••••••" else f.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = NoveloColors.Text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                listOfNotNull(FileKind.label(f.name, f.mime), f.size.takeIf { it > 0 }?.let { FileKind.size(it, Lang.locale) }, where).joinToString(" · "),
-                style = MaterialTheme.typography.labelMedium,
-                color = NoveloColors.TextMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            FileLine(f, hidden = false, where = null)
         }
     }
 }
+
+/** The quiet paper a file sits on (stitched, round), and what a tap and a long press do. */
+@Composable
+private fun Modifier.fileFrame(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+    val shape = RoundedCornerShape(18.dp)
+    return fillMaxWidth()
+        .clip(shape)
+        .background(NoveloColors.Surface)
+        .stitched(shape, StitchColor, inset = 5.dp)
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = onLongClick?.let { t(R.string.file_remove) })
+}
+
+/** A file's line: its kind in a small square, its name, and under it what it is and how big (and [where] it lives). */
+@Composable
+private fun RowScope.FileLine(f: KeptFile, hidden: Boolean, where: String?) {
+    Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(NoveloColors.Accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+        Icon(NoveloIcons.File, null, tint = NoveloColors.Accent, modifier = Modifier.size(22.dp))
+    }
+    Spacer(Modifier.width(12.dp))
+    // Hidden: blurred where Android blurs; elsewhere the name doesn't show at all.
+    val veil = if (hidden && Build.VERSION.SDK_INT >= 31) Modifier.blur(8.dp) else Modifier
+    Column(Modifier.weight(1f).then(veil)) {
+        Text(
+            if (hidden && Build.VERSION.SDK_INT < 31) "••••••••" else f.name,
+            style = MaterialTheme.typography.titleMedium,
+            color = NoveloColors.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            listOfNotNull(FileKind.label(f.name, f.mime), f.size.takeIf { it > 0 }?.let { FileKind.size(it, Lang.locale) }, where).joinToString(" · "),
+            style = MaterialTheme.typography.labelMedium,
+            color = NoveloColors.TextMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** While a preview is made, the place it will take. */
+private val PREVIEW_WAIT = 120.dp
+
+/** The tallest a preview stands: a peek, not the whole page. */
+private val PREVIEW_MAX = 260.dp
 
 /** Taking [f] out of Novelo, once more asked: from its item (or the day's diary) and the phone. */
 @Composable

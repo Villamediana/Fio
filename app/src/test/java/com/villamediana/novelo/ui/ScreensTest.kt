@@ -624,6 +624,37 @@ class ScreensTest {
         shot("54-files-search")
     }
 
+    /** A file in its item shows what it looks like: a photo, the first words of a text (a PDF's first page: on the phone, Robolectric draws no PDF). */
+    @Test
+    fun filesShowWhatTheyLookLike() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(context.filesDir, "captures/files/9-9").apply { mkdirs() }
+        val photo = File(dir, "Planta da sala.png").apply {
+            val b = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF85CDCA.toInt()) }
+            outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        val text = File(dir, "Lista da mudança.txt").apply { writeText("Caixas da cozinha\nLivros da estante\nRoupas de inverno") }
+        val id = runBlocking {
+            val e = graph.db.entries().insert(Entry(kind = "note", title = "Mudança", body = "O que vai na mudança.", createdAt = now, updatedAt = now))
+            listOf(Triple(photo, "image/png", 0), Triple(text, "text/plain", 1)).forEach { (f, mime, k) ->
+                graph.db.captures().insert(
+                    Capture(
+                        createdAt = now + k, source = Capture.FILE, filePath = f.path, fileName = f.name, fileMime = mime, fileSize = f.length(),
+                        state = Capture.DONE, outcomes = """[{"entryId":$e,"action":"created","files":true}]""",
+                    ),
+                )
+            }
+            e
+        }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        // The card is one tap (its parts merged): the previews are looked for inside it.
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-preview-0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-preview-1", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Caixas da cozinha", substring = true).assertExists()
+        compose.mainClock.advanceTimeBy(800)
+        shot("55-file-previews")
+    }
+
     @Test
     fun theMainScreenAttachesFiles() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.home.HomeScreen(Nav(), null) {} } }

@@ -428,7 +428,11 @@ Omni não disse nada). O modelo online só classifica: põe o número do arquivo
 diário do dia (`Attached.fileHomes`: o primeiro item marcado que ainda existe, senão nenhum).
 
 Na tela: o item mostra seus arquivos debaixo do texto (`ui/entry/Files.kt`, um toque abre no app que ela
-escolher, via `FileProvider` em `captures/`); o diário do dia mostra os soltos do dia. A aba **Arquivos**
+escolher, via `FileProvider` em `captures/`). Desde a 1.48.0 cada um é um cartão com a vista prévia em cima
+(`ui/entry/FilePreview.kt`, feita fora da thread principal e guardada num LruCache): PDF = a primeira página
+(PdfRenderer, 960 px de largura, mostra o topo até 260 dp), foto = ela, vídeo = um quadro a 1 s, texto/Word/
+planilha/slides = as primeiras linhas (`Peek.of`); áudio e o resto ficam só na linha; item sensível não
+revelado = só a linha borrada, sem prévia; o diário do dia mostra os soltos do dia. A aba **Arquivos**
 (`Filter.FILES`, todos por dia) saiu na 1.47.0 a pedido do Miguel: cada arquivo mora no seu item (tarefa,
 diário, ou nota — que já tem a sensibilidade). Os de item sensível ficam fora da busca (no item, borrados como
 o resto). A busca acha pelo nome e pela descrição (`FileRecall`, com as palavras do Omni
