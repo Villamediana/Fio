@@ -86,26 +86,26 @@ object Opening {
 
 /** The opening's timeline, in ms from when the splash goes away. */
 internal object OpeningTime {
-    const val MOVE = 640f
-    const val PAPER_FROM = 80f
-    const val PAPER_TO = 560f
+    const val MOVE = 420f
+    const val PAPER_FROM = 0f
+    const val PAPER_TO = 340f
     /** The ball touches down: a small swell, and the waves leave from under it. */
-    const val SWELL_FROM = 300f
-    const val SWELL_TO = 720f
-    val WAVES = floatArrayOf(300f, 440f, 580f)
-    const val WAVE = 880f
-    const val RING_FROM = 400f
-    const val RING_TO = 900f
-    const val TAIL_FROM = 520f
-    const val TAIL_TO = 940f
-    const val END = 1460f
+    const val SWELL_FROM = 180f
+    const val SWELL_TO = 460f
+    val WAVES = floatArrayOf(180f, 360f)
+    const val WAVE = 540f
+    const val RING_FROM = 240f
+    const val RING_TO = 600f
+    const val TAIL_FROM = 300f
+    const val TAIL_TO = 660f
+    const val END = 900f
 }
 
 /** The splash's ball: 31.5 of the logo's 108 units, in the system's 288dp icon box. */
 internal val SPLASH_BALL = 84.dp
 
-/** Slow off the mark, then a long soft landing. */
-private val Glide = CubicBezierEasing(0.32f, 0f, 0.12f, 1f)
+/** Straight off, then a soft landing. */
+private val Glide = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /** Over the app while an opening runs; nothing otherwise. */
 @Composable

@@ -215,8 +215,8 @@ Na 1.15.0:
 - **Abertura → microfone (1.54.0, `ui/home/Opening`)**: quando a splash sai, o app já desenha a bola dela no mesmo
   lugar (`OpeningLayer` por cima de tudo, centro do `iconView`, bola de 84dp = 31,5/108 da caixa de 288dp) e tira
   a splash. A bola desce até o botão lendo `OrbSpot` (centro, raio e o centro do mic) a cada quadro, o papel some,
-  saem três ondas que param antes do texto, o pontilhado sai de dentro da bola e a ponta do fio se desenha;
-  1,46 s ao todo. O botão fica escondido (`Modifier.orbSpot()`) até o fim, e o último quadro é desenhado pelas
+  saem duas ondas que param antes do texto, o pontilhado sai de dentro da bola e a ponta do fio se desenha;
+  0,9 s ao todo (1.54.1: era 1,46 s com três ondas; o Miguel achou lento e com onda demais). O botão fica escondido (`Modifier.orbSpot()`) até o fim, e o último quadro é desenhado pelas
   funções do próprio `Orb` (`drawStitchRing`, `drawLooseEnd`, `drawYarn`), então a troca não mexe um pixel
   (`OpeningTest` compara: 1º quadro = splash, último = botão, Home depois = último quadro). Um toque encerra na
   hora (`dispatchTouchEvent`). Sem botão na tela (aberto num item, primeiros passos), só esmaece como antes.

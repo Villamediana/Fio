@@ -150,7 +150,7 @@ class OpeningTest {
             val root = compose.onRoot().fetchSemanticsNode().size
             compose.runOnIdle { Opening.start(Opening.Run(from = Offset(root.width / 2f, root.height / 2f))) }
             var last: Bitmap? = null
-            listOf(0, 160, 320, 480, 640, 800, 1000, 1200, 1460).forEach { ms ->
+            listOf(0, 100, 200, 300, 420, 560, 700, OpeningTime.END.toInt()).forEach { ms ->
                 compose.runOnIdle { t.floatValue = ms.toFloat() }
                 last = capture().also { save(it, "opening-${mode.name.lowercase()}-%04d".format(ms)) }
             }
