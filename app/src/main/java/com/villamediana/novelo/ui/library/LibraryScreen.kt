@@ -445,8 +445,11 @@ private fun Entries(
 internal fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(at).atZone(zone).let { d -> d.month.getDisplayName(TextStyle.FULL_STANDALONE, PT).replaceFirstChar { it.titlecase(PT) } + " " + d.year }
 
-/** The tabs shown, in order. Conexões is hidden for now (the drawing stays in ui/graph). */
-private val TABS = Filter.entries - Filter.LINKS
+/**
+ * The tabs shown, in order. Hidden for now, their code kept: Conexões (the drawing stays in
+ * ui/graph) and Tudo (Miguel, 1.46.0; the search, which looks in everything, still goes as ALL).
+ */
+private val TABS = Filter.entries - Filter.LINKS - Filter.ALL
 
 private fun title(f: Filter) = when (f) {
     Filter.TODAY -> t(R.string.today)
