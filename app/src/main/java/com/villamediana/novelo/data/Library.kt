@@ -162,6 +162,23 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
 
     suspend fun recall(): Recall = Recall(db.entries().all(), db.graph().allTopics(), db.graph().allTies(), db.graph().allLinks())
 
+    /** A task in a category (one of the ones there are, written another way, is that one); null: none. */
+    suspend fun setCategory(id: Long, name: String?) {
+        val e = db.entries().get(id) ?: return
+        val c = Categories.pick(name, db.entries().categories())
+        if (c != e.category) db.entries().setCategory(id, c)
+    }
+
+    /**
+     * A category renamed on every task that has it — or, when [to] is one that already exists
+     * (written any way), joined into it. Null [to]: the tasks are left with none.
+     */
+    suspend fun renameCategory(from: String, to: String?) = db.withTransaction {
+        val others = db.entries().categories().filter { it != from }
+        val target = to?.let { Categories.pick(it, others) }
+        if (target != from) db.entries().renameCategory(from, target)
+    }
+
     suspend fun setStatus(id: Long, status: Status, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) {
         val e = db.entries().get(id) ?: return
         if (e.statusEnum == status) return

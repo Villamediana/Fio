@@ -68,6 +68,8 @@ data class Plan(
     @SerialName("show_photos") @Serializable(with = Longs::class) val showPhotos: List<Long> = emptyList(),
     /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
     @SerialName("keep_audio") val keepAudio: Boolean = false,
+    /** The tasks' categories renamed, joined or taken off. */
+    val categories: List<CategoryChange> = emptyList(),
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
     val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
@@ -76,6 +78,10 @@ data class Plan(
 @Serializable
 data class Period(val from: String? = null, val to: String? = null)
 
+/** A category [name] renamed to [to] (joined, when [to] is another that exists); no [to]: it goes, its tasks with none. */
+@Serializable
+data class CategoryChange(val name: String = "", val to: String? = null)
+
 @Serializable
 data class NewItem(
     val kind: String,
@@ -83,6 +89,8 @@ data class NewItem(
     val body: String = "",
     @Serializable(with = Strings::class) val tags: List<String> = emptyList(),
     val entities: List<NamedTopic> = emptyList(),
+    /** Tasks: the part of her life it belongs to. */
+    val category: String? = null,
     val due: String? = null,
     @SerialName("remind_at") val remindAt: String? = null,
     @SerialName("check_in_at") val checkInAt: String? = null,
@@ -116,6 +124,8 @@ data class Change(
     val append: String? = null,
     /** Its whole text again, when what she said changes what the item is. */
     val body: String? = null,
+    /** Tasks: moved to this category. */
+    val category: String? = null,
     val due: String? = null,
     @SerialName("remind_at") val remindAt: String? = null,
     @SerialName("check_in_at") val checkInAt: String? = null,
@@ -169,6 +179,8 @@ Como preencher:
 - steps: as etapas, quando a tarefa tem mais de um passo. status: todo, doing, waiting ou done.
 - sensitive: true para senhas, documentos pessoais e números deles, dados bancários e afins.
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
+- category (só em tarefa): a área da vida dela a que a tarefa pertence (por exemplo Trabalho, Casa, Pessoal, Saúde). Use o nome de uma das CATEGORIAS DAS TAREFAS quando alguma servir; crie outra só quando nenhuma serve, com nome curto (uma ou duas palavras) e amplo, que sirva pra outras tarefas também — poucas categorias no total, no idioma dela. Pra mudar uma tarefa de categoria, "category" no "update".
+- categories: quando ela pede pra renomear, juntar ou tirar uma categoria: [{"name": "a categoria de agora", "to": "o nome novo, ou o de outra categoria pra juntar as duas"}]; sem "to", a categoria deixa de existir e as tarefas dela ficam sem.
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - A foto de um momento já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item; ela só ganha a "reply". A foto de algo pra guardar ou fazer (um documento, um papel, um recibo, um aviso, um quadro) é desse item: crie ou mude o item com o que ela traz.
 - No diário fica só o relato do dia. O que ela diz das fotos e dos arquivos que mandou (o que são, de quem, pra quê) vai pro item deles, nunca pro diário.
@@ -183,8 +195,9 @@ Responda somente com um objeto JSON. Um exemplo do jeito (só o que foi usado):
 {"reply": "...", "create": [{"kind": "task", "title": "...", "due": "AAAA-MM-DD"}], "update": [{"id": 12, "add_steps": ["..."]}]}
 Os campos que existem:
 - reply
-- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], due, remind_at, repeat, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
-- update: [{id, status, steps_done, add_steps, title, append, body, due, remind_at, repeat, check_in_at, entities, delete, photos [números], files [números]}]
+- create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], category, due, remind_at, repeat, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
+- update: [{id, status, steps_done, add_steps, title, append, body, category, due, remind_at, repeat, check_in_at, entities, delete, photos [números], files [números]}]
+- categories: [{name, to}]
 - search, period {from, to}, show, show_photos, keep_audio
 """.trim()
 
@@ -216,6 +229,8 @@ Os campos que existem:
         fileAlone: Boolean = false,
         /** What the photo (or the photos sent with it) shows, as the phone saw it. */
         seen: String? = null,
+        /** The tasks' categories there are (the ones with the most open tasks first). */
+        categories: List<String> = emptyList(),
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -223,6 +238,7 @@ Os campos que existem:
         val today = diary?.takeIf { it.id != focus?.id }
         val shown = setOfNotNull(focus?.id, today?.id)
         val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
+        if (categories.isNotEmpty()) append("CATEGORIAS DAS TAREFAS: ").append(categories.joinToString(", ")).append("\n\n")
         if (tasks.isNotEmpty()) {
             append("TAREFAS ABERTAS:\n")
             tasks.forEach { append(line(it, zone, now)).append('\n') }
@@ -356,6 +372,7 @@ Os campos que existem:
             },
         )
         append(' ').append(day(e.createdAt, zone)).append(" \"").append(e.title.take(90)).append('"')
+        e.category?.takeIf { e.kindEnum == Kind.TASK }?.let { append(" · categoria ").append(it) }
         e.dueAt?.let { append(" · prazo ").append(if (e.dueHasTime) stamp(it, zone) else day(it, zone)) }
         e.doneAt?.let { append(" · feito em ").append(day(it, zone)) }
         e.remindAt?.takeIf { it > now }?.let { append(" · lembrete ").append(stamp(it, zone)) }

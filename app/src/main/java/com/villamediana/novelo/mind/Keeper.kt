@@ -1,6 +1,7 @@
 package com.villamediana.novelo.mind
 
 import com.villamediana.novelo.data.Entry
+import com.villamediana.novelo.data.Categories
 import com.villamediana.novelo.data.EntryTopic
 import com.villamediana.novelo.data.NoveloDatabase
 import com.villamediana.novelo.data.Kind
@@ -40,6 +41,20 @@ class Keeper(
         val outcomes = mutableListOf<Outcome>()
         val touched = mutableListOf<Long>()
         val known = HashSet<Long>()
+        // The categories there are (and the ones made here): one written another way is that one.
+        val categories = db.entries().categories().toMutableList()
+        fun category(name: String?): String? = Categories.pick(name, categories)?.also { if (it !in categories) categories += it }
+
+        // Categories renamed, joined or taken off first: what is created or moved here goes by the new names.
+        for (c in plan.categories) {
+            val from = categories.firstOrNull { Categories.fold(it) == Categories.fold(c.name) } ?: continue
+            val others = categories.filter { it != from }
+            val to = Categories.pick(c.to, others)
+            if (to == from) continue
+            db.entries().renameCategory(from, to)
+            categories.remove(from)
+            if (to != null && to !in categories) categories += to
+        }
 
         for (item in plan.create) {
             val kind = Kind.of(item.kind) ?: continue
@@ -85,6 +100,7 @@ class Keeper(
                 updatedAt = now,
                 doneAt = if (status == Status.DONE) now else null,
                 captureId = captureId,
+                category = if (kind == Kind.TASK) category(item.category) else null,
             )
             val id = db.entries().insert(entry)
             known += id
@@ -116,6 +132,7 @@ class Keeper(
                 e = e.copy(steps = Steps.write(steps))
             }
             change.title?.takeIf { it.isNotBlank() }?.let { e = e.copy(title = it.trim().take(140)) }
+            if (e.kindEnum == Kind.TASK) category(change.category)?.let { e = e.copy(category = it) }
             // What she said changed what the item is: its text written again.
             change.body?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = it.trim()) }
             // One text per item: what is new joins it (no history kept apart that says the same again).

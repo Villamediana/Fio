@@ -95,6 +95,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.villamediana.novelo.NoveloApplication
 import com.villamediana.novelo.data.Entry
+import com.villamediana.novelo.ui.components.CategoryChip
+import com.villamediana.novelo.data.Categories
 import com.villamediana.novelo.data.Kind
 import com.villamediana.novelo.data.Status
 import com.villamediana.novelo.mind.Recall
@@ -196,6 +198,8 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
     val toggle: (Long) -> Unit = { id -> scope.launch { graph.library.toggleDone(id) } }
     val open: (Long) -> Unit = { nav.go(Screen.Entry(it)) }
+    // Tarefas: the category she is looking at (null: all of them).
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The tabs are pages side by side: a swipe goes to the next one, a touch on a word too.
     // The tab asked by the screen is the page; the page a swipe stops on is the tab kept (so
@@ -307,6 +311,19 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
                         f == Filter.GALLERY -> Gallery(photos, empty = { Empty(Filter.GALLERY) })
+                        f == Filter.TASKS && list != null -> {
+                            // The categories (the ones with the most open tasks first) as filters over the list.
+                            val all = sectionsFor(f, list, showDone)
+                            val names = remember(list, showDone) { Categories.inUse(list.filter { it.kindEnum == Kind.TASK && (showDone || it.statusEnum != Status.DONE) }) }
+                            val chosen = category?.takeIf { it in names }
+                            Column(Modifier.fillMaxSize()) {
+                                if (names.isNotEmpty()) CategoryFilter(names, chosen, onChoose = { category = it })
+                                Entries(
+                                    f, inCategory(all, chosen), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle,
+                                    whole = all, showCategories = chosen == null,
+                                )
+                            }
+                        }
                         list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle, dayPhotos = dayPhotos)
                     }
                 }
@@ -328,6 +345,10 @@ private fun Entries(
     toggle: (Long) -> Unit,
     /** The search's photos, above what it found. */
     photos: List<Photo> = emptyList(),
+    /** The groups whole, when [sections] is only some of them (a category): a drag's order goes into these. */
+    whole: List<Pair<String?, List<Entry>>>? = null,
+    /** The tasks' categories on their cards (not when the list is already one category). */
+    showCategories: Boolean = filter == Filter.TODAY || filter == Filter.TASKS,
     /** The search's files, after its photos. */
     files: List<com.villamediana.novelo.data.KeptFile> = emptyList(),
     /** The day's photos on the day's diary card. */
@@ -412,6 +433,7 @@ private fun Entries(
                             inToday = !searched && filter == Filter.TODAY,
                             shape = shape,
                             dated = !searched && filter == Filter.NOTES,
+                            showCategory = !searched && showCategories,
                             modifier = modifier,
                         )
                     }
@@ -425,7 +447,9 @@ private fun Entries(
                                         onDragStarted = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
                                         onDragStopped = {
                                             shown.firstOrNull { (_, list) -> list.any { it.id == e.id } }?.second?.map { it.id }?.let { ids ->
-                                                graph.scope.launch { graph.library.reorder(ids) }
+                                                // Only one category on the screen: its new order goes into the whole group's.
+                                                val full = whole?.firstOrNull { (_, list) -> list.any { it.id == e.id } }?.second?.map { it.id }
+                                                graph.scope.launch { graph.library.reorder(if (full != null) mergeOrder(full, ids) else ids) }
                                             }
                                         },
                                     )
@@ -670,6 +694,38 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
  * is to be done; it stays here to come back (Miguel, 1.42.0).
  */
 internal const val SHOW_KEPT_TODAY = false
+
+/** The groups with only the tasks of [category] (all of them when null). */
+internal fun inCategory(sections: List<Pair<String?, List<Entry>>>, category: String?): List<Pair<String?, List<Entry>>> =
+    if (category == null) sections else sections.map { (label, items) -> label to items.filter { it.category == category } }
+
+/**
+ * Some of a group ([moved], in their new order) put back among the whole group ([full]): each of
+ * them takes the place one of them had, the others stay where they are.
+ */
+internal fun mergeOrder(full: List<Long>, moved: List<Long>): List<Long> {
+    val these = moved.toSet()
+    val next = moved.iterator()
+    return full.map { if (it in these && next.hasNext()) next.next() else it }
+}
+
+/** Tarefas: all, or one category (its dot and name); a row that slides by itself without turning the tab. */
+@Composable
+private fun CategoryFilter(names: List<String>, chosen: String?, onChoose: (String?) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .nestedScroll(KeepSideways)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 4.dp, bottom = 6.dp)
+            .testTag("category-filter"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CategoryChip(t(R.string.category_all), null, selected = chosen == null, onClick = { onChoose(null) })
+        names.forEach { n -> CategoryChip(n, n, selected = chosen == n, onClick = { onChoose(if (chosen == n) null else n) }) }
+    }
+}
 
 /** Between two days of the diary that have no label. */
 private val DAY_GAP = 16.dp

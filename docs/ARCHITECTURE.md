@@ -531,6 +531,22 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 
+## Categorias das tarefas (1.57.0)
+
+- **Onde vive:** `Entry.category` (texto, só tarefa; banco v10 por AutoMigration). Sem tabela à parte: a categoria
+  existe enquanto alguma tarefa a tem. `data/Categories`: `clean` (curta, maiúscula), `fold` (sem caixa nem acento),
+  `pick` (o nome escrito de outro jeito é o que já existe), `inUse` (as com mais tarefas abertas primeiro).
+- **O modelo:** vê `CATEGORIAS DAS TAREFAS` no contexto e `· categoria X` em cada tarefa; põe `category` no `create`
+  e no `update` (mudar de categoria) e `categories: [{name, to}]` pra renomear, juntar (o `to` é outra que existe) ou
+  tirar (sem `to`). Regra no prompt: usar as que existem, criar só quando nenhuma serve, poucas e amplas.
+- **Sozinho ao abrir:** `mind/Organizer` roda uma vez por início do app (`NoveloRoot`): as tarefas abertas sem
+  categoria vão em lotes de 30 pra quem pensa, com as que existem; resposta `{"id": "Categoria"}`. Sem inteligência
+  pronta ou sem rede, nada; tenta na próxima vez. Sem botão "Organizar" (pedido do Miguel).
+- **Tela:** Tarefas ganha a linha de filtros (Todas · categorias, com o pontinho de cor `CategoryColors`, estável
+  pelo nome); cada cartão diz a dele (Hoje e Tarefas, quando não está filtrado). Segurar continua sendo arrastar;
+  filtrado, a ordem nova entra na do grupo inteiro (`mergeOrder`). Na tarefa, o chip "● Casa ⌄" abre as categorias:
+  tocar muda, o lápis renomeia (no nome de outra, junta), e "Nova categoria".
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

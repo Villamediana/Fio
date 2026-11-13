@@ -55,6 +55,21 @@ interface EntryDao {
     /** The diaries written between [from] and [to] (a day), newest first. */
     @Query("SELECT * FROM entries WHERE kind = 'diary' AND createdAt BETWEEN :from AND :to ORDER BY createdAt DESC, id DESC")
     suspend fun diariesBetween(from: Long, to: Long): List<Entry>
+
+    /** The tasks' categories in use. */
+    @Query("SELECT DISTINCT category FROM entries WHERE kind = 'task' AND category IS NOT NULL")
+    suspend fun categories(): List<String>
+
+    /** A category renamed (or joined into another, or taken off with null), on every task that has it. */
+    @Query("UPDATE entries SET category = :to WHERE kind = 'task' AND category = :from")
+    suspend fun renameCategory(from: String, to: String?)
+
+    /** The open tasks with no category yet. */
+    @Query("SELECT * FROM entries WHERE kind = 'task' AND category IS NULL AND (status IS NULL OR status != 'done') ORDER BY createdAt")
+    suspend fun uncategorized(): List<Entry>
+
+    @Query("UPDATE entries SET category = :category WHERE id = :id")
+    suspend fun setCategory(id: Long, category: String?)
 }
 
 @Dao
@@ -241,9 +256,9 @@ interface BackupDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10)],
 )
 abstract class NoveloDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao
