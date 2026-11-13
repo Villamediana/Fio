@@ -215,10 +215,11 @@ class ScreensTest {
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Settings
         shot("08-settings")
-        // Conexões is hidden for now: no tab for it, the last one is Tudo.
-        screen.value = Screen.Library(Filter.ALL)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Tudo").fetchSemanticsNodes().isNotEmpty() }
+        // Conexões and Tudo are hidden for now: no tab for them, the last one is Arquivos.
+        screen.value = Screen.Library(Filter.TODAY)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Arquivos").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Tudo").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

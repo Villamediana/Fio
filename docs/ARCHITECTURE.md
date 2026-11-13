@@ -479,6 +479,8 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   o estado é apagado e entra do topo.
 - **Hoje sem "Guardado hoje"**: oculto por `SHOW_KEPT_TODAY = false` em `sectionsFor` (o código fica, pra voltar
   se o Miguel quiser).
+- **Aba Tudo oculta** (1.46.0): saiu de `TABS` como Conexões; o código fica. A busca (da home, `Filter.ALL` com
+  `search = true`) continua procurando em tudo; com a busca vazia, a página é a primeira aba (Hoje).
 
 ## Lançar versão
 
