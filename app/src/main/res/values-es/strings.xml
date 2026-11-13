@@ -346,8 +346,9 @@
     <string name="stage_files_many">Viendo los archivos… %1$d de %2$d</string>
     <string name="delete_item_title">¿Borrar este ítem?</string>
     <string name="delete_item_with">Las fotos y los archivos que están solo en él se van con él.</string>
-    <string name="file_remove">Quitar</string>
-    <string name="file_remove_title">¿Quitar el archivo de Novelo?</string>
+    <string name="file_remove">Borrar</string>
+    <string name="file_open">Abrir</string>
+    <string name="file_remove_title">¿Borrar este archivo?</string>
     <string name="title_hint">Título</string>
     <string name="new_task">Nueva tarea</string>
     <string name="new_note">Nueva nota</string>

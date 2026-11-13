@@ -498,6 +498,8 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Segurança**: "Tirar de sensível" pedia nada — dava pra destrancar sem a trava. Agora `needsLock`:
   item sensível com a trava ligada (e o celular com uma) pede a trava pra tirar de sensível SEMPRE, e pra
   compartilhar/apagar enquanto ainda escondido.
+- **Segurar no arquivo** (1.50.0): menu com Abrir, Compartilhar (`shareFile`) e Apagar (diálogo "Apagar este
+  arquivo?"); escondido, segurar só pede pra ver.
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 

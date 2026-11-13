@@ -346,8 +346,9 @@
     <string name="stage_files_many">Vendo os arquivos… %1$d de %2$d</string>
     <string name="delete_item_title">Apagar este item?</string>
     <string name="delete_item_with">As fotos e os arquivos que estão só nele vão junto.</string>
-    <string name="file_remove">Tirar</string>
-    <string name="file_remove_title">Tirar o arquivo do Novelo?</string>
+    <string name="file_remove">Apagar</string>
+    <string name="file_open">Abrir</string>
+    <string name="file_remove_title">Apagar este arquivo?</string>
     <string name="title_hint">Título</string>
     <string name="new_task">Nova tarefa</string>
     <string name="new_note">Nova nota</string>
