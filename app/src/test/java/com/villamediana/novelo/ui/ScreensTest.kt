@@ -458,6 +458,42 @@ class ScreensTest {
     }
 
     @Test
+    fun aThumbSwipeOnHomeGoesEvenWhenItIsNotStraight() {
+        val nav = Nav()
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        compose.waitForIdle()
+        // Under the button there is a part that scrolls up and down: a thumb's swipe is never
+        // straight, and its little bit of up/down must not take the swipe away.
+        val scrolls = compose.onAllNodes(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange))
+            .fetchSemanticsNodes().first().boundsInRoot
+        compose.onRoot().performTouchInput {
+            val y = scrolls.top + scrolls.height * 0.3f
+            swipe(Offset(width * 0.9f, y), Offset(width * 0.1f, y + scrolls.height * 0.6f), durationMillis = 250)
+        }
+        compose.waitUntil(3_000) { (nav.top as? Screen.Library)?.filter == Filter.TODAY }
+    }
+
+    @Test
+    fun homeGoesAlongWithTheFinger() {
+        val nav = Nav()
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        compose.waitForIdle()
+        val before = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x
+        // Like the tabs: the screen goes all the finger's way, it doesn't push back.
+        val dp = compose.density.density
+        compose.onRoot().performTouchInput {
+            down(Offset(width * 0.85f, height * 0.72f))
+            moveBy(Offset(-20 * dp, 0f))
+            moveBy(Offset(-30 * dp, 0f))
+        }
+        compose.waitForIdle()
+        // 50 dp of finger, less the touch slop: with a hint (0.3) it leaned ~10 dp.
+        val leaned = (before - compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x) / dp
+        assertTrue("leaned $leaned dp", leaned > 25f)
+        compose.onRoot().performTouchInput { up() }
+    }
+
+    @Test
     fun homeComesBackToTheMiddleAfterASwipe() {
         val nav = Nav()
         // The main screen kept on (as when she comes back before its way out ended).
