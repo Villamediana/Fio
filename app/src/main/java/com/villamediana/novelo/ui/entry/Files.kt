@@ -39,6 +39,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -66,8 +67,8 @@ import java.time.ZoneId
 /**
  * The files an item holds — and, on the day's diary, the day's files that live in no item — under
  * its text, each with what it looks like (a PDF's first page, a photo, the first words: [FileCard]);
- * a tap opens it in the app she picks. [hidden]: something sensitive not shown yet (only the lines,
- * the names blurred and no preview; a tap asks to see).
+ * a tap opens it in the app she picks. [hidden]: something sensitive not shown yet (the previews and
+ * the names blurred like its text; a tap asks to see).
  */
 @Composable
 internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boolean = false, onReveal: () -> Unit = {}) {
@@ -84,7 +85,7 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
     Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         files.forEachIndexed { i, f ->
             if (hidden) {
-                FileRow(f, onClick = onReveal, onLongClick = onReveal, hidden = true, modifier = Modifier.testTag("entry-file-hidden-$i"))
+                FileCard(f, onClick = onReveal, onLongClick = onReveal, index = i, hidden = true, modifier = Modifier.testTag("entry-file-hidden-$i"))
             } else {
                 FileCard(f, onClick = { openFile(context, f) }, onLongClick = { removing = f }, index = i, modifier = Modifier.testTag("entry-file-$i"))
             }
@@ -116,16 +117,20 @@ internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modi
  * kind without one, a file that won't open) it is the line alone.
  */
 @Composable
-internal fun FileCard(f: KeptFile, onClick: () -> Unit, onLongClick: (() -> Unit)?, modifier: Modifier = Modifier, index: Int = 0) {
+internal fun FileCard(f: KeptFile, onClick: () -> Unit, onLongClick: (() -> Unit)?, modifier: Modifier = Modifier, index: Int = 0, hidden: Boolean = false) {
     val expected = remember(f.name, f.mime) { FilePreview.expected(f) }
+    // Hidden (something sensitive not shown yet): the preview blurred like the text, past reading;
+    // where Android can't blur, only its place.
+    val canBlur = Build.VERSION.SDK_INT >= 31
     val preview = if (expected) rememberFilePreview(f) else FilePreview.None
     Column(modifier.fileFrame(onClick, onLongClick).animateContentSize(Motion.soft())) {
+        val veil = if (hidden && canBlur) Modifier.blur(PREVIEW_VEIL, BlurredEdgeTreatment.Rectangle) else Modifier
         val window = Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
         // The waiting place gives way to the preview softly (the card grows with it).
         Crossfade(preview, animationSpec = tween(260), label = "file-preview") { p ->
-            when (p) {
-                null -> Box(window.height(PREVIEW_WAIT).background(NoveloColors.Surface2))
-                is FilePreview.Picture -> {
+            when {
+                p == null || (hidden && !canBlur && p != FilePreview.None) -> Box(window.height(PREVIEW_WAIT).background(NoveloColors.Surface2))
+                p is FilePreview.Picture -> {
                     BoxWithConstraints(window.testTag("entry-file-preview-$index")) {
                         // As tall as it is, but no more than a peek: a page shows its top.
                         val tall = (maxWidth / p.aspect).coerceAtMost(PREVIEW_MAX)
@@ -134,23 +139,25 @@ internal fun FileCard(f: KeptFile, onClick: () -> Unit, onLongClick: (() -> Unit
                             null,
                             contentScale = ContentScale.Crop,
                             alignment = Alignment.TopCenter,
-                            modifier = Modifier.fillMaxWidth().height(tall).border(1.dp, NoveloColors.Line, RoundedCornerShape(12.dp)),
+                            modifier = Modifier.fillMaxWidth().height(tall).then(veil).border(1.dp, NoveloColors.Line, RoundedCornerShape(12.dp)),
                         )
                     }
                 }
-                is FilePreview.Words -> Text(
-                    p.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = NoveloColors.TextMuted,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = window.background(NoveloColors.Surface2).padding(horizontal = 14.dp, vertical = 12.dp).testTag("entry-file-preview-$index"),
-                )
-                FilePreview.None -> Unit
+                p is FilePreview.Words -> Box(window.background(NoveloColors.Surface2).testTag("entry-file-preview-$index")) {
+                    Text(
+                        p.text,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NoveloColors.TextMuted,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth().then(veil).padding(horizontal = 14.dp, vertical = 12.dp),
+                    )
+                }
+                else -> Unit
             }
         }
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FileLine(f, hidden = false, where = null)
+            FileLine(f, hidden = hidden, where = null)
         }
     }
 }
@@ -199,11 +206,14 @@ private val PREVIEW_WAIT = 120.dp
 /** The tallest a preview stands: a peek, not the whole page. */
 private val PREVIEW_MAX = 260.dp
 
+/** How much a hidden preview is blurred: past reading (a document's words, a face). */
+private val PREVIEW_VEIL = 20.dp
+
 /** Taking [f] out of Novelo, once more asked: from its item (or the day's diary) and the phone. */
 @Composable
 internal fun RemoveFile(f: KeptFile, onDone: () -> Unit) {
     val graph = NoveloApplication.graph
-    com.villamediana.novelo.ui.sheets.ConfirmSheet(
+    com.villamediana.novelo.ui.sheets.ConfirmDialog(
         title = t(R.string.file_remove_title),
         line = f.name,
         yes = t(R.string.file_remove),
