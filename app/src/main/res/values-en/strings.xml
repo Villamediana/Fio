@@ -335,8 +335,6 @@
     <string name="send_file">Send the file</string>
     <string name="send_files">Send the files</string>
     <string name="tab_files">Files</string>
-    <string name="empty_files">No files yet.</string>
-    <string name="empty_files_line">The files you attach live here and where they belong.</string>
     <string name="file_in_diary">in the day\'s diary</string>
     <string name="file_gone">This file is no longer on the phone</string>
     <string name="file_no_app">No app on the phone opens this file</string>
