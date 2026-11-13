@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Novelo: traço fino, pontas redondas (o mesmo desenho em todos os ícones).
+     A pluma de escrever: a haste reta, da ponta de escrever (embaixo, à esquerda) até a ponta da pena,
+     e a pena aberta, só do lado largo, com o corte em V entre as barbas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M8.17,15.83C6.70,12.79 8.49,8.36 11.13,6.02C11.25,5.92 11.37,5.82 11.49,5.72L12.86,7.55L13.96,4.11C16.26,2.97 18.71,2.68 20.78,3.22" />
+    <path android:strokeColor="#FF000000" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M3.20,20.80L20.78,3.22" />
+</vector>

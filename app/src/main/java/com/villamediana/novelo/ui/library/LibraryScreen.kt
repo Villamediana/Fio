@@ -355,12 +355,15 @@ private fun Entries(
     // where it is — its month where the tab goes by day (a day's label with its day), its group
     // (Atrasadas, A fazer…) in Hoje and Tarefas.
     val byGroup = filter == Filter.TODAY || filter == Filter.TASKS
+    // The diary's days without a label (all but Hoje and Ontem) keep apart by a gap.
+    val gapped = filter == Filter.DIARY && !searched
     val tags = remember(groups, searched, byGroup) {
         if (searched) emptyList()
         else buildList<String?> {
             groups.forEach { (label, items) ->
                 if (items.isEmpty()) return@forEach
                 if (label != null) add(if (byGroup) label else month(items.first().createdAt))
+                else if (gapped) add(month(items.first().createdAt))
                 items.forEach { add(if (byGroup) label else month(it.createdAt)) }
             }
         }
@@ -391,6 +394,7 @@ private fun Entries(
             }
             groups.forEach { (label, items) ->
                 if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
+                else if (label == null && gapped && items.isNotEmpty()) item(key = "gap-${items.first().id}") { Spacer(Modifier.height(DAY_GAP)) }
                 // One block per group: the cards touch, only the ends are round.
                 itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
                     val shape = groupShape(i, items.size, outer = 22.dp)
@@ -620,7 +624,7 @@ private val DOING: String get() = t(R.string.section_doing)
 
 /** How each tab groups what is kept. */
 fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): List<Pair<String?, List<Entry>>> {
-    val today = LocalDate.now(zone)
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val startToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
     val endToday = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
     val tasks = all.filter { it.kindEnum == Kind.TASK }
@@ -654,7 +658,8 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
             }
         }
         Filter.NOTES -> listOf(null to byHand(all.filter { it.kindEnum == Kind.NOTE }))
-        Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
+        // The diary's card already says its day: only Hoje and Ontem get a label (Miguel, 1.55.1).
+        Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today, nearOnly = true)
         Filter.ALL -> byDay(all, zone, today)
         Filter.GALLERY, Filter.LINKS -> emptyList()
     }
@@ -666,6 +671,9 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
  */
 internal const val SHOW_KEPT_TODAY = false
 
+/** Between two days of the diary that have no label. */
+private val DAY_GAP = 16.dp
+
 /**
  * Notas in the order she set by hand (held and dragged, like the tasks): the ones not moved yet (new
  * ones) first, the newest on top; then the moved ones in their order.
@@ -673,10 +681,14 @@ internal const val SHOW_KEPT_TODAY = false
 internal fun byHand(notes: List<Entry>): List<Entry> =
     notes.sortedWith(compareBy<Entry>({ if (it.position == null) 0 else 1 }, { it.position ?: 0L }, { -it.createdAt }))
 
-private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<String?, List<Entry>>> =
+/** A group per day, labeled with it; [nearOnly]: only today and yesterday labeled (the other days with none). */
+private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate, nearOnly: Boolean = false): List<Pair<String?, List<Entry>>> =
     list.sortedByDescending { it.createdAt }
         .groupBy { Instant.ofEpochMilli(it.createdAt).atZone(zone).toLocalDate() }
-        .map { (d, items) -> Dates.day(d.atStartOfDay(zone).toInstant().toEpochMilli(), zone, today).replaceFirstChar { it.titlecase(PT) } to items }
+        .map { (d, items) ->
+            val label = Dates.day(d.atStartOfDay(zone).toInstant().toEpochMilli(), zone, today).replaceFirstChar { it.titlecase(PT) }
+            (if (!nearOnly || d == today || d == today.minusDays(1)) label else null) to items
+        }
 
 @Composable
 private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<Photo> = emptyList()) {
