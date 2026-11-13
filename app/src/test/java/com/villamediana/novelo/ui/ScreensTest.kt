@@ -996,6 +996,38 @@ class ScreensTest {
         assertEquals(ids[1], order.first())
     }
 
+    /** Notas: one list in the order she sets — the newest on top, a note held and dragged moves; each card says its day. */
+    @Test
+    fun aNoteHeldAndDraggedMoves() {
+        val ids = runBlocking {
+            listOf("Primeira", "Segunda", "Terceira").mapIndexed { i, title -> graph.db.entries().insert(Entry(kind = "note", title = title, body = "Ideia $i.", createdAt = now - (3 - i) * day, updatedAt = now)) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.NOTES)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { LibraryScreen(nav, Screen.Library(Filter.NOTES)) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Terceira").fetchSemanticsNodes().isNotEmpty() }
+        // The newest first, no day labels; the day on the card.
+        fun top(t: String) = compose.onNodeWithText(t).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(top("Terceira") < top("Segunda") && top("Segunda") < top("Primeira"))
+        assertTrue(compose.onAllNodesWithText("Hoje").fetchSemanticsNodes().size <= 1) // only the tab, no day label
+        compose.mainClock.advanceTimeBy(400)
+        shot("60-notes-by-hand")
+        holdAndDrag(compose.onNodeWithText("Terceira"), steps = 16, by = 0.3f)
+        val order = runBlocking {
+            withTimeout(5_000) {
+                var o: List<Long>
+                while (true) {
+                    val pos = ids.associateWith { graph.db.entries().get(it)!!.position }
+                    o = ids.filter { pos[it] != null }.sortedBy { pos[it] }
+                    if (o.size == 3) break
+                    kotlinx.coroutines.delay(20)
+                }
+                o
+            }
+        }
+        // Terceira went down: Segunda is on top now.
+        assertEquals(ids[1], order.first())
+    }
+
     @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }

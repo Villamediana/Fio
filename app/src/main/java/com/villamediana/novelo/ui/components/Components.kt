@@ -379,7 +379,8 @@ object Dates {
  * One entry as a card: the title, and one quiet line of what matters (due, steps, status, a
  * snippet). The same on the main screen's answers and in the lists. [label] says what just happened
  * to it ("Nova tarefa"); [showKind] names what it is where kinds are mixed; [showStatus] is off where the list is already grouped by status;
- * [inToday] is for the Hoje tab, where "hoje" goes without saying.
+ * [inToday] is for the Hoje tab, where "hoje" goes without saying; [dated] says its day where the
+ * list doesn't (Notas, in the order she set by hand).
  */
 @Composable
 fun EntryCard(
@@ -393,6 +394,7 @@ fun EntryCard(
     showStatus: Boolean = true,
     inToday: Boolean = false,
     shape: Shape = RoundedCornerShape(20.dp),
+    dated: Boolean = false,
 ) {
     val kind = entry.kindEnum
     val done = entry.statusEnum == Status.DONE
@@ -446,7 +448,7 @@ fun EntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday)
+            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday, dated = dated)
             if (meta.isNotEmpty()) {
                 Spacer(Modifier.height(5.dp))
                 val steps = remember(entry.steps) { Steps.read(entry.steps) }
@@ -474,10 +476,12 @@ fun meta(
     inToday: Boolean = false,
     zone: ZoneId = ZoneId.systemDefault(),
     now: Long = System.currentTimeMillis(),
+    dated: Boolean = false,
 ): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     fun dayOf(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
     if (named) add((if (inToday && dayOf(e.createdAt) == today) kindLabel(e.kindEnum) else kindLabel(e.kindEnum) + " · " + Dates.day(e.createdAt, zone, today)) to false)
+    else if (dated) add(Dates.day(e.createdAt, zone, today) to false)
     if (e.kindEnum != Kind.TASK) return@buildList
     val status = e.statusEnum ?: Status.TODO
     if (withStatus && (status == Status.DOING || status == Status.WAITING || (named && status == Status.DONE))) add(statusLabel(status) to false)

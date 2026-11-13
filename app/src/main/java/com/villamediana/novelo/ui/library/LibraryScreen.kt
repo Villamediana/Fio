@@ -326,9 +326,9 @@ private fun Entries(
     dayPhotos: DayPhotosIndex = DayPhotosIndex.EMPTY,
 ) {
     val searched = terms != null
-    // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); let go, the
-    // group's order is kept.
-    val movable = filter == Filter.TASKS && !searched
+    // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); Notas: a note
+    // moves in the one list. Let go, the order is kept.
+    val movable = (filter == Filter.TASKS || filter == Filter.NOTES) && !searched
     val graph = com.villamediana.novelo.NoveloApplication.graph
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     var shown by remember(sections) { mutableStateOf(sections) }
@@ -399,6 +399,7 @@ private fun Entries(
                             showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
                             inToday = !searched && filter == Filter.TODAY,
                             shape = shape,
+                            dated = !searched && filter == Filter.NOTES,
                             modifier = modifier,
                         )
                     }
@@ -416,7 +417,7 @@ private fun Entries(
                                             }
                                         },
                                     )
-                                    .testTag("task-$i"),
+                                    .testTag(if (filter == Filter.NOTES) "note-$i" else "task-$i"),
                             ) { card(Modifier) }
                         }
                     } else {
@@ -644,7 +645,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
                 if (showDone) add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
             }
         }
-        Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
+        Filter.NOTES -> listOf(null to byHand(all.filter { it.kindEnum == Kind.NOTE }))
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
         Filter.ALL -> byDay(all, zone, today)
         Filter.GALLERY, Filter.LINKS -> emptyList()
@@ -656,6 +657,13 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
  * is to be done; it stays here to come back (Miguel, 1.42.0).
  */
 internal const val SHOW_KEPT_TODAY = false
+
+/**
+ * Notas in the order she set by hand (held and dragged, like the tasks): the ones not moved yet (new
+ * ones) first, the newest on top; then the moved ones in their order.
+ */
+internal fun byHand(notes: List<Entry>): List<Entry> =
+    notes.sortedWith(compareBy<Entry>({ if (it.position == null) 0 else 1 }, { it.position ?: 0L }, { -it.createdAt }))
 
 private fun byDay(list: List<Entry>, zone: ZoneId, today: LocalDate): List<Pair<String?, List<Entry>>> =
     list.sortedByDescending { it.createdAt }
