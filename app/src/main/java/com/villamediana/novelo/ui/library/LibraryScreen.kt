@@ -717,7 +717,7 @@ private fun DayThumbs(photos: List<Photo>) {
     var opened by rememberSaveable { mutableStateOf<Int?>(null) }
     val aspects = com.villamediana.novelo.ui.components.rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
     androidx.compose.foundation.lazy.LazyRow(
-        Modifier.fillMaxWidth().testTag("diary-photos"),
+        Modifier.fillMaxWidth().nestedScroll(KeepSideways).testTag("diary-photos"),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
@@ -729,6 +729,15 @@ private fun DayThumbs(photos: List<Photo>) {
         }
     }
     opened?.let { start -> com.villamediana.novelo.ui.components.PhotoViewer(photos, start, onClose = { opened = null }) }
+}
+
+/**
+ * The carousel keeps its sideways swipe to itself: at its end, what is left of the finger (and of a
+ * fling) doesn't go on to the tabs — it stops there, it doesn't turn the page.
+ */
+private val KeepSideways = object : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = Offset(available.x, 0f)
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = Velocity(available.x, 0f)
 }
 
 /** How tall the day's photos stand on its card. */
