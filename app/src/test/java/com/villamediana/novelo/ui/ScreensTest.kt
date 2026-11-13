@@ -1028,6 +1028,37 @@ class ScreensTest {
         assertEquals(ids[1], order.first())
     }
 
+    /** Diário: the day's photos slide sideways on its card; a tap opens the photo big (not the entry), the day's side by side. */
+    @Test
+    fun theDiaryCardsPhotosAreACarousel() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(context.filesDir, "captures").apply { mkdirs() }
+        val colors = listOf(0xFFE8A87C, 0xFF85CDCA, 0xFFC38D9E, 0xFF41B3A3, 0xFFE27D60, 0xFF659DBD).map { it.toInt() }
+        runBlocking {
+            graph.db.entries().insert(Entry(kind = "diary", title = "Dia de praia", body = "Fomos à praia.", createdAt = now - 3_600_000L, updatedAt = now))
+            colors.forEachIndexed { i, color ->
+                val f = File(dir, "beach-$i.jpg")
+                val b = Bitmap.createBitmap(if (i % 2 == 0) 80 else 48, 60, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+                f.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                graph.db.captures().insert(com.villamediana.novelo.data.Capture(createdAt = now - 3_000_000L + i * 60_000L, source = "photo", imagePath = f.path, state = com.villamediana.novelo.data.Capture.DONE))
+            }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.DIARY)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { (nav.top as? Screen.Library)?.let { LibraryScreen(nav, it) } } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("diary-photo-0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("6 fotos", substring = true, useUnmergedTree = true).assertExists()
+        compose.mainClock.advanceTimeBy(800)
+        shot("61-diary-carousel")
+        compose.onNodeWithTag("diary-photo-1", useUnmergedTree = true).performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("2 / 6").assertExists()
+        // Still on the list (the entry didn't open); closed, back where it was.
+        assertTrue(nav.top is Screen.Library)
+        compose.onNodeWithContentDescription("Fechar").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
+        assertTrue(nav.top is Screen.Library)
+    }
+
     @Test
     fun privacyInSettings() {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { SettingsScreen(Nav()) } }

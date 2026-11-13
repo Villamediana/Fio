@@ -4,6 +4,7 @@ import sh.calvin.reorderable.ReorderableItem
 
 import com.villamediana.novelo.R
 import com.villamediana.novelo.settings.t
+import com.villamediana.novelo.settings.tn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -692,36 +693,39 @@ private fun DiaryCard(e: Entry, onClick: () -> Unit, shape: Shape, photos: List<
                 DayThumbs(photos)
             }
             Spacer(Modifier.height(6.dp))
-            Text(d.format(DateTimeFormatter.ofPattern(t(R.string.fmt_weekday_time), PT)), style = MaterialTheme.typography.labelMedium, color = NoveloColors.TextFaint)
+            // How many photos the day has (with the next one peeking past the edge: there are more).
+            val when_ = d.format(DateTimeFormatter.ofPattern(t(R.string.fmt_weekday_time), PT))
+            Text(if (photos.size > 1) when_ + " · " + tn(R.plurals.photos, photos.size) else when_, style = MaterialTheme.typography.labelMedium, color = NoveloColors.TextFaint)
         }
     }
 }
 
-/** The day's photos on its diary card: one row of different widths (up to four), the last saying how many more. */
+/**
+ * The day's photos on its diary card: a carousel of different widths that slides sideways — the next
+ * one cut at the card's margin says there are more (and the card's line counts them). A tap opens
+ * them big from that one, the day's side by side; closed, the list is where it was.
+ */
 @Composable
 private fun DayThumbs(photos: List<Photo>) {
-    val aspects = com.villamediana.novelo.ui.components.rememberAspects(photos.take(MAX_THUMBS), min = Mosaic.MIN, max = Mosaic.MAX) ?: return
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val gap = 6.dp
-        val shapes = photos.take(MAX_THUMBS).mapIndexed { i, p -> Mosaic.shape(i, aspects[p.id] ?: 1f) }
-        val (n, h) = remember(shapes, maxWidth) { Mosaic.strip(shapes, maxWidth.value, gap.value, min = 52f, cap = 96f, max = MAX_THUMBS) }
-        val more = photos.size - n
-        Row(Modifier.height(h.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
-            photos.take(n).forEachIndexed { i, p ->
-                Box(Modifier.width((h * shapes[i]).dp).fillMaxHeight().clip(RoundedCornerShape(14.dp))) {
-                    PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 320, turn = p.turn)
-                    if (i == n - 1 && more > 0) {
-                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.42f)), contentAlignment = Alignment.Center) {
-                            Text("+$more", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White)
-                        }
-                    }
-                }
+    var opened by rememberSaveable { mutableStateOf<Int?>(null) }
+    val aspects = com.villamediana.novelo.ui.components.rememberAspects(photos, min = Mosaic.MIN, max = Mosaic.MAX) ?: return
+    androidx.compose.foundation.lazy.LazyRow(
+        Modifier.fillMaxWidth().testTag("diary-photos"),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
+            // Different widths, even for photos all of one shape.
+            val ratio = Mosaic.shape(i, aspects[p.id] ?: 1f)
+            Box(Modifier.height(THUMB_TALL).width(THUMB_TALL * ratio).clip(RoundedCornerShape(14.dp)).clickable { opened = i }.testTag("diary-photo-$i")) {
+                PhotoTile(p.path, Modifier.fillMaxSize(), maxPx = 360, turn = p.turn)
             }
         }
     }
+    opened?.let { start -> com.villamediana.novelo.ui.components.PhotoViewer(photos, start, onClose = { opened = null }) }
 }
 
-private const val MAX_THUMBS = 4
+/** How tall the day's photos stand on its card. */
+private val THUMB_TALL = 112.dp
 
 @Composable
 private fun Empty(filter: Filter) {

@@ -503,6 +503,9 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Notas à mão** (1.51.0): a aba Notas é uma lista só (sem rótulo de dia), na ordem que ela deixa — segurar e
   arrastar como nas tarefas (`Entry.position`, `Library.reorder`); `byHand`: as não movidas (novas) primeiro,
   a mais nova em cima, depois as movidas na ordem delas. O cartão diz o dia (`EntryCard(dated)`).
+- **Fotos no cartão do Diário** (1.52.0): carrossel (`DayThumbs`, `LazyRow` de larguras diferentes, 112 dp) que
+  desliza de lado; a próxima cortada na margem diz que tem mais, e a linha do cartão conta ("6 fotos"). Um toque
+  abre a foto grande (`PhotoViewer`) com as do dia, sem abrir a entrada; fechar volta onde estava.
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 
