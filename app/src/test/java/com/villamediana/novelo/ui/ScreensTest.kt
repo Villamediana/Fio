@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
@@ -775,6 +776,55 @@ class ScreensTest {
         compose.onNodeWithTag("step-editor").performImeAction()
         compose.waitUntil(5_000) { steps().size == 2 }
         assertEquals(listOf("caminhão", "caixas"), steps().map { it.text })
+    }
+
+    @Test
+    fun theDiaryIsCrossedByItsEdgeAndKeepsItsPlace() {
+        // Two hundred days of diary: the first one far down the list.
+        val start = LocalDate.now(zone).minusDays(200)
+        runBlocking {
+            for (i in 0 until 200) {
+                val at = start.plusDays(i.toLong()).atTime(21, 0).atZone(zone).toInstant().toEpochMilli()
+                graph.db.entries().insert(Entry(kind = "diary", title = if (i == 0) "O primeiro dia" else "Dia $i", body = "O que foi o dia $i.", createdAt = at, updatedAt = at))
+            }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.DIARY)) }
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                val kept = rememberLibraryKept(nav)
+                when (val s = nav.top) {
+                    is Screen.Library -> kept.SaveableStateProvider(LIBRARY_KEPT) { LibraryScreen(nav, s) }
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    else -> Unit
+                }
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia 199").fetchSemanticsNodes().isNotEmpty() }
+        // The list moves: the handle shows; held and taken all the way down, the month there beside the finger.
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("entries").performTouchInput { swipe(Offset(centerX, bottom - 100f), Offset(centerX, bottom - 500f), 200) }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onNodeWithTag("fast-scroll").performTouchInput { down(center); moveBy(Offset(0f, 60f)); moveBy(Offset(0f, 6_000f)) }
+        compose.mainClock.advanceTimeBy(300)
+        val first = start.month.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, com.villamediana.novelo.ui.components.PT)
+            .replaceFirstChar { it.titlecase(com.villamediana.novelo.ui.components.PT) } + " " + start.year
+        compose.onNodeWithTag("fast-scroll-label").assertTextEquals(first)
+        shot("26-diary-fast-scroll")
+        compose.onNodeWithTag("fast-scroll").performTouchInput { up() }
+        compose.mainClock.autoAdvance = true
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("O primeiro dia").fetchSemanticsNodes().isNotEmpty() }
+        // Opened and back: the list is where it was, not at the top.
+        compose.onNodeWithText("O primeiro dia").performClick()
+        compose.waitUntil(5_000) { nav.top is Screen.Entry }
+        compose.waitForIdle()
+        nav.back()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("O primeiro dia").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Dia 199").fetchSemanticsNodes().isEmpty())
+        // Home and in again: from the top.
+        nav.back()
+        compose.waitForIdle()
+        nav.go(Screen.Library(Filter.DIARY))
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia 199").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test
