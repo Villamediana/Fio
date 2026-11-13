@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,10 +43,14 @@ import com.villamediana.novelo.NoveloApplication
 import com.villamediana.novelo.R
 import com.villamediana.novelo.importer.DiaryImport
 import com.villamediana.novelo.importer.Found
+import com.villamediana.novelo.importer.FoundNote
+import com.villamediana.novelo.importer.FoundPhoto
+import com.villamediana.novelo.importer.Kept
 import com.villamediana.novelo.settings.Lang
 import com.villamediana.novelo.settings.t
 import com.villamediana.novelo.settings.tn
 import com.villamediana.novelo.ui.components.NoveloIcons
+import com.villamediana.novelo.ui.components.PhotoTile
 import com.villamediana.novelo.ui.sheets.NoveloSheet
 import com.villamediana.novelo.ui.theme.NoveloColors
 import com.villamediana.novelo.ui.theme.NoveloText
@@ -78,7 +83,7 @@ internal fun DiaryImportLine(onSeeDiary: () -> Unit) {
         DiaryImport.State.Idle -> t(R.string.import_line) to false
         is DiaryImport.State.Ready -> t(R.string.import_status_ready) to true
         is DiaryImport.State.Failed -> t(R.string.import_status_failed) to true
-        is DiaryImport.State.Done -> t(R.string.import_status_done, tn(R.plurals.import_days, s.kept.days)) to false
+        is DiaryImport.State.Done -> t(R.string.import_status_done, summary(s.kept)) to false
         else -> t(R.string.import_status_busy) to false
     }
     Line(
@@ -122,7 +127,14 @@ internal fun DiaryImportBody(
                 DiaryImport.State.Idle -> {}
                 is DiaryImport.State.Opening -> Working(t(R.string.import_opening), s.name)
                 is DiaryImport.State.Recognizing -> Working(t(R.string.import_recognizing), s.name, t(R.string.import_recognizing_line))
-                is DiaryImport.State.Saving -> Working(if (s.backingUp) t(R.string.import_backing) else t(R.string.import_saving), tn(R.plurals.import_entries, s.count))
+                is DiaryImport.State.Saving -> Working(
+                    if (s.backingUp) t(R.string.import_backing) else t(R.string.import_saving),
+                    listOfNotNull(
+                        s.count.takeIf { it > 0 }?.let { tn(R.plurals.import_entries, it) },
+                        s.notes.takeIf { it > 0 }?.let { tn(R.plurals.import_notes, it) },
+                        s.photos.takeIf { it > 0 }?.let { tn(R.plurals.import_photos, it) },
+                    ).joinToString(" · "),
+                )
                 is DiaryImport.State.Ready -> Recognized(s, zone, onAgain, onConfirm, onClose)
                 is DiaryImport.State.Failed -> {
                     Head(t(R.string.import_title), s.name)
@@ -133,10 +145,12 @@ internal fun DiaryImportBody(
                     )
                 }
                 is DiaryImport.State.Done -> {
-                    Head(t(R.string.import_done), range(s.kept.from, s.kept.to, zone))
+                    Head(t(R.string.import_done), if (s.kept.from > 0) range(s.kept.from, s.kept.to, zone) else null)
                     val lines = listOfNotNull(
                         s.kept.added.takeIf { it > 0 }?.let { tn(R.plurals.import_new, it) },
                         s.kept.joined.takeIf { it > 0 }?.let { tn(R.plurals.import_joined, it) },
+                        s.kept.notes.takeIf { it > 0 }?.let { tn(R.plurals.import_notes_new, it) },
+                        s.kept.photos.takeIf { it > 0 }?.let { tn(R.plurals.import_photos_new, it) },
                     )
                     lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Text, modifier = Modifier.padding(top = 4.dp)) }
                     val (said, bad) = when (s.backup) {
@@ -152,16 +166,17 @@ internal fun DiaryImportBody(
     }
 }
 
-/** The pattern the model saw, what came out of the whole file, and a few entries as they will be. */
+/** The pattern the model saw, what came out of the whole file, and a few entries, photos and notes as they will be. */
 @Composable
 private fun Recognized(s: DiaryImport.State.Ready, zone: ZoneId, onAgain: () -> Unit, onConfirm: () -> Unit, onClose: () -> Unit) {
-    val found = s.reading.found
+    val r = s.reading
+    val found = r.found
     Head(s.recipe.app.ifBlank { t(R.string.import_title) }, s.name)
     if (s.recipe.about.isNotBlank()) {
         Text(s.recipe.about, style = MaterialTheme.typography.bodyMedium, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 2.dp))
     }
     // Not the pattern: the model sees what its recipe gave and writes another.
-    if (found.isNotEmpty()) {
+    if (!r.isEmpty) {
         Text(
             t(R.string.import_again),
             style = MaterialTheme.typography.labelLarge,
@@ -170,31 +185,79 @@ private fun Recognized(s: DiaryImport.State.Ready, zone: ZoneId, onAgain: () -> 
         )
     }
     Spacer(Modifier.height(10.dp))
-    if (found.isEmpty()) {
+    if (r.isEmpty) {
         Text(t(R.string.import_none), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Accent)
     } else {
-        Text(
-            tn(R.plurals.import_entries, found.size) + " · " + tn(R.plurals.import_days, s.reading.days(zone)),
-            style = MaterialTheme.typography.titleMedium,
-            color = NoveloColors.Text,
+        val counts = listOfNotNull(
+            found.takeIf { it.isNotEmpty() }?.let { tn(R.plurals.import_entries, it.size) + " · " + tn(R.plurals.import_days, r.days(zone)) },
+            listOfNotNull(
+                r.notes.size.takeIf { it > 0 }?.let { tn(R.plurals.import_notes, it) },
+                r.photos.size.takeIf { it > 0 }?.let { tn(R.plurals.import_photos, it) },
+            ).takeIf { it.isNotEmpty() }?.joinToString(" · "),
         )
-        Text(range(found.first().at, found.last().at, zone), style = MaterialTheme.typography.bodySmall, color = NoveloColors.TextMuted)
+        counts.forEach { Text(it, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text) }
+        val dated = found.map { it.at } + r.photos.map { it.at }
+        if (dated.isNotEmpty()) Text(range(dated.min(), dated.max(), zone), style = MaterialTheme.typography.bodySmall, color = NoveloColors.TextMuted)
     }
     val left = listOfNotNull(
-        s.reading.undated.takeIf { it > 0 }?.let { tn(R.plurals.import_undated, it) },
-        s.reading.unread.takeIf { it > 0 }?.let { tn(R.plurals.import_unread, it) },
+        r.undated.takeIf { it > 0 }?.let { tn(R.plurals.import_undated, it) },
+        r.unread.takeIf { it > 0 }?.let { tn(R.plurals.import_unread, it) },
+        r.undatedPhotos.takeIf { it > 0 }?.let { tn(R.plurals.import_photos_undated, it) },
     )
     if (left.isNotEmpty()) Text(left.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = NoveloColors.Accent, modifier = Modifier.padding(top = 2.dp))
 
-    if (found.isNotEmpty()) {
+    if (!r.isEmpty) {
         Text(t(R.string.import_preview), style = NoveloText.Section, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-        val shown = listOf(0, found.size / 2, found.size - 1).distinct().map { found[it] }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { shown.forEach { Page(it, zone) } }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (found.isNotEmpty()) listOf(0, found.size / 2, found.size - 1).distinct().forEach { Page(found[it], zone) }
+            if (r.photos.isNotEmpty()) Photos(r.photos)
+            r.notes.take(2).forEach { NotePage(it) }
+        }
     }
     Buttons(
         quiet = t(R.string.cancel) to onClose,
-        main = if (found.isNotEmpty()) t(R.string.import_go) to onConfirm else t(R.string.import_again) to onAgain,
+        main = if (!r.isEmpty) t(R.string.import_go) to onConfirm else t(R.string.import_again) to onAgain,
     )
+}
+
+/** A few of the photos, spread over the whole set, square; the last says how many more there are. */
+@Composable
+private fun Photos(photos: List<FoundPhoto>) {
+    val n = minOf(photos.size, PHOTOS_SHOWN)
+    val shown = (0 until n).map { photos[it * (photos.size - 1) / maxOf(n - 1, 1)] }.distinct()
+    val more = photos.size - shown.size
+    Row(Modifier.fillMaxWidth().testTag("import-photos"), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.forEachIndexed { i, p ->
+            Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(14.dp))) {
+                PhotoTile(p.file.path, Modifier.matchParentSize(), maxPx = 240)
+                if (i == shown.lastIndex && more > 0) {
+                    Box(Modifier.matchParentSize().background(NoveloColors.Text.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                        Text("+$more", style = MaterialTheme.typography.titleMedium, color = NoveloColors.OnAccent)
+                    }
+                }
+            }
+        }
+        repeat(PHOTOS_SHOWN - shown.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+private const val PHOTOS_SHOWN = 5
+
+/** A note as it will be: "Nota" by hand, its title, the start of its text. */
+@Composable
+private fun NotePage(n: FoundNote) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(NoveloColors.Surface2).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(t(R.string.import_note), style = NoveloText.Hand, color = NoveloColors.TextMuted)
+        if (n.title.isNotBlank()) Text(n.title, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        if (n.body.isNotBlank()) Text(n.body, style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Text.copy(alpha = 0.82f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+/** What the last import left, in a few words: the days, else the notes, else the photos. */
+private fun summary(k: Kept): String = when {
+    k.days > 0 -> tn(R.plurals.import_days, k.days)
+    k.notes > 0 -> tn(R.plurals.import_notes, k.notes)
+    else -> tn(R.plurals.import_photos, k.photos)
 }
 
 /** One entry as the diary will show it: the day by hand, the title, the start of the text in the diary's serif. */

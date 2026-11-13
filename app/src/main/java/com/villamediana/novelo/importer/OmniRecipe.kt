@@ -39,13 +39,13 @@ class OmniRecipe(private val engine: LocalEngine, private val model: LocalModel)
     }
 
     companion object {
-        private const val MAX_TOKENS = 600
+        private const val MAX_TOKENS = 800
 
-        /** A [Recipe]: app, about and shape first, then only the fields it uses. */
+        /** A [Recipe]: app, about and shape first, then only the fields it uses (notes and photos of a .zip among them). */
         val GRAMMAR: String = """
-root  ::= "{" ws "\"app\":" ws str "," ws "\"about\":" ws str "," ws "\"shape\":" ws shape ( "," ws pair ){0,16} ws "}"
+root  ::= "{" ws "\"app\":" ws str "," ws "\"about\":" ws str "," ws "\"shape\":" ws shape ( "," ws pair ){0,22} ws "}"
 pair  ::= key ":" ws str | flag ":" ws bool | "\"clean\":" ws "[" ws ( str ( ws "," ws str ){0,5} )? ws "]"
-key   ::= "\"entries\"" | "\"date\"" | "\"title\"" | "\"body\"" | "\"tags\"" | "\"start\"" | "\"date_regex\"" | "\"title_regex\"" | "\"delimiter\"" | "\"date_from_name\"" | "\"date_format\"" | "\"date_locale\"" | "\"files\""
+key   ::= "\"entries\"" | "\"date\"" | "\"title\"" | "\"body\"" | "\"tags\"" | "\"start\"" | "\"date_regex\"" | "\"title_regex\"" | "\"delimiter\"" | "\"date_from_name\"" | "\"date_format\"" | "\"date_locale\"" | "\"files\"" | "\"notes\"" | "\"note_title\"" | "\"photos\"" | "\"photo_date_from_name\"" | "\"photo_date_format\""
 flag  ::= "\"header\"" | "\"first_line_title\"" | "\"html\""
 shape ::= "\"json\"" | "\"text\"" | "\"csv\""
 str   ::= "\"" ( [^"\\\x7F\x00-\x1F] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F]{4} ){0,240} "\""

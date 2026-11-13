@@ -374,12 +374,12 @@
     <string name="step_edit">Rewrite</string>
     <!-- Import a diary -->
     <string name="import_title">Import a diary</string>
-    <string name="import_line">From another app: TXT, Markdown, JSON, CSV or ZIP</string>
+    <string name="import_line">From another app: TXT, Markdown, JSON, CSV or ZIP with notes and photos</string>
     <string name="import_opening">Opening the file…</string>
     <string name="import_recognizing">Recognizing the pattern…</string>
-    <string name="import_recognizing_line">Omni, right here on the phone, reads a sample of the file and recognizes the pattern. Nothing leaves the phone.</string>
+    <string name="import_recognizing_line">Omni, right here on the phone, reads a sample of the file (in a ZIP, how its folders are laid out) and recognizes the pattern. Nothing leaves the phone.</string>
     <string name="import_range">from %1$s to %2$s</string>
-    <string name="import_none">No entries came out with this pattern.</string>
+    <string name="import_none">Nothing came out with this pattern.</string>
     <string name="import_preview">How they will look</string>
     <string name="import_again">Recognize again</string>
     <string name="import_go">Import</string>
@@ -391,7 +391,7 @@
     <string name="import_backup_failed">The backup didn’t go: %1$s</string>
     <string name="import_see">See in the diary</string>
     <string name="import_not_text">This file isn’t text. Novelo imports TXT, Markdown, JSON, CSV or a ZIP of them.</string>
-    <string name="import_too_big">File too big (up to 40 MB).</string>
+    <string name="import_too_big">Too much text (up to 40 MB of text).</string>
     <string name="import_bad_answer">The answer didn’t come as an import recipe. Try again.</string>
     <string name="import_status_busy">importing…</string>
     <string name="import_status_ready">pattern recognized · tap to see</string>
@@ -420,5 +420,27 @@
     <plurals name="import_joined">
         <item quantity="one">1 day that already had a diary got what it was missing</item>
         <item quantity="other">%d days that already had a diary got what they were missing</item>
+    </plurals>
+    <string name="import_nothing_inside">Nothing here Novelo can read. Inside the ZIP: %1$s.</string>
+    <string name="import_note">Note</string>
+    <plurals name="import_notes">
+        <item quantity="one">1 note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <plurals name="import_photos">
+        <item quantity="one">1 photo</item>
+        <item quantity="other">%d photos</item>
+    </plurals>
+    <plurals name="import_photos_undated">
+        <item quantity="one">1 photo with no date stays out</item>
+        <item quantity="other">%d photos with no date stay out</item>
+    </plurals>
+    <plurals name="import_notes_new">
+        <item quantity="one">1 new note</item>
+        <item quantity="other">%d new notes</item>
+    </plurals>
+    <plurals name="import_photos_new">
+        <item quantity="one">1 new photo in the gallery, on its day</item>
+        <item quantity="other">%d new photos in the gallery, each on its day</item>
     </plurals>
 </resources>

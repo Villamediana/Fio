@@ -467,6 +467,21 @@ Omni corrigir. "Importar": `Library.importDiaries` — um diário por dia (as en
 que já tem diário ganha só o que falta, `DayDiary.merge`, então importar de novo não duplica) — e logo
 depois `Backups.save()`. Roda no escopo do app: a folha pode fechar no meio.
 
+**1.37.0 — ZIP com pastas, notas e fotos.** `Unpack` lê o zip em fluxo (um zip dentro dele também): os
+textos (até 40 MB de texto no total), as fotos (`jpg/jpeg/png/heic/heif/webp/gif`) copiadas pra
+`cacheDir/import` com o nome pelo SHA-1 do conteúdo e a data da câmera (EXIF `DateTimeOriginal` +
+`OffsetTimeOriginal`), o resto só nome e tamanho. `Sample` mostra as pastas (quantos textos/fotos/outros por
+extensão, quantas fotos têm data dentro, três nomes) e o começo de um texto de cada pasta. A `Recipe` ganhou
+`notes` + `note_title` (`name`/`first_line`), `photos`, `photo_date_from_name` + `photo_date_format`: o Omni
+diz o que é diário, o que é nota e o que é foto. Foto: data de dentro dela, senão a do nome; sem nenhuma,
+fica de fora (contada). Nota: data do arquivo no zip. `Library.importAll`: diário como antes; nota nova
+salvo a mesma (título + texto); foto vira `Capture` solta (`photo`, `DONE`) em `captures/photo-import-<sha1>`
+— aparece na galeria e no diário do dia, e o mesmo arquivo não entra duas vezes. Fotos entram sem
+descrição (a busca por sentido não as acha). Zip sem nada legível: a folha diz o que tem dentro (`.db`…).
+
+Na mesma versão, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede pra dividir o relato como ela
+dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`); `DayDiary.merge` já junta por parágrafo.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa
