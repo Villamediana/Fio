@@ -246,7 +246,7 @@ fun EntryScreen(nav: Nav, id: Long) {
                                 readOnly = !revealed,
                                 textStyle = bodyStyle.copy(color = NoveloColors.Text),
                                 cursorBrush = SolidColor(NoveloColors.Accent),
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().testTag("entry-body"),
                             )
                         }
                     }

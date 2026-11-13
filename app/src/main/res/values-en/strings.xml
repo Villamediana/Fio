@@ -352,6 +352,7 @@
     <string name="title_hint">Title</string>
     <string name="new_task">New task</string>
     <string name="new_note">New note</string>
+    <string name="new_diary">Today\'s diary</string>
     <string name="step_move">Drag to reorder</string>
     <string name="channel_done">Done</string>
     <string name="done_kept">Kept</string>

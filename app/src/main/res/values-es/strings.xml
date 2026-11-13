@@ -352,6 +352,7 @@
     <string name="title_hint">Título</string>
     <string name="new_task">Nueva tarea</string>
     <string name="new_note">Nueva nota</string>
+    <string name="new_diary">Diario de hoy</string>
     <string name="step_move">Arrastra para cambiar el orden</string>
     <string name="channel_done">Listo</string>
     <string name="done_kept">Guardado</string>
