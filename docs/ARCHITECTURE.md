@@ -463,7 +463,7 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 
 ## Diário longo (1.42.0)
 
-- **Alça na borda** (`ui/library/FastScroll.kt`, só no Diário sem busca, lista com 30+ linhas): entra deslizando
+- **Alça na borda** (`ui/library/FastScroll.kt`, lista com 30+ linhas; na 1.42 só no Diário): entra deslizando
   quando a lista anda e sai 1 s depois de parar (sumida, não fica nada na borda nem pega toque). Na 1.43.0 a faixa
   inteira da direita (40 dp) pega o dedo, não só a alça: ela vem pra baixo do dedo e a lista vai junto
   (`scrollToItem`), com uma etiqueta ao lado dizendo o mês ("Abril 2026") — a primeira entrada fica a um arrasto.
@@ -472,6 +472,8 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   alto ou um rótulo baixo); o dedo parado na divisa entre dois dias não sacode a lista (`nextItem`, só troca
   0,8 item depois); ao soltar a alça desliza do dedo até o lugar da lista e a etiqueta some em fade; some em
   560 ms (FastOutSlowIn). No fundo da faixa, a lista vai até o fim de verdade.
+  Na 1.45.0, em todas as abas (fora a busca): Notas, Tudo, Arquivos e Galeria dizem o mês (`month()`); Hoje e
+  Tarefas dizem o grupo (Atrasadas, A fazer…).
 - **Volta pro mesmo lugar**: a biblioteca fica num `SaveableStateHolder` (`rememberLibraryKept` no `NoveloRoot`)
   enquanto estiver na pilha; abrir uma entrada e voltar mantém o scroll de cada aba e a busca. Voltou pra home,
   o estado é apagado e entra do topo.

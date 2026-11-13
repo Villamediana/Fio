@@ -55,8 +55,10 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
             val shapes = photos.mapIndexed { i, p -> Mosaic.shape(i, aspects[p.id] ?: 1f) }
             Mosaic.rows(shapes, width.value, gap.value, target = 220f).map { r -> r to r.items.map { shapes[it] } }
         }
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().testTag("gallery-list"),
+            state = list,
             contentPadding = PaddingValues(start = side, end = side, top = 6.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(gap),
         ) {
@@ -80,6 +82,8 @@ internal fun Gallery(photos: List<Photo>, empty: @Composable () -> Unit) {
                 }
             }
         }
+        // The handle on the edge: the month of the row under the finger.
+        FastScroll(list, labelAt = { i -> rows.getOrNull(i)?.let { (r, _) -> month(photos[r.items.first()].takenAt) } })
     }
     opened?.let { start -> PhotoViewer(photos, start, onClose = { opened = null }) }
 }

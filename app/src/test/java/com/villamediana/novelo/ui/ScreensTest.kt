@@ -836,6 +836,38 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia 199").fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** Every tab has the handle on the edge: Notas says the month, Tarefas the group under the finger. */
+    @Test
+    fun everyTabIsCrossedByItsEdge() {
+        val start = LocalDate.now(zone).minusDays(120)
+        runBlocking {
+            for (i in 0 until 120) {
+                val at = start.plusDays(i.toLong()).atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+                graph.db.entries().insert(Entry(kind = "note", title = if (i == 0) "A nota mais antiga" else "Nota $i", body = "Uma ideia.", createdAt = at, updatedAt = at))
+            }
+            for (i in 0 until 40) graph.db.entries().insert(Entry(kind = "task", title = "Tarefa $i", status = "todo", position = i.toLong(), createdAt = now - i * 60_000L, updatedAt = now))
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.NOTES)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { (nav.top as? Screen.Library)?.let { LibraryScreen(nav, it) } } }
+        fun crossToTheEnd(expect: String) {
+            compose.mainClock.autoAdvance = false
+            compose.onNodeWithTag("entries").performTouchInput { swipe(Offset(centerX, bottom - 100f), Offset(centerX, bottom - 400f), 200) }
+            compose.mainClock.advanceTimeBy(300)
+            compose.onNodeWithTag("fast-scroll-track").performTouchInput { down(Offset(centerX, height * 0.5f)); moveBy(Offset(0f, 60f)); moveTo(Offset(centerX, bottom - 1f)) }
+            compose.mainClock.advanceTimeBy(300)
+            compose.onNodeWithTag("fast-scroll-label").assertTextEquals(expect)
+            compose.onNodeWithTag("fast-scroll-track").performTouchInput { up() }
+            compose.mainClock.autoAdvance = true
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Nota 119").fetchSemanticsNodes().isNotEmpty() }
+        crossToTheEnd(start.month.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, com.villamediana.novelo.ui.components.PT).replaceFirstChar { it.titlecase(com.villamediana.novelo.ui.components.PT) } + " " + start.year)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("A nota mais antiga").fetchSemanticsNodes().isNotEmpty() }
+        nav.go(Screen.Library(Filter.TASKS))
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Tarefa 0").fetchSemanticsNodes().isNotEmpty() }
+        crossToTheEnd("A fazer")
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Tarefa 39").fetchSemanticsNodes().isNotEmpty() }
+    }
+
     @Test
     fun aTaskHeldAndDraggedMovesInItsGroup() {
         val ids = runBlocking {
