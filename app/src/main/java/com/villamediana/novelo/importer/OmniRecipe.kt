@@ -23,11 +23,12 @@ class OmniRecipe(private val engine: LocalEngine, private val model: LocalModel)
         else -> null
     }
 
-    suspend fun ask(system: String, user: String): String {
+    /** [shapes]: the forms the recipe can take for this file (the grammar lets out no other). */
+    suspend fun ask(system: String, user: String, shapes: Set<String>): String {
         val tag = Any()
         return coroutineScope {
             val work = async(Dispatchers.Default) {
-                engine.generate(model.files, Brain.chatml(system, user), GRAMMAR, maxTokens = MAX_TOKENS, fixed = Brain.chatmlHead(system), tag = tag)
+                engine.generate(model.files, Brain.chatml(system, user), grammar(shapes), maxTokens = MAX_TOKENS, fixed = Brain.chatmlHead(system), tag = tag)
             }
             try {
                 LocalEngine.clean(work.await())
@@ -41,8 +42,13 @@ class OmniRecipe(private val engine: LocalEngine, private val model: LocalModel)
     companion object {
         private const val MAX_TOKENS = 800
 
-        /** A [Recipe]: app, about and shape first, then only the fields it uses (notes and photos of a .zip among them). */
-        val GRAMMAR: String = """
+        /** A [Recipe] of one of [shapes]: app, about and shape first, then only the fields it uses (notes and photos of a .zip among them). */
+        fun grammar(shapes: Set<String>): String = GRAMMAR.replace(
+            "shape ::= \"\\\"json\\\"\" | \"\\\"text\\\"\" | \"\\\"csv\\\"\"",
+            "shape ::= " + listOf("json", "text", "csv").filter { it in shapes }.ifEmpty { listOf("text") }.joinToString(" | ") { "\"\\\"$it\\\"\"" },
+        )
+
+        private val GRAMMAR: String = """
 root  ::= "{" ws "\"app\":" ws str "," ws "\"about\":" ws str "," ws "\"shape\":" ws shape ( "," ws pair ){0,22} ws "}"
 pair  ::= key ":" ws str | flag ":" ws bool | "\"clean\":" ws "[" ws ( str ( ws "," ws str ){0,5} )? ws "]"
 key   ::= "\"entries\"" | "\"date\"" | "\"title\"" | "\"body\"" | "\"tags\"" | "\"start\"" | "\"date_regex\"" | "\"title_regex\"" | "\"delimiter\"" | "\"date_from_name\"" | "\"date_format\"" | "\"date_locale\"" | "\"files\"" | "\"notes\"" | "\"note_title\"" | "\"photos\"" | "\"photo_date_from_name\"" | "\"photo_date_format\""

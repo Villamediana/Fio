@@ -410,8 +410,8 @@
         <item quantity="other">%d sem data ficam de fora</item>
     </plurals>
     <plurals name="import_unread">
-        <item quantity="one">1 arquivo não abriu</item>
-        <item quantity="other">%d arquivos não abriram</item>
+        <item quantity="one">1 arquivo não abriu como JSON</item>
+        <item quantity="other">%d arquivos não abriram como JSON</item>
     </plurals>
     <plurals name="import_new">
         <item quantity="one">1 dia novo no diário</item>
@@ -448,4 +448,5 @@
     <string name="import_choose_file_line">TXT, Markdown, JSON, CSV ou ZIP</string>
     <string name="import_choose_folder">Uma pasta</string>
     <string name="import_choose_folder_line">Com as pastas de dentro: o Omni vê como ela se organiza</string>
+    <string name="import_recognizing_again">O padrão de antes não pegou nada: o Omni está olhando de novo (%1$d de %2$d).</string>
 </resources>

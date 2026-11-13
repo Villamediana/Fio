@@ -494,6 +494,15 @@ começo de um texto de cada tipo (pasta+nome sem números), até 4000 caracteres
 mesmo diário vem em mais de um arquivo (o `diario.txt` com tudo e a pasta por dia).
 Junto: o deslize do início pras outras telas segue 70% do dedo (`SWIPE_FOLLOW = 0.7f`; era 0,6).
 
+**1.39.0 — o Omni erra menos e tenta de novo sozinho.** No aparelho, com o zip do One Goal, o Omni copiou o
+exemplo ("Day One", `shape: json`) e os 442 textos "não abriram" (não são JSON). Agora: a amostra é a árvore
+(`Sample.tree`: pastas com o mesmo começo numérico juntas — `2024-12-17 - Natal` é do tipo `#-#-#` —, com o que cada
+uma tem dentro, "em todas"/"em N delas") e diz o formato de cada texto (`Sample.formatOf`: HTML, JSON, CSV, texto) e
+"nenhum é JSON"; a gramática só deixa as formas possíveis (`Sample.shapes` → `OmniRecipe.grammar(shapes)`: `text`
+sempre, `json`/`csv` só se algum texto for); o prompt diz pra não copiar app/caminhos dos exemplos. Quando nada sai
+(ou a resposta não roda), `recognize` mostra ao Omni o que ele escreveu e o que deu e ele olha de novo, até
+`DiaryImport.TRIES` (3) vezes, antes de ela ver ("O padrão de antes não pegou nada… 2 de 3").
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa
