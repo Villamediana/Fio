@@ -17,10 +17,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * How much of the finger's way the screen goes along with it: all of it, like the tabs. A hint
- * (0.3) felt like the screen pushing back ("o swipe resiste").
+ * How much of the finger's way the screen goes along with it. A little push back makes going
+ * from the main screen feel different from the tabs (which go all the way) — Miguel liked that —
+ * but 0.3 was too much and 1 lost it: 0.6.
  */
-const val SWIPE_FOLLOW = 1f
+const val SWIPE_FOLLOW = 0.6f
 
 /** How long a screen takes to leave (the way out of NoveloRoot): the lean stays until then. */
 const val SWIPE_LEAVING_MS = 420L
