@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.assertIsSelected
@@ -704,6 +705,31 @@ class ScreensTest {
         compose.onNodeWithText("Caixas da cozinha", substring = true).assertExists()
         compose.mainClock.advanceTimeBy(800)
         shot("55-file-previews")
+    }
+
+    /** A file held: open it, share it, or delete it (asked once). */
+    @Test
+    fun aFileHeldOffersWhatMakesSense() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val f = File(File(context.filesDir, "captures/files/8-8").apply { mkdirs() }, "recibo.txt").apply { writeText("Recibo do aluguel") }
+        val (id, fileId) = runBlocking {
+            val e = graph.db.entries().insert(Entry(kind = "note", title = "Aluguel", body = "O recibo de novembro.", createdAt = now, updatedAt = now))
+            e to graph.db.captures().insert(
+                Capture(createdAt = now, source = Capture.FILE, filePath = f.path, fileName = f.name, fileMime = "text/plain", fileSize = f.length(), state = Capture.DONE, outcomes = """[{"entryId":$e,"action":"created","files":true}]"""),
+            )
+        }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entry-file-0").performTouchInput { longClick() }
+        compose.waitUntil(3_000) { compose.onAllNodesWithTag("file-menu-delete").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("file-menu-open").assertExists()
+        compose.onNodeWithTag("file-menu-share").assertExists()
+        compose.mainClock.advanceTimeBy(400)
+        shot("59-file-menu")
+        compose.onNodeWithTag("file-menu-delete").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithTag("confirm-yes").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("confirm-yes").performClick()
+        runBlocking { withTimeout(5_000) { while (graph.db.captures().get(fileId)?.filePath != null && f.exists()) kotlinx.coroutines.delay(20) } }
     }
 
     @Test

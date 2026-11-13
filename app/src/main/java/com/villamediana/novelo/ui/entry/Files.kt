@@ -87,7 +87,21 @@ internal fun EntryFiles(entry: Entry, modifier: Modifier = Modifier, hidden: Boo
             if (hidden) {
                 FileCard(f, onClick = onReveal, onLongClick = onReveal, index = i, hidden = true, modifier = Modifier.testTag("entry-file-hidden-$i"))
             } else {
-                FileCard(f, onClick = { openFile(context, f) }, onLongClick = { removing = f }, index = i, modifier = Modifier.testTag("entry-file-$i"))
+                // Held: a little menu of what makes sense for a file — open it, send it, take it out.
+                Box {
+                    var menu by remember(f.id) { androidx.compose.runtime.mutableStateOf(false) }
+                    FileCard(f, onClick = { openFile(context, f) }, onLongClick = { menu = true }, index = i, modifier = Modifier.testTag("entry-file-$i"))
+                    ItemMenu(
+                        expanded = menu,
+                        onDismiss = { menu = false },
+                        actions = listOf(
+                            MenuAction(NoveloIcons.Open, t(R.string.file_open), "file-menu-open") { openFile(context, f) },
+                            MenuAction(NoveloIcons.Share, t(R.string.share), "file-menu-share") { shareFile(context, f) },
+                            MenuAction(NoveloIcons.Trash, t(R.string.delete), "file-menu-delete", danger = true) { removing = f },
+                        ),
+                        offset = androidx.compose.ui.unit.DpOffset(12.dp, 0.dp),
+                    )
+                }
             }
         }
     }
@@ -220,6 +234,21 @@ internal fun RemoveFile(f: KeptFile, onDone: () -> Unit) {
         onYes = { onDone(); graph.scope.launch { graph.library.removeFile(f.id) } },
         onDismiss = onDone,
     )
+}
+
+/** Sends [f] to another app, by the phone's share sheet. */
+fun shareFile(context: Context, f: KeptFile) {
+    val file = File(f.path)
+    if (!file.isFile) {
+        Toast.makeText(context, t(R.string.file_gone), Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = runCatching { FileProvider.getUriForFile(context, context.packageName + ".files", file) }.getOrNull() ?: return
+    val send = Intent(Intent.ACTION_SEND).setType(f.mime ?: "*/*")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        .also { it.clipData = android.content.ClipData.newRawUri(f.name, uri) }
+    context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 /** Opens [f] in the app she picks for its type (the phone asks when there is more than one). */
