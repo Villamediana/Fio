@@ -38,6 +38,8 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     // On screen: what didn't go through yet goes again; the on-device model is let go when idle.
+    // The app started: the open tasks with no category go into one (once; quietly when it can't).
+    LaunchedEffect(Unit) { graph.organizer.onStart() }
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             graph.mind.retryPending()

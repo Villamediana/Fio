@@ -59,6 +59,8 @@ data class Entry(
     val repeat: String? = null,
     /** Its place in the tasks list, when she moved it by hand (null: by its due day, the newest first). */
     val position: Long? = null,
+    /** Tasks: the part of her life it belongs to ("Trabalho", "Casa"), chosen by the model or by her; null: none yet. */
+    val category: String? = null,
 ) {
     val kindEnum: Kind get() = Kind.of(kind) ?: Kind.NOTE
     val statusEnum: Status? get() = Status.of(status)

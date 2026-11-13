@@ -997,6 +997,53 @@ class ScreensTest {
         assertEquals(ids[1], order.first())
     }
 
+    /** Tarefas: the categories as filters on top, each card says its own; in the task, a chip to change it. */
+    @Test
+    fun tasksGoByCategory() {
+        val ids = runBlocking {
+            listOf("Mandar o relatório" to "Trabalho", "Consertar a pia" to "Casa", "Ligar pro cliente" to "Trabalho", "Comprar ração" to "Casa", "Marcar dentista" to "Saúde")
+                .mapIndexed { i, (title, c) -> graph.db.entries().insert(Entry(kind = "task", title = title, status = "todo", category = c, position = i.toLong(), createdAt = now, updatedAt = now)) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.TASKS)) }
+        val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Library(Filter.TASKS))
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val sc = screen.value) {
+                    is Screen.Library -> LibraryScreen(nav, sc)
+                    is Screen.Entry -> EntryScreen(nav, sc.id)
+                    else -> Unit
+                }
+            }
+        }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("category-filter").fetchSemanticsNodes().isNotEmpty() }
+            // All, then the ones with the most open tasks; each card with its category.
+            for (c in listOf("Todas", "Trabalho", "Casa", "Saúde")) compose.onAllNodesWithText(c)[0].assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("62-tasks-categories")
+            // One category: only its tasks.
+            compose.onAllNodesWithText("Casa")[0].performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Mandar o relatório").fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithText("Consertar a pia").assertExists()
+            compose.onNodeWithText("Comprar ração").assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("62b-tasks-one-category")
+            // In the task: its category as a chip; a tap opens them, another puts it in another.
+            screen.value = Screen.Entry(ids[1])
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-category").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(500)
+            shot("63-task-category")
+            compose.onNodeWithTag("entry-category").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("category-new").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(500)
+            shot("63b-task-category-sheet")
+            compose.onAllNodesWithText("Trabalho")[0].performClick()
+            compose.waitUntil(5_000) { runBlocking { graph.db.entries().get(ids[1])!!.category } == "Trabalho" }
+        } finally {
+            runBlocking { ids.forEach { graph.db.entries().delete(it) } }
+        }
+    }
+
     /** Notas: one list in the order she sets — the newest on top, a note held and dragged moves; each card says its day. */
     @Test
     fun aNoteHeldAndDraggedMoves() {

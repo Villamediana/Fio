@@ -74,13 +74,19 @@ class AppGraph(context: Context) {
 
     private val captures: File by lazy { File(appContext.filesDir, "captures").apply { mkdirs() } }
 
+    /** Who thinks (the Novelo's intelligence or her API): for what she says, and for putting tasks in categories. */
+    val thinking: Thinking by lazy { Thinking(settings, api, engine, localModel, novelo) }
+
+    /** The open tasks with no category go into one when the app starts. */
+    val organizer: com.villamediana.novelo.mind.Organizer by lazy { com.villamediana.novelo.mind.Organizer(db, thinking) }
+
     val mind: Mind by lazy {
         Mind(
             scope = scope,
             db = db,
             recorder = recorder,
             hearing = Hearing(settings, api, engine, localModel, appContext.cacheDir),
-            thinking = Thinking(settings, api, engine, localModel, novelo),
+            thinking = thinking,
             keeper = Keeper(db),
             reminders = reminders,
             photos = MlKitPhotoReader(appContext),

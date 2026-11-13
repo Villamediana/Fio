@@ -394,4 +394,10 @@
     <string name="setup_hear_novelo_line">No celular, sem internet. Baixa uma vez (%1$s).</string>
     <string name="setup_hear_own">Sua própria API</string>
     <string name="setup_hear_own_line">Whisper, transcribe… com a sua chave. Nada pra baixar.</string>
+    <!-- Categorias das tarefas (1.57) -->
+    <string name="category">Categoria</string>
+    <string name="category_all">Todas</string>
+    <string name="category_choose">Escolher categoria</string>
+    <string name="category_new">Nova categoria</string>
+    <string name="category_rename">Renomear</string>
 </resources>

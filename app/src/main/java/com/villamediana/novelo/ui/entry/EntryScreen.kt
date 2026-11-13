@@ -220,6 +220,9 @@ fun EntryScreen(nav: Nav, id: Long) {
                         Pill(statusLabel(st), selected = (e.statusEnum ?: Status.TODO) == st, onClick = { scope.launch { lib.setStatus(e.id, st) } })
                     }
                 }
+                // Its category, a tap to change it (or rename it, or make a new one).
+                Spacer(Modifier.height(10.dp))
+                CategoryLine(e)
             }
 
             // The diary: the day's photos first, then its text on a stitched page in the serif.

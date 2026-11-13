@@ -394,4 +394,10 @@
     <string name="setup_hear_novelo_line">On the phone, offline. Downloads once (%1$s).</string>
     <string name="setup_hear_own">Your own API</string>
     <string name="setup_hear_own_line">Whisper, transcribe… with your key. Nothing to download.</string>
+    <!-- Categorias das tarefas (1.57) -->
+    <string name="category">Category</string>
+    <string name="category_all">All</string>
+    <string name="category_choose">Choose a category</string>
+    <string name="category_new">New category</string>
+    <string name="category_rename">Rename</string>
 </resources>

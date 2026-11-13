@@ -395,6 +395,8 @@ fun EntryCard(
     inToday: Boolean = false,
     shape: Shape = RoundedCornerShape(20.dp),
     dated: Boolean = false,
+    /** A task's category, quiet, at the start of the line under it. */
+    showCategory: Boolean = false,
 ) {
     val kind = entry.kindEnum
     val done = entry.statusEnum == Status.DONE
@@ -449,11 +451,13 @@ fun EntryCard(
                 )
             }
             val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday, dated = dated)
-            if (meta.isNotEmpty()) {
+            val category = entry.category?.takeIf { showCategory && kind == Kind.TASK }
+            if (meta.isNotEmpty() || category != null) {
                 Spacer(Modifier.height(5.dp))
                 val steps = remember(entry.steps) { Steps.read(entry.steps) }
                 val stepsText = if (steps.isEmpty()) null else "${steps.count { it.done }}/${steps.size}"
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (category != null) CategoryTag(category)
                     meta.forEach { (text, strong) ->
                         if (text == stepsText && steps.size <= MAX_DOTS) StepDots(steps.count { it.done }, steps.size)
                         Text(text, style = MaterialTheme.typography.labelMedium, color = if (strong) NoveloColors.Accent else NoveloColors.TextFaint, maxLines = 1)
