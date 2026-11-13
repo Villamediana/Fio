@@ -22,7 +22,6 @@ import com.villamediana.novelo.mind.Mind
 import com.villamediana.novelo.mind.MlKitPhotoReader
 import com.villamediana.novelo.mind.Thinking
 import com.villamediana.novelo.importer.DiaryImport
-import com.villamediana.novelo.importer.OmniRecipe
 import com.villamediana.novelo.mind.WhenOnline
 import com.villamediana.novelo.ai.NoveloModels
 import com.villamediana.novelo.remind.Reminders
@@ -193,17 +192,13 @@ class AppGraph(context: Context) {
         )
     }
 
-    /** Ajustes › Backup › Importar diário: another app's diary, its pattern recognized by Omni on the phone. */
+    /** Ajustes › Backup › Importar diário: another app's diary, a .zip or a folder of one folder a day. */
     val diaryImport: DiaryImport by lazy {
-        val omni = OmniRecipe(engine, localModel)
         DiaryImport(
             scope = scope,
-            ready = omni::readiness,
-            ask = omni::ask,
             keep = { library.importAll(it, captures) },
             backup = { backups.save() },
             backupProblem = { settings.current().let { s -> if (s.backupFolder.isBlank()) null else s.backupNote.takeIf { s.backupFailed } } },
-            language = { com.villamediana.novelo.settings.Lang.current.label },
             stage = { File(appContext.cacheDir, "import") },
         )
     }

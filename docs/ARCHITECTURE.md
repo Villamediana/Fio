@@ -120,7 +120,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
-| `importer/` | `DiaryImport` (Ajustes › Backup › Importar diário), `Recipe`/`Recipes` (a receita e quem a aplica), `OmniRecipe` (o Omni escreve a receita, com GBNF) |
+| `importer/` | `DiaryImport` (Ajustes › Backup › Importar diário) + `Unpack` (zip pelo índice, pasta), `DayFolders` (uma pasta por dia → entradas e fotos), `Folder` (a pasta escolhida) |
 | `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
@@ -452,56 +452,30 @@ só). Aba Tarefas: segurar e arrastar muda a ordem dentro do grupo (fazendo, a f
 `Entry.position` (Room v9), salvo ao soltar (`Library.reorder`); tarefa sem posição (nova) vem antes, pelo
 prazo, a mais nova primeiro.
 
-## Importar diário (1.36.0)
+## Importar diário (1.40.0)
 
-Ajustes › Backup › Importar diário: o diário de outro app (TXT, Markdown, JSON, CSV ou um ZIP deles; até
-40 MB). `Unpack` abre o arquivo (zip: só os de texto; UTF-8, UTF-16 com marca ou cp1252). `Sample` monta uma
-amostra (começo + um pedaço do meio; no zip, a lista e o começo de três) e o **Omni, no celular**
-(`OmniRecipe`, GBNF que só deixa sair a receita), devolve a `Recipe`: forma (`json` com caminhos, `text`
-com a regex da linha que começa a entrada e grupos `date`/`title`, `csv` com colunas), formato da data
-(`iso`, epoch ou padrão do java.time + idioma), data no nome do arquivo, título na primeira linha, HTML,
-regex do que limpar. Nada do que o modelo escreve roda como código. `Recipes.apply` lê o arquivo inteiro;
-a folha mostra o padrão (`app` + `about`), quantas entradas e dias, o que ficou de fora (sem data, arquivo
-que não abriu) e três entradas como vão ficar. "Reconhecer de novo" manda a receita e o que ela deu pro
-Omni corrigir. "Importar": `Library.importDiaries` — um diário por dia (as entradas do dia viram um; dia
-que já tem diário ganha só o que falta, `DayDiary.merge`, então importar de novo não duplica) — e logo
-depois `Backups.save()`. Roda no escopo do app: a folha pode fechar no meio.
+Ajustes › Backup › Importar diário: **um ZIP ou uma pasta, com uma pasta por dia** — o export do One Goal
+(`OneGoal/server/routes/journal.js` `/export.zip`). Sem modelo nenhum (de 1.36 a 1.39 o Omni lia uma amostra e
+escrevia uma "receita"; errava o padrão e o Miguel tirou: "é simples, pastas com as datas e dentro a entrada em
+texto").
 
-**1.37.0 — ZIP com pastas, notas e fotos.** `Unpack` lê o zip em fluxo (um zip dentro dele também): os
-textos (até 40 MB de texto no total), as fotos (`jpg/jpeg/png/heic/heif/webp/gif`) copiadas pra
-`cacheDir/import` com o nome pelo SHA-1 do conteúdo e a data da câmera (EXIF `DateTimeOriginal` +
-`OffsetTimeOriginal`), o resto só nome e tamanho. `Sample` mostra as pastas (quantos textos/fotos/outros por
-extensão, quantas fotos têm data dentro, três nomes) e o começo de um texto de cada pasta. A `Recipe` ganhou
-`notes` + `note_title` (`name`/`first_line`), `photos`, `photo_date_from_name` + `photo_date_format`: o Omni
-diz o que é diário, o que é nota e o que é foto. Foto: data de dentro dela, senão a do nome; sem nenhuma,
-fica de fora (contada). Nota: data do arquivo no zip. `Library.importAll`: diário como antes; nota nova
-salvo a mesma (título + texto); foto vira `Capture` solta (`photo`, `DONE`) em `captures/photo-import-<sha1>`
-— aparece na galeria e no diário do dia, e o mesmo arquivo não entra duas vezes. Fotos entram sem
-descrição (a busca por sentido não as acha). Zip sem nada legível: a folha diz o que tem dentro (`.db`…).
+- `Unpack`: o zip é copiado pra `cacheDir/import` e lido com `ZipFile` (o índice do fim: o zip do One Goal é
+  stored + bit 3, que `ZipInputStream` lia vazio); zip dentro de zip também. A pasta vem de `OpenDocumentTree`
+  (`importer/Folder.kt`, subpastas pelo `DocumentsContract`, cada arquivo um `Unpack.Piece`). Textos até 40 MB no
+  total; fotos copiadas com o nome pelo SHA-1.
+- `DayFolders.read`: entrada = `.txt`/`.md` cuja pasta de cima começa com a data (`2024-12-17` ou
+  `2024-12-17 - Natal`), meio-dia daquele dia. A primeira linha, quando é a própria data (`17/12/2024` ou
+  `2024-12-17`, com o título depois de ` — `/` - `), vira o título e sai do texto. Foto em qualquer lugar dentro da
+  pasta do dia (`fotos/01.jpg`) vai pra aquele dia. Fora disso nada conta (`diario.txt` com tudo, `.html`, áudio,
+  vídeo).
+- A folha mostra quantas entradas/dias/fotos, o período, três entradas e as fotos. "Importar": `Library.importAll`
+  — um diário por dia (`DayDiary.merge`: o dia que já tem diário ganha só o que falta; importar de novo não
+  duplica), foto vira `Capture` solta (`photo`, `DONE`) em `captures/photo-import-<sha1>` (aparece na galeria e no
+  diário do dia, não entra duas vezes, sem descrição) — e logo depois `Backups.save()`. Roda no escopo do app.
 
 Na 1.37.0, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede pra dividir o relato como ela
-dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`); `DayDiary.merge` já junta por parágrafo.
-
-**1.38.0 — zip pelo índice, pasta, data no caminho.** O zip do One Goal (`server/utils/zipStream.js`: stored, bit 3,
-tamanhos só depois de cada arquivo) não abria com `ZipInputStream` (lia o primeiro arquivo vazio e parava → "não
-é texto"). Agora `Unpack` copia o zip pra `cacheDir/import` e lê com `ZipFile` (o índice no fim); zip dentro de zip
-igual. "Importar diário" pergunta: **um arquivo** (`OpenDocument`) ou **uma pasta** (`OpenDocumentTree`,
-`importer/Folder.kt` anda nas subpastas pelo `DocumentsContract`; cada arquivo vira `Unpack.Piece`). `Sample`
-junta as pastas feitas do mesmo jeito (nome sem os números igual: `2022-01-23/` "e mais 220 pastas assim") e mostra o
-começo de um texto de cada tipo (pasta+nome sem números), até 4000 caracteres. `date_from_name` e
-`photo_date_from_name` olham o caminho todo e vale a data mais perto do arquivo (`diario-2026-11-13/2022-01-23/…`
-é de 2022-01-23); a data do caminho da foto vale antes da de dentro (EXIF). O prompt pede um jeito só quando o
-mesmo diário vem em mais de um arquivo (o `diario.txt` com tudo e a pasta por dia).
-Junto: o deslize do início pras outras telas segue 70% do dedo (`SWIPE_FOLLOW = 0.7f`; era 0,6).
-
-**1.39.0 — o Omni erra menos e tenta de novo sozinho.** No aparelho, com o zip do One Goal, o Omni copiou o
-exemplo ("Day One", `shape: json`) e os 442 textos "não abriram" (não são JSON). Agora: a amostra é a árvore
-(`Sample.tree`: pastas com o mesmo começo numérico juntas — `2024-12-17 - Natal` é do tipo `#-#-#` —, com o que cada
-uma tem dentro, "em todas"/"em N delas") e diz o formato de cada texto (`Sample.formatOf`: HTML, JSON, CSV, texto) e
-"nenhum é JSON"; a gramática só deixa as formas possíveis (`Sample.shapes` → `OmniRecipe.grammar(shapes)`: `text`
-sempre, `json`/`csv` só se algum texto for); o prompt diz pra não copiar app/caminhos dos exemplos. Quando nada sai
-(ou a resposta não roda), `recognize` mostra ao Omni o que ele escreveu e o que deu e ele olha de novo, até
-`DiaryImport.TRIES` (3) vezes, antes de ela ver ("O padrão de antes não pegou nada… 2 de 3").
+dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`). Na 1.38.0, o deslize do início
+pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 
 ## Lançar versão
 

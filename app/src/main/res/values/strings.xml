@@ -374,14 +374,10 @@
     <string name="step_edit">Escrever de novo</string>
     <!-- Importar diário -->
     <string name="import_title">Importar diário</string>
-    <string name="import_line">De outro app: um arquivo, um ZIP ou uma pasta, com notas e fotos</string>
+    <string name="import_line">De outro app: um ZIP ou uma pasta, com uma pasta por dia</string>
     <string name="import_opening">Abrindo o arquivo…</string>
-    <string name="import_recognizing">Reconhecendo o padrão…</string>
-    <string name="import_recognizing_line">O Omni, aqui no celular, lê uma amostra (num ZIP ou numa pasta, como as pastas se organizam) e reconhece o padrão. Nada sai do celular.</string>
     <string name="import_range">de %1$s a %2$s</string>
-    <string name="import_none">Nada saiu com esse padrão.</string>
     <string name="import_preview">Como vão ficar</string>
-    <string name="import_again">Reconhecer de novo</string>
     <string name="import_go">Importar</string>
     <string name="import_saving">Importando…</string>
     <string name="import_backing">Fazendo o backup…</string>
@@ -390,11 +386,9 @@
     <string name="import_backup_none">Sem pasta de backup ainda: escolha uma acima pra guardar.</string>
     <string name="import_backup_failed">O backup não foi: %1$s</string>
     <string name="import_see">Ver no diário</string>
-    <string name="import_not_text">Esse arquivo não é texto. O Novelo importa TXT, Markdown, JSON, CSV, um ZIP ou uma pasta com eles.</string>
     <string name="import_too_big">Texto demais (até 40 MB de texto).</string>
-    <string name="import_bad_answer">A resposta não veio como uma receita de importação. Tente de novo.</string>
     <string name="import_status_busy">importando…</string>
-    <string name="import_status_ready">padrão reconhecido · toque pra ver</string>
+    <string name="import_status_ready">pronto pra importar · toque pra ver</string>
     <string name="import_status_failed">não deu · toque pra ver</string>
     <string name="import_status_done">último: %1$s</string>
     <plurals name="import_entries">
@@ -405,14 +399,6 @@
         <item quantity="one">1 dia</item>
         <item quantity="other">%d dias</item>
     </plurals>
-    <plurals name="import_undated">
-        <item quantity="one">1 sem data fica de fora</item>
-        <item quantity="other">%d sem data ficam de fora</item>
-    </plurals>
-    <plurals name="import_unread">
-        <item quantity="one">1 arquivo não abriu como JSON</item>
-        <item quantity="other">%d arquivos não abriram como JSON</item>
-    </plurals>
     <plurals name="import_new">
         <item quantity="one">1 dia novo no diário</item>
         <item quantity="other">%d dias novos no diário</item>
@@ -421,32 +407,20 @@
         <item quantity="one">1 dia que já tinha diário ganhou o que faltava</item>
         <item quantity="other">%d dias que já tinham diário ganharam o que faltava</item>
     </plurals>
-    <string name="import_nothing_inside">Nada aqui que o Novelo saiba ler. Dentro: %1$s.</string>
-    <string name="import_note">Nota</string>
-    <plurals name="import_notes">
-        <item quantity="one">1 nota</item>
-        <item quantity="other">%d notas</item>
-    </plurals>
     <plurals name="import_photos">
         <item quantity="one">1 foto</item>
         <item quantity="other">%d fotos</item>
-    </plurals>
-    <plurals name="import_photos_undated">
-        <item quantity="one">1 foto sem data fica de fora</item>
-        <item quantity="other">%d fotos sem data ficam de fora</item>
-    </plurals>
-    <plurals name="import_notes_new">
-        <item quantity="one">1 nota nova</item>
-        <item quantity="other">%d notas novas</item>
     </plurals>
     <plurals name="import_photos_new">
         <item quantity="one">1 foto nova na galeria, no dia dela</item>
         <item quantity="other">%d fotos novas na galeria, cada uma no seu dia</item>
     </plurals>
-    <string name="import_choose_line">O diário que você exportou de outro app.</string>
-    <string name="import_choose_file">Um arquivo</string>
-    <string name="import_choose_file_line">TXT, Markdown, JSON, CSV ou ZIP</string>
+    <string name="import_choose_line">O diário exportado de outro app: uma pasta por dia, com a data no nome (AAAA-MM-DD) e a entrada em texto dentro.</string>
+    <string name="import_choose_file">Um ZIP</string>
+    <string name="import_choose_file_line">Com uma pasta por dia dentro</string>
     <string name="import_choose_folder">Uma pasta</string>
-    <string name="import_choose_folder_line">Com as pastas de dentro: o Omni vê como ela se organiza</string>
-    <string name="import_recognizing_again">O padrão de antes não pegou nada: o Omni está olhando de novo (%1$d de %2$d).</string>
+    <string name="import_choose_folder_line">Já descompactada, com uma pasta por dia dentro</string>
+    <string name="import_pattern">Uma pasta por dia: a data no nome da pasta, a entrada no texto de dentro, e as fotos do dia.</string>
+    <string name="import_nothing">Não achei pastas com a data no nome (AAAA-MM-DD) com um texto dentro.</string>
+    <string name="import_not_zip">Não deu pra abrir o arquivo.</string>
 </resources>
