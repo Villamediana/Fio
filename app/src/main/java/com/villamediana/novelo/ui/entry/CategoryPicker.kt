@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,7 +83,8 @@ fun CategoryLine(e: Entry) {
 private fun CategorySheet(id: Long, current: String?, onDismiss: () -> Unit) {
     val graph = NoveloApplication.graph
     val lib = graph.library
-    val scope = rememberCoroutineScope()
+    // The app's own scope: the sheet closes at the same tap, and what it asked must still be written.
+    val scope = graph.scope
     val entries by remember { lib.all() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val names = remember(entries, current) { (Categories.inUse(entries) + listOfNotNull(current)).distinct() }
     var renaming by remember { mutableStateOf<String?>(null) }
