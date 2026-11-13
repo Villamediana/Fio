@@ -372,4 +372,53 @@
     <string name="reminder_save">Save</string>
     <string name="reminder_remove">Remove reminder</string>
     <string name="step_edit">Rewrite</string>
+    <!-- Import a diary -->
+    <string name="import_title">Import a diary</string>
+    <string name="import_line">From another app: TXT, Markdown, JSON, CSV or ZIP</string>
+    <string name="import_opening">Opening the file…</string>
+    <string name="import_recognizing">Recognizing the pattern…</string>
+    <string name="import_recognizing_line">Omni, right here on the phone, reads a sample of the file and recognizes the pattern. Nothing leaves the phone.</string>
+    <string name="import_range">from %1$s to %2$s</string>
+    <string name="import_none">No entries came out with this pattern.</string>
+    <string name="import_preview">How they will look</string>
+    <string name="import_again">Recognize again</string>
+    <string name="import_go">Import</string>
+    <string name="import_saving">Importing…</string>
+    <string name="import_backing">Backing up…</string>
+    <string name="import_done">Done</string>
+    <string name="import_backup_done">Backed up.</string>
+    <string name="import_backup_none">No backup folder yet: choose one above to keep it safe.</string>
+    <string name="import_backup_failed">The backup didn’t go: %1$s</string>
+    <string name="import_see">See in the diary</string>
+    <string name="import_not_text">This file isn’t text. Novelo imports TXT, Markdown, JSON, CSV or a ZIP of them.</string>
+    <string name="import_too_big">File too big (up to 40 MB).</string>
+    <string name="import_bad_answer">The answer didn’t come as an import recipe. Try again.</string>
+    <string name="import_status_busy">importing…</string>
+    <string name="import_status_ready">pattern recognized · tap to see</string>
+    <string name="import_status_failed">didn’t work · tap to see</string>
+    <string name="import_status_done">last: %1$s</string>
+    <plurals name="import_entries">
+        <item quantity="one">1 entry</item>
+        <item quantity="other">%d entries</item>
+    </plurals>
+    <plurals name="import_days">
+        <item quantity="one">1 day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="import_undated">
+        <item quantity="one">1 without a date is left out</item>
+        <item quantity="other">%d without a date are left out</item>
+    </plurals>
+    <plurals name="import_unread">
+        <item quantity="one">1 file didn’t open</item>
+        <item quantity="other">%d files didn’t open</item>
+    </plurals>
+    <plurals name="import_new">
+        <item quantity="one">1 new day in the diary</item>
+        <item quantity="other">%d new days in the diary</item>
+    </plurals>
+    <plurals name="import_joined">
+        <item quantity="one">1 day that already had a diary got what it was missing</item>
+        <item quantity="other">%d days that already had a diary got what they were missing</item>
+    </plurals>
 </resources>

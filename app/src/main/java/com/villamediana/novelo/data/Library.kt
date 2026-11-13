@@ -101,6 +101,41 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         }
     }
 
+    /**
+     * Entries of another app's diary ([com.villamediana.novelo.importer.DiaryImport]) into the
+     * diary, one a day: the day's entries become one (the first one's title; the others, with
+     * their titles, as paragraphs after it). A day that already has a diary keeps it and is told
+     * what it doesn't have yet — so importing the same file again adds nothing.
+     */
+    suspend fun importDiaries(found: List<com.villamediana.novelo.importer.Found>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): com.villamediana.novelo.importer.Kept = db.withTransaction {
+        val now = clock()
+        val days = found.sortedBy { it.at }.groupBy { com.villamediana.novelo.mind.DayDiary.bounds(it.at, zone) }
+        var added = 0
+        var joined = 0
+        // An entry's title goes with its text, unless it is the diary's own title already.
+        fun piece(f: com.villamediana.novelo.importer.Found, title: String) =
+            listOf(f.title.takeIf { it.trim() != title.trim() }.orEmpty(), f.body).filter { it.isNotBlank() }.joinToString("\n")
+        for ((day, list) in days) {
+            val tags = list.flatMap { it.tags }.distinct()
+            val had = db.entries().diariesBetween(day.first, day.last).firstOrNull()
+            if (had != null) {
+                val body = list.fold(had.body) { b, f -> com.villamediana.novelo.mind.DayDiary.merge(b, piece(f, had.title)) }
+                val allTags = (com.villamediana.novelo.mind.Tags.read(had.tags) + tags).distinct()
+                if (body != had.body || allTags.size != com.villamediana.novelo.mind.Tags.read(had.tags).size) {
+                    db.entries().update(had.copy(body = body, tags = com.villamediana.novelo.mind.Tags.write(allTags), updatedAt = now))
+                }
+                joined++
+            } else {
+                val first = list.first()
+                val title = first.title.ifBlank { com.villamediana.novelo.mind.DayDiary.title(first.at, zone) }
+                val body = list.drop(1).fold(first.body) { b, f -> com.villamediana.novelo.mind.DayDiary.merge(b, piece(f, title)) }
+                db.entries().insert(Entry(kind = Kind.DIARY.key, title = title, body = body, tags = com.villamediana.novelo.mind.Tags.write(tags), createdAt = first.at, updatedAt = first.at))
+                added++
+            }
+        }
+        com.villamediana.novelo.importer.Kept(added, joined, found.minOfOrNull { it.at } ?: 0, found.maxOfOrNull { it.at } ?: 0)
+    }
+
     /** A photo a quarter turn to the right (kept with it, the file untouched). */
     suspend fun turnPhoto(captureId: Long) {
         val c = db.captures().get(captureId) ?: return

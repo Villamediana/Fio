@@ -120,6 +120,7 @@ hora, e na aba Hoje nada diz "hoje" (nem o status em "Em andamento").
 | `remind/` | `Reminders`, `ReminderReceiver` (Feito · Daqui a 1 h · Falar), `RearmReceiver` |
 | `settings/` | DataStore + `Vault` (AES-GCM com chave no AndroidKeyStore) |
 | `backup/` | `Backup` (salvar/importar), `Readable` (Markdown + snapshot), `Shelf` (pasta SAF ou disco), `Backups` + `BackupWorker` (Ajustes, WorkManager) |
+| `importer/` | `DiaryImport` (Ajustes › Backup › Importar diário), `Recipe`/`Recipes` (a receita e quem a aplica), `OmniRecipe` (o Omni escreve a receita, com GBNF) |
 | `update/` | cópia do atualizador do FreeSong (GitHub releases → PackageInstaller), repo `Villamediana/Novelo` |
 | `ui/` | `home/Orb` + `HomeScreen`, `library`, `entry`, `settings`, `camera` (CameraX), `graph` (força), `Nav` |
 
@@ -450,6 +451,21 @@ Etapas: o círculo marca; segurar a linha arrasta pra outra posição (`Reordera
 só). Aba Tarefas: segurar e arrastar muda a ordem dentro do grupo (fazendo, a fazer, esperando) —
 `Entry.position` (Room v9), salvo ao soltar (`Library.reorder`); tarefa sem posição (nova) vem antes, pelo
 prazo, a mais nova primeiro.
+
+## Importar diário (1.36.0)
+
+Ajustes › Backup › Importar diário: o diário de outro app (TXT, Markdown, JSON, CSV ou um ZIP deles; até
+40 MB). `Unpack` abre o arquivo (zip: só os de texto; UTF-8, UTF-16 com marca ou cp1252). `Sample` monta uma
+amostra (começo + um pedaço do meio; no zip, a lista e o começo de três) e o **Omni, no celular**
+(`OmniRecipe`, GBNF que só deixa sair a receita), devolve a `Recipe`: forma (`json` com caminhos, `text`
+com a regex da linha que começa a entrada e grupos `date`/`title`, `csv` com colunas), formato da data
+(`iso`, epoch ou padrão do java.time + idioma), data no nome do arquivo, título na primeira linha, HTML,
+regex do que limpar. Nada do que o modelo escreve roda como código. `Recipes.apply` lê o arquivo inteiro;
+a folha mostra o padrão (`app` + `about`), quantas entradas e dias, o que ficou de fora (sem data, arquivo
+que não abriu) e três entradas como vão ficar. "Reconhecer de novo" manda a receita e o que ela deu pro
+Omni corrigir. "Importar": `Library.importDiaries` — um diário por dia (as entradas do dia viram um; dia
+que já tem diário ganha só o que falta, `DayDiary.merge`, então importar de novo não duplica) — e logo
+depois `Backups.save()`. Roda no escopo do app: a folha pode fechar no meio.
 
 ## Lançar versão
 
