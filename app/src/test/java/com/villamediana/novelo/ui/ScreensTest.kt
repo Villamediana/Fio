@@ -479,7 +479,7 @@ class ScreensTest {
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
         compose.waitForIdle()
         val before = compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x
-        // Like the tabs: the screen goes all the finger's way, it doesn't push back.
+        // A little push back, not much: the screen goes 60% of the finger's way.
         val dp = compose.density.density
         compose.onRoot().performTouchInput {
             down(Offset(width * 0.85f, height * 0.72f))
@@ -487,9 +487,9 @@ class ScreensTest {
             moveBy(Offset(-30 * dp, 0f))
         }
         compose.waitForIdle()
-        // 50 dp of finger, less the touch slop: with a hint (0.3) it leaned ~10 dp.
+        // 50 dp of finger, less the touch slop (16 dp here): 0.3 leaned ~10 dp, 1 ~34 dp, 0.6 ~20 dp.
         val leaned = (before - compose.onNodeWithText("Hoje").fetchSemanticsNode().boundsInRoot.center.x) / dp
-        assertTrue("leaned $leaned dp", leaned > 25f)
+        assertTrue("leaned $leaned dp", leaned in 16f..25f)
         compose.onRoot().performTouchInput { up() }
     }
 
