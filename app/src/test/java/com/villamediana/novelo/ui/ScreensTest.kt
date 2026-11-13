@@ -1100,6 +1100,10 @@ class ScreensTest {
             shot("63b-task-category-sheet")
             compose.onAllNodesWithText("Trabalho")[0].performClick()
             compose.waitUntil(5_000) { runBlocking { graph.db.entries().get(ids[1])!!.category } == "Trabalho" }
+            // The sheet closed, and the chip in the task says the new one.
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("category-new").fetchSemanticsNodes().isEmpty() }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Trabalho", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+            assertTrue(compose.onAllNodesWithText("Casa", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         } finally {
             runBlocking { ids.forEach { graph.db.entries().delete(it) } }
         }
