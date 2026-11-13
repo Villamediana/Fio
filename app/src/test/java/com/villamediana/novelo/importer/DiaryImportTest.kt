@@ -195,6 +195,81 @@ class DiaryImportTest {
         assertEquals(1, db.backup().captures().count { it.source == "photo" })
     }
 
+    /**
+     * A .zip written as it streams, the way some servers do (One Goal's export): stored, each file
+     * with its sizes only after it (bit 3), the index at the end. Reading it file by file finds nothing.
+     */
+    private fun streamedZip(vararg files: Pair<String, ByteArray>): ByteArray {
+        val out = ByteArrayOutputStream()
+        fun le(v: Long, n: Int) { for (i in 0 until n) out.write(((v shr (8 * i)) and 0xFF).toInt()) }
+        class At(val name: ByteArray, val crc: Long, val size: Int, val start: Int)
+        val at = ArrayList<At>()
+        for ((name, data) in files) {
+            val n = name.toByteArray(); val start = out.size()
+            le(0x04034b50, 4); le(20, 2); le(0x0808, 2); le(0, 2); le(0, 4); le(0, 4); le(0, 4); le(0, 4); le(n.size.toLong(), 2); le(0, 2)
+            out.write(n); out.write(data)
+            val crc = java.util.zip.CRC32().apply { update(data) }.value
+            le(0x08074b50, 4); le(crc, 4); le(data.size.toLong(), 4); le(data.size.toLong(), 4)
+            at += At(n, crc, data.size, start)
+        }
+        val cd = out.size()
+        for (e in at) {
+            le(0x02014b50, 4); le(20, 2); le(20, 2); le(0x0808, 2); le(0, 2); le(0, 4); le(e.crc, 4); le(e.size.toLong(), 4); le(e.size.toLong(), 4)
+            le(e.name.size.toLong(), 2); le(0, 2); le(0, 2); le(0, 2); le(0, 2); le(0, 4); le(e.start.toLong(), 4); out.write(e.name)
+        }
+        val end = out.size()
+        le(0x06054b50, 4); le(0, 2); le(0, 2); le(at.size.toLong(), 2); le(at.size.toLong(), 2); le((end - cd).toLong(), 4); le(cd.toLong(), 4); le(0, 2)
+        return out.toByteArray()
+    }
+
+    private val oneGoal = arrayOf(
+        "diario-2026-11-13/diario.txt" to "🗓 23/01/2022 00:00\nPrimeiro.\n----\n".toByteArray(),
+        "diario-2026-11-13/2022-01-23/entrada.html" to "<small>23/01/2022</small><p>Primeiro.</p>".toByteArray(),
+        "diario-2026-11-13/2022-01-23/texto.txt" to "23/01/2022\n\nPrimeiro.\n".toByteArray(),
+        "diario-2026-11-13/2024-12-17/entrada.html" to "<small>17/12/2024</small><p>Segundo.</p>".toByteArray(),
+        "diario-2026-11-13/2024-12-17/texto.txt" to "17/12/2024\n\nSegundo.\n".toByteArray(),
+        "diario-2026-11-13/2024-12-17/fotos/01.jpg" to jpeg(7),
+        "diario-2026-11-13/2024-12-17/audios/01.webm" to ByteArray(300) { 0 },
+        "diario-2026-11-13/2024-12-25 - Natal/texto.txt" to "25/12/2024 — Natal\n\nCeia.\n".toByteArray(),
+    )
+
+    private val oneGoalRecipe get() = recipe(
+        """{"app": "One Goal", "about": "…", "shape": "text", "files": "/texto\\.txt$", "date_from_name": "(?<date>\\d{4}-\\d{2}-\\d{2})", """ +
+            """"title_regex": "^\\d{2}/\\d{2}/\\d{4}(?: — (?<title>.+))?$", "photos": "/fotos/", "photo_date_from_name": "(?<date>\\d{4}-\\d{2}-\\d{2})"}""",
+    )
+
+    @Test fun aZipWrittenAsItStreamsIsReadByItsIndex() {
+        val files = Unpack.files("diario-2026-11-13.zip", streamedZip(*oneGoal).inputStream(), stage())
+        assertEquals(6, files.texts.size)
+        assertEquals("Segundo.\n", files.texts.single { it.name.endsWith("2024-12-17/texto.txt") }.text.substringAfter("\n\n"))
+        assertEquals(1, files.photos)
+        assertEquals(1, files.others.count { !it.isPhoto })
+
+        // Alike folders as one line, and one text of each kind.
+        val sample = Sample.of("diario-2026-11-13.zip", files.texts, files.others)
+        assertTrue(sample, sample.contains("diario-2026-11-13/2022-01-23/ e mais 1 pastas assim (diario-2026-11-13/2024-12-17/) — 4 de texto (.html .txt): entrada.html, texto.txt"))
+        assertTrue(sample, sample.contains("--- diario-2026-11-13/diario.txt"))
+        assertTrue(sample, sample.contains("--- diario-2026-11-13/2022-01-23/texto.txt (1 KB, começo; há 2 assim)"))
+
+        // The date nearest the file in the path: the day's folder, not the export's.
+        val read = Recipes.apply(oneGoalRecipe, files.texts, zone, files.others)
+        assertEquals(listOf(LocalDate.of(2022, 1, 23), LocalDate.of(2024, 12, 17), LocalDate.of(2024, 12, 25)), read.found.map { day(it.at) })
+        assertEquals(listOf("", "", "Natal"), read.found.map { it.title })
+        assertEquals(listOf("Primeiro.", "Segundo.", "Ceia."), read.found.map { it.body })
+        assertEquals(LocalDate.of(2024, 12, 17), day(read.photos.single().at))
+    }
+
+    @Test fun aFolderPickedIsReadFileByFileWithItsFolders() {
+        val pieces = oneGoal.map { (path, bytes) -> Unpack.Piece(path.removePrefix("diario-2026-11-13/"), 1_700_000_000_000L) { bytes.inputStream() } }
+        val files = Unpack.pieces(pieces, stage())
+        assertEquals(6, files.texts.size)
+        assertEquals(1_700_000_000_000L, files.texts.first().time)
+        assertTrue(Sample.of("diario-2026-11-13", files.texts, files.others, folder = true).startsWith("UMA PASTA (diario-2026-11-13) COM 8 ARQUIVOS"))
+        val read = Recipes.apply(oneGoalRecipe, files.texts, zone, files.others)
+        assertEquals(3, read.found.size)
+        assertEquals(1, read.photos.size)
+    }
+
     @Test fun aZipInsideAZipIsOpenedToo() {
         val inner = zipOf("2024-03-01.txt" to "Dentro.".toByteArray())
         val files = Unpack.files("fora.zip", zipOf("export/dentro.zip" to inner).inputStream())

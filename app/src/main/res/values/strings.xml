@@ -374,10 +374,10 @@
     <string name="step_edit">Escrever de novo</string>
     <!-- Importar diário -->
     <string name="import_title">Importar diário</string>
-    <string name="import_line">De outro app: TXT, Markdown, JSON, CSV ou ZIP com notas e fotos</string>
+    <string name="import_line">De outro app: um arquivo, um ZIP ou uma pasta, com notas e fotos</string>
     <string name="import_opening">Abrindo o arquivo…</string>
     <string name="import_recognizing">Reconhecendo o padrão…</string>
-    <string name="import_recognizing_line">O Omni, aqui no celular, lê uma amostra do arquivo (num ZIP, como as pastas se organizam) e reconhece o padrão. Nada sai do celular.</string>
+    <string name="import_recognizing_line">O Omni, aqui no celular, lê uma amostra (num ZIP ou numa pasta, como as pastas se organizam) e reconhece o padrão. Nada sai do celular.</string>
     <string name="import_range">de %1$s a %2$s</string>
     <string name="import_none">Nada saiu com esse padrão.</string>
     <string name="import_preview">Como vão ficar</string>
@@ -390,7 +390,7 @@
     <string name="import_backup_none">Sem pasta de backup ainda: escolha uma acima pra guardar.</string>
     <string name="import_backup_failed">O backup não foi: %1$s</string>
     <string name="import_see">Ver no diário</string>
-    <string name="import_not_text">Esse arquivo não é texto. O Novelo importa TXT, Markdown, JSON, CSV ou um ZIP com eles.</string>
+    <string name="import_not_text">Esse arquivo não é texto. O Novelo importa TXT, Markdown, JSON, CSV, um ZIP ou uma pasta com eles.</string>
     <string name="import_too_big">Texto demais (até 40 MB de texto).</string>
     <string name="import_bad_answer">A resposta não veio como uma receita de importação. Tente de novo.</string>
     <string name="import_status_busy">importando…</string>
@@ -421,7 +421,7 @@
         <item quantity="one">1 dia que já tinha diário ganhou o que faltava</item>
         <item quantity="other">%d dias que já tinham diário ganharam o que faltava</item>
     </plurals>
-    <string name="import_nothing_inside">Nada aqui que o Novelo saiba ler. Dentro do ZIP: %1$s.</string>
+    <string name="import_nothing_inside">Nada aqui que o Novelo saiba ler. Dentro: %1$s.</string>
     <string name="import_note">Nota</string>
     <plurals name="import_notes">
         <item quantity="one">1 nota</item>
@@ -443,4 +443,9 @@
         <item quantity="one">1 foto nova na galeria, no dia dela</item>
         <item quantity="other">%d fotos novas na galeria, cada uma no seu dia</item>
     </plurals>
+    <string name="import_choose_line">O diário que você exportou de outro app.</string>
+    <string name="import_choose_file">Um arquivo</string>
+    <string name="import_choose_file_line">TXT, Markdown, JSON, CSV ou ZIP</string>
+    <string name="import_choose_folder">Uma pasta</string>
+    <string name="import_choose_folder_line">Com as pastas de dentro: o Omni vê como ela se organiza</string>
 </resources>

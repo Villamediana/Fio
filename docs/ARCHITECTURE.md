@@ -479,8 +479,20 @@ salvo a mesma (título + texto); foto vira `Capture` solta (`photo`, `DONE`) em 
 — aparece na galeria e no diário do dia, e o mesmo arquivo não entra duas vezes. Fotos entram sem
 descrição (a busca por sentido não as acha). Zip sem nada legível: a folha diz o que tem dentro (`.db`…).
 
-Na mesma versão, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede pra dividir o relato como ela
+Na 1.37.0, o diário passou a vir em parágrafos: o prompt (`Brain.SYSTEM`) pede pra dividir o relato como ela
 dividiria escrevendo — outro assunto, momento ou lugar, parágrafo novo (`\n\n`); `DayDiary.merge` já junta por parágrafo.
+
+**1.38.0 — zip pelo índice, pasta, data no caminho.** O zip do One Goal (`server/utils/zipStream.js`: stored, bit 3,
+tamanhos só depois de cada arquivo) não abria com `ZipInputStream` (lia o primeiro arquivo vazio e parava → "não
+é texto"). Agora `Unpack` copia o zip pra `cacheDir/import` e lê com `ZipFile` (o índice no fim); zip dentro de zip
+igual. "Importar diário" pergunta: **um arquivo** (`OpenDocument`) ou **uma pasta** (`OpenDocumentTree`,
+`importer/Folder.kt` anda nas subpastas pelo `DocumentsContract`; cada arquivo vira `Unpack.Piece`). `Sample`
+junta as pastas feitas do mesmo jeito (nome sem os números igual: `2022-01-23/` "e mais 220 pastas assim") e mostra o
+começo de um texto de cada tipo (pasta+nome sem números), até 4000 caracteres. `date_from_name` e
+`photo_date_from_name` olham o caminho todo e vale a data mais perto do arquivo (`diario-2026-11-13/2022-01-23/…`
+é de 2022-01-23); a data do caminho da foto vale antes da de dentro (EXIF). O prompt pede um jeito só quando o
+mesmo diário vem em mais de um arquivo (o `diario.txt` com tudo e a pasta por dia).
+Junto: o deslize do início pras outras telas segue 70% do dedo (`SWIPE_FOLLOW = 0.7f`; era 0,6).
 
 ## Lançar versão
 

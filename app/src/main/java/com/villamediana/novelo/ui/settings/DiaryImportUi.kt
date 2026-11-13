@@ -45,6 +45,7 @@ import com.villamediana.novelo.importer.DiaryImport
 import com.villamediana.novelo.importer.Found
 import com.villamediana.novelo.importer.FoundNote
 import com.villamediana.novelo.importer.FoundPhoto
+import com.villamediana.novelo.importer.Folder
 import com.villamediana.novelo.importer.Kept
 import com.villamediana.novelo.settings.Lang
 import com.villamediana.novelo.settings.t
@@ -59,14 +60,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * The "Importar diário" line of Ajustes › Backup: picks the file, and while an import goes (or waits
- * for her), says how it is and opens its sheet again.
+ * The "Importar diário" line of Ajustes › Backup: asks whether it is a file or a folder, picks it,
+ * and while an import goes (or waits for her), says how it is and opens its sheet again.
  */
 @Composable
 internal fun DiaryImportLine(onSeeDiary: () -> Unit) {
     val importer = NoveloApplication.graph.diaryImport
     val state by importer.state.collectAsStateWithLifecycle()
     var showing by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -75,6 +77,16 @@ internal fun DiaryImportLine(onSeeDiary: () -> Unit) {
                 resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
             }.getOrNull()?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "diário"
             importer.open(name) { resolver.openInputStream(uri) }
+            choosing = false
+            showing = true
+        }
+    }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) {
+            val resolver = context.contentResolver
+            val name = Folder.name(resolver, tree) ?: tree.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/') ?: "diário"
+            importer.openFolder(name) { Folder.pieces(resolver, tree) }
+            choosing = false
             showing = true
         }
     }
@@ -91,16 +103,18 @@ internal fun DiaryImportLine(onSeeDiary: () -> Unit) {
         subtitle = subtitle,
         subtitleColor = if (attention) NoveloColors.Accent else NoveloColors.TextMuted,
         onClick = {
-            if (state == DiaryImport.State.Idle || state is DiaryImport.State.Done) pick.launch(arrayOf("*/*")) else showing = true
+            if (state == DiaryImport.State.Idle || state is DiaryImport.State.Done) choosing = true
+            showing = true
         },
     ) {
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = NoveloColors.Accent, strokeWidth = 2.dp)
         else Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
     }
 
-    if (showing && state != DiaryImport.State.Idle) {
-        NoveloSheet(onDismissRequest = { showing = false }) {
-            DiaryImportBody(
+    if (showing && (choosing || state != DiaryImport.State.Idle)) {
+        NoveloSheet(onDismissRequest = { showing = false; choosing = false }) {
+            if (choosing) ImportChoice(onFile = { pick.launch(arrayOf("*/*")) }, onFolder = { pickFolder.launch(null) })
+            else DiaryImportBody(
                 state = state,
                 onAgain = importer::again,
                 onConfirm = importer::confirm,
@@ -108,6 +122,39 @@ internal fun DiaryImportLine(onSeeDiary: () -> Unit) {
                 onSeeDiary = { showing = false; importer.close(); onSeeDiary() },
             )
         }
+    }
+}
+
+/** What to import from: one file (a .zip too) or a folder with its folders. */
+@Composable
+internal fun ImportChoice(onFile: () -> Unit, onFolder: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Head(t(R.string.import_title), null)
+        Text(t(R.string.import_choose_line), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice(NoveloIcons.File, t(R.string.import_choose_file), t(R.string.import_choose_file_line), onFile, "import-file")
+            Choice(NoveloIcons.Folder, t(R.string.import_choose_folder), t(R.string.import_choose_folder_line), onFolder, "import-folder")
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun Choice(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, line: String, onClick: () -> Unit, tag: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(NoveloColors.Surface2).clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(NoveloColors.Accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = NoveloColors.Accent, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
+            Text(line, style = MaterialTheme.typography.bodySmall, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 1.dp))
+        }
+        Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(18.dp))
     }
 }
 

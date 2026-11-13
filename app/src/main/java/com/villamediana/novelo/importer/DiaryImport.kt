@@ -15,7 +15,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.nio.charset.Charset
 import java.time.ZoneId
-import java.util.zip.ZipInputStream
 
 /**
  * What an import left: days new in the diary, days that already had one (told some more), notes
@@ -74,10 +73,20 @@ class DiaryImport(
     private var last: Pair<Recipe, Reading>? = null
 
     /** A file picked: opened, then its pattern recognized. [read] gives its bytes (on IO). */
-    fun open(name: String, read: () -> InputStream?) {
+    fun open(name: String, read: () -> InputStream?) =
+        start(name) { stage -> Unpack.files(name, read() ?: throw IOException(t(R.string.import_not_text)), stage) }
+
+    /** A folder picked: every file in it and in its folders ([list], on IO), then its pattern recognized. */
+    fun openFolder(name: String, list: () -> List<Unpack.Piece>) =
+        start(name, folder = true) { stage -> Unpack.pieces(list(), stage) }
+
+    private var folder = false
+
+    private fun start(name: String, folder: Boolean = false, unpack: (java.io.File?) -> Unpacked) {
         if (_state.value is State.Saving) return
         job?.cancel()
         this.name = name
+        this.folder = folder
         files = Unpacked(emptyList())
         last = null
         job = scope.launch {
@@ -85,7 +94,7 @@ class DiaryImport(
             val opened = try {
                 withContext(Dispatchers.IO) {
                     clearStage()
-                    Unpack.files(name, read() ?: throw IOException(t(R.string.import_not_text)), stage())
+                    unpack(stage())
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -162,7 +171,7 @@ class DiaryImport(
         }
         _state.value = State.Recognizing(name)
         val user = buildString {
-            append(Sample.of(name, files.texts, files.others))
+            append(Sample.of(name, files.texts, files.others, folder))
             last?.let { (r, reading) ->
                 append("\n\nUMA RECEITA ANTERIOR NÃO SERVIU:\n").append(Recipes.write(r))
                 append("\nO QUE ELA DEU: ").append(Sample.result(reading, zone(), files.photos))
@@ -195,9 +204,9 @@ class DiaryImport(
         fun system(language: String): String = """
 Você reconhece o formato de diários exportados de outros apps (Day One, Journey, Diarium, Daylio, Penzu, Notion, Obsidian, um TXT ou Markdown escrito à mão…) pra que o Novelo importe cada entrada no diário dele.
 
-Você recebe só uma amostra do arquivo (o começo e, quando é grande, um pedaço do meio; num .zip, as pastas com o que há em cada uma e o começo de alguns textos). Descubra o padrão e responda com uma receita de importação: o Novelo aplica a receita no arquivo inteiro, entrada por entrada. Cada entrada precisa de uma data; o título é opcional; o texto é o que a pessoa escreveu.
+Você recebe só uma amostra do arquivo (o começo e, quando é grande, um pedaço do meio; num .zip ou numa pasta, as pastas com o que há em cada uma — as feitas do mesmo jeito, como uma por dia, numa linha só — e o começo de um texto de cada tipo). Descubra o padrão e responda com uma receita de importação: o Novelo aplica a receita no arquivo inteiro, entrada por entrada. Cada entrada precisa de uma data; o título é opcional; o texto é o que a pessoa escreveu.
 
-Num .zip, veja também como as pastas se organizam: além das entradas do diário pode haver notas (textos que não são de um dia) e fotos.
+Num .zip ou numa pasta, veja também como as pastas se organizam: além das entradas do diário pode haver notas (textos que não são de um dia) e fotos, e às vezes o mesmo diário em mais de um arquivo (um texto com tudo e uma pasta por dia, por exemplo) — escolha um jeito só, pra nada entrar duas vezes. Os caminhos das regex são os da lista, com as pastas.
 
 "shape" diz a forma:
 - "json": "entries" = caminho até a lista de entradas (chaves separadas por ponto; "" = a raiz; uma raiz que é uma entrada só também é ""). Dentro de cada entrada, "date", "title", "body" e "tags" são caminhos (ex.: "creationDate", "text", "location.placeName"). Um campo que é lista de textos vira um texto só.
@@ -205,10 +214,10 @@ Num .zip, veja também como as pastas se organizam: além das entradas do diári
 - "csv": "delimiter" ("," ";" ou "\t"), "header" (true quando a primeira linha tem os nomes das colunas), e "date", "title", "body" e "tags" = o nome da coluna (ou o número, a partir de 0).
 Em qualquer forma:
 - "date_format": "iso" (2024-01-15, 2024-01-15T10:30:00Z…), "epoch_s", "epoch_ms" ou um padrão do DateTimeFormatter do Java ("dd/MM/yyyy", "EEEE, d 'de' MMMM 'de' yyyy", "MMMM d, yyyy h:mm a"). "date_locale": o idioma dos nomes de mês e de dia ("pt-BR", "en", "es").
-- "date_from_name": regex com (?<date>…) que acha a data no nome do arquivo, quando cada arquivo é uma entrada e a data não está dentro dele.
-- "files": num .zip com outros arquivos além das entradas, regex do caminho dos que são entradas do diário.
-- "notes": num .zip, regex do caminho dos arquivos que são notas (cada arquivo, uma nota). "note_title": "name" quando o nome do arquivo é o título da nota, "first_line" quando é a primeira linha.
-- "photos": num .zip, regex do caminho das fotos da pessoa (não miniaturas, ícones nem figurinhas do app). Cada foto vai pra galeria do Novelo no dia em que foi tirada, pela data de dentro dela; "photo_date_from_name" (regex com (?<date>…)) e "photo_date_format" acham a data no nome da foto, pra quando ela não tem data dentro.
+- "date_from_name": regex com (?<date>…) que acha a data no caminho do arquivo (nas pastas ou no nome), quando cada arquivo é uma entrada e a data não está dentro dele; com mais de uma data no caminho, vale a mais perto do arquivo.
+- "files": num .zip ou numa pasta com outros arquivos além das entradas, regex do caminho dos que são entradas do diário.
+- "notes": num .zip ou numa pasta, regex do caminho dos arquivos que são notas (cada arquivo, uma nota). "note_title": "name" quando o nome do arquivo é o título da nota, "first_line" quando é a primeira linha.
+- "photos": num .zip ou numa pasta, regex do caminho das fotos da pessoa (não miniaturas, ícones nem figurinhas do app). Cada foto vai pra galeria do Novelo no dia dela: "photo_date_from_name" (regex com (?<date>…)) e "photo_date_format" acham a data no caminho da foto — a pasta do dia em que ela está, ou o nome dela — e valem antes da data que a câmera escreveu dentro; sem eles, vale a de dentro.
 - "first_line_title": true quando a primeira linha do texto é o título.
 - "html": true quando o texto vem em HTML.
 - "clean": lista de regex do que tirar do texto e não é dele (ex.: referências de imagem como "!\\[\\]\\(dayone-moment:[^)]*\\)"), só quando houver.
@@ -224,80 +233,108 @@ Escreva só os campos que usar. Exemplos do jeito:
 /** A file over [Unpack.MAX_BYTES]. */
 class TooBig : IOException()
 
-/** What she picked, opened: the text files, and (in a .zip) everything else — photos set aside. */
+/** What she picked, opened: the text files, and (in a .zip or a folder) everything else — photos set aside. */
 data class Unpacked(val texts: List<TextFile>, val others: List<OtherFile> = emptyList()) {
     val photos: Int get() = others.count { it.isPhoto }
 }
 
 /**
- * The bytes she picked → the files in them. A .zip is opened as it streams (a .zip inside it too):
- * its text files read (up to [MAX_BYTES] of text in all), its photos copied aside to [stage]
- * (named by their content, so the same photo is one file) with the date the camera wrote inside,
- * anything else listed only by name and size.
+ * What she picked → the files in it. A .zip is copied aside and read by its index (the list at its
+ * end: a .zip written as it streams, without the sizes before each file, reads as well), a .zip
+ * inside it too; a folder, file by file with its folders. The text files are read (up to
+ * [MAX_BYTES] of text in all), the photos copied aside to the stage (named by their content, so the
+ * same photo is one file) with the date the camera wrote inside, anything else listed only by name
+ * and size.
  */
 object Unpack {
     const val MAX_BYTES = 40L * 1024 * 1024
     private const val PEEK = 8192
     val PHOTOS = setOf("jpg", "jpeg", "png", "heic", "heif", "webp", "gif")
 
+    /** A file in what she picked: its path inside (with its folders), its own date when known, and how to read it. */
+    class Piece(val path: String, val time: Long? = null, val open: () -> InputStream)
+
+    /** What was read so far: the texts, the rest, and how much text. */
+    private class Taken {
+        val texts = ArrayList<TextFile>()
+        val others = ArrayList<OtherFile>()
+        var text = 0L
+        fun done() = Unpacked(texts.sortedBy { it.name }, others.sortedBy { it.name })
+    }
+
+    /** One file picked: a .zip (by its first bytes) or a text. */
     fun files(name: String, input: InputStream, stage: java.io.File? = null): Unpacked {
         val buffered = java.io.BufferedInputStream(input, 64 * 1024)
         return buffered.use { inp ->
             inp.mark(4)
             val magic = ByteArray(4)
-            var n = 0
-            while (n < 4) {
-                val r = inp.read(magic, n, 4 - n)
-                if (r < 0) break
-                n += r
-            }
+            val n = inp.readNBytesCompat(magic)
             inp.reset()
             if (n == 4 && isZip(magic)) {
-                val texts = ArrayList<TextFile>()
-                val others = ArrayList<OtherFile>()
-                unzip(ZipInputStream(inp), "", stage, texts, others, longArrayOf(0))
-                Unpacked(texts.sortedBy { it.name }, others.sortedBy { it.name })
+                val taken = Taken()
+                zip(inp, "", stage, taken)
+                taken.done()
             } else {
                 Unpacked(listOfNotNull(decode(capped(inp))?.let { TextFile(name, it) }))
             }
         }
     }
 
+    /** A folder picked: each of its files ([pieces], with their paths). */
+    fun pieces(pieces: List<Piece>, stage: java.io.File? = null): Unpacked {
+        val taken = Taken()
+        pieces.forEach { take(it, stage, taken) }
+        return taken.done()
+    }
+
     private fun isZip(b: ByteArray) = b.size >= 4 && b[0] == 0x50.toByte() && b[1] == 0x4B.toByte() && b[2] == 0x03.toByte() && b[3] == 0x04.toByte()
 
-    /** [zip]'s files into [texts] and [others]; [text] counts the bytes of text read so far (all .zips together). */
-    private fun unzip(zip: ZipInputStream, prefix: String, stage: java.io.File?, texts: MutableList<TextFile>, others: MutableList<OtherFile>, text: LongArray) {
-        while (true) {
-            val e = zip.nextEntry ?: break
-            val path = prefix + e.name
-            val base = path.substringAfterLast('/')
-            if (e.isDirectory || path.startsWith("__MACOSX") || "/__MACOSX/" in path || base.startsWith(".")) continue
-            val ext = base.substringAfterLast('.', "").lowercase()
-            val time = e.time.takeIf { it > 0 }
+    /** A .zip ([input]): copied aside, then each file by its index; [prefix]: the path of the .zip it was inside. */
+    private fun zip(input: InputStream, prefix: String, stage: java.io.File?, taken: Taken) {
+        stage?.mkdirs()
+        val copy = java.io.File.createTempFile("import", ".zip", stage)
+        try {
+            copy.outputStream().use { input.copyTo(it, 64 * 1024) }
+            java.util.zip.ZipFile(copy).use { z ->
+                for (e in z.entries().asSequence().filter { !it.isDirectory }.sortedBy { it.name }) {
+                    take(Piece(prefix + e.name, e.time.takeIf { it > 0 }) { z.getInputStream(e) }, stage, taken)
+                }
+            }
+        } finally {
+            copy.delete()
+        }
+    }
+
+    private fun take(p: Piece, stage: java.io.File?, taken: Taken) {
+        val path = p.path.trimStart('/')
+        val base = path.substringAfterLast('/')
+        if (path.startsWith("__MACOSX") || "/__MACOSX/" in path || base.startsWith(".")) return
+        val ext = base.substringAfterLast('.', "").lowercase()
+        p.open().use { input ->
             when {
-                ext in PHOTOS && stage != null -> others += photo(zip, path, stage)
-                ext == "zip" -> unzip(ZipInputStream(Unclosed(zip)), "$path/", stage, texts, others, text)
+                ext in PHOTOS && stage != null -> taken.others += photo(input, path, stage)
+                ext == "zip" -> zip(input, "$path/", stage, taken)
                 else -> {
                     val head = ByteArray(PEEK)
-                    val got = zip.readNBytesCompat(head)
+                    val got = input.readNBytesCompat(head)
                     val start = head.copyOf(got)
                     if (looksBinary(start)) {
-                        others += OtherFile(path, got + drain(zip))
-                        continue
+                        taken.others += OtherFile(path, got + drain(input))
+                        return
                     }
                     val data = java.io.ByteArrayOutputStream().apply { write(start) }
-                    copyCapped(zip, data, MAX_BYTES - text[0] - got)
-                    text[0] += data.size()
-                    if (text[0] > MAX_BYTES) throw TooBig()
+                    copyCapped(input, data, MAX_BYTES - taken.text - got)
+                    taken.text += data.size()
+                    if (taken.text > MAX_BYTES) throw TooBig()
                     val bytes = data.toByteArray()
-                    decode(bytes)?.let { texts += TextFile(path, it, time) } ?: run { others += OtherFile(path, bytes.size.toLong()) }
+                    decode(bytes)?.let { taken.texts += TextFile(path, it, p.time) } ?: run { taken.others += OtherFile(path, bytes.size.toLong()) }
                 }
             }
         }
     }
 
     /** A photo copied aside, named by what's in it; the date the camera wrote inside, when it did. */
-    private fun photo(zip: InputStream, path: String, stage: java.io.File): OtherFile {
+    private fun photo(input: InputStream, path: String, stage: java.io.File): OtherFile {
         stage.mkdirs()
         val tmp = java.io.File.createTempFile("photo", ".part", stage)
         val digest = java.security.MessageDigest.getInstance("SHA-1")
@@ -305,7 +342,7 @@ object Unpack {
         tmp.outputStream().use { out ->
             val buf = ByteArray(64 * 1024)
             var n: Int
-            while (zip.read(buf).also { n = it } > 0) {
+            while (input.read(buf).also { n = it } > 0) {
                 digest.update(buf, 0, n)
                 out.write(buf, 0, n)
                 size += n
@@ -364,11 +401,6 @@ object Unpack {
         return out.toByteArray()
     }
 
-    /** A .zip inside a .zip: reading it to the end must not close the outer one. */
-    private class Unclosed(input: InputStream) : java.io.FilterInputStream(input) {
-        override fun close() {}
-    }
-
     /** Bytes → text, when they are text: UTF-8 (or UTF-16 with its mark; old Windows text as cp1252). Null: not text. */
     fun decode(b: ByteArray): String? {
         if (b.isEmpty()) return null
@@ -396,10 +428,16 @@ object Sample {
     const val MIDDLE = 1500
     const val PER_FILE = 1300
     const val FOLDERS = 24
-    const val SHOWN = 3
+    const val SHOWN = 5
+    /** All the texts shown of a .zip or a folder together. */
+    const val TEXTS = 4000
 
-    /** [texts] and, in a .zip, [others] (photos and the rest): one file is shown as it is; a .zip by its folders. */
-    fun of(name: String, texts: List<TextFile>, others: List<OtherFile> = emptyList()): String = buildString {
+    /**
+     * [texts] and, in a .zip or a [folder], [others] (photos and the rest): one file is shown as it
+     * is; many by their folders — folders made alike (one a day, say) as one line — and the start of
+     * one text of each kind.
+     */
+    fun of(name: String, texts: List<TextFile>, others: List<OtherFile> = emptyList(), folder: Boolean = false): String = buildString {
         if (texts.size == 1 && others.isEmpty()) {
             val f = texts.first()
             append("ARQUIVO: ").append(name).append(" (").append(kb(f.text)).append(", ").append(f.text.lines().size).append(" linhas)\n\n")
@@ -409,31 +447,51 @@ object Sample {
             }
             return@buildString
         }
-        // Each folder: how many texts, photos and other files (by extension) and a few names.
-        data class Item(val path: String, val kind: Int, val dated: Boolean = false)
+        data class Item(val path: String, val kind: Int, val dated: Boolean = false) {
+            val dir get() = path.substringBeforeLast('/', "")
+            val base get() = path.substringAfterLast('/')
+        }
         val items = texts.map { Item(it.name, TEXT) } + others.map { Item(it.name, if (it.isPhoto) PHOTO else OTHER, it.taken != null) }
-        val folders = items.groupBy { it.path.substringBeforeLast('/', "") }.toSortedMap()
-        append("UM .ZIP (").append(name).append(") COM ").append(items.size).append(" ARQUIVOS. AS PASTAS:\n")
-        folders.entries.take(FOLDERS).forEach { (folder, list) ->
-            append(if (folder.isEmpty()) "(raiz)" else "$folder/").append(" — ")
+        append(if (folder) "UMA PASTA (" else "UM .ZIP (").append(name).append(") COM ").append(items.size).append(" ARQUIVOS. AS PASTAS:\n")
+        // Folders made alike (their names with the numbers taken out are the same) go as one.
+        val groups = items.groupBy { shape(it.dir) }.entries.sortedBy { it.value.minOf { i -> i.dir } }
+        groups.take(FOLDERS).forEach { (_, list) ->
+            val dirs = list.map { it.dir }.distinct().sorted()
+            append(if (dirs.first().isEmpty()) "(raiz)" else dirs.first() + "/")
+            if (dirs.size > 1) {
+                append(" e mais ").append(dirs.size - 1).append(" pastas assim (")
+                append(dirs.drop(1).take(2).joinToString(", ") { "$it/" })
+                if (dirs.size > 3) append(", …")
+                append(')')
+            }
+            append(" — ")
             val parts = list.groupBy { it.kind }.toSortedMap().map { (kind, of) ->
-                val exts = of.map { "." + it.path.substringAfterLast('/').substringAfterLast('.', "?").lowercase() }.distinct().take(4).joinToString(" ")
+                val exts = of.map { "." + it.base.substringAfterLast('.', "?").lowercase() }.distinct().take(4).joinToString(" ")
                 val dated = if (kind == PHOTO) of.count { it.dated }.let { d -> if (d > 0) ", $d com data dentro" else ", sem data dentro" } else ""
                 "${of.size} " + (when (kind) { TEXT -> "de texto"; PHOTO -> "fotos"; else -> "outros" }) + " ($exts$dated)"
             }
             append(parts.joinToString(", ")).append(": ")
-            append(list.take(3).joinToString(", ") { it.path.substringAfterLast('/') })
-            if (list.size > 3) append(", …")
+            val names = list.map { it.base }.distinct()
+            append(names.take(4).joinToString(", "))
+            if (names.size > 4) append(", …")
             append('\n')
         }
-        if (folders.size > FOLDERS) append("… e mais ").append(folders.size - FOLDERS).append(" pastas\n")
-        // The start of a few texts: one from each folder that has them first, then more of the biggest.
-        val byFolder = texts.groupBy { it.name.substringBeforeLast('/', "") }
-        val shown = LinkedHashSet<TextFile>()
-        byFolder.values.forEach { if (shown.size < SHOWN) shown += it.first() }
-        byFolder.values.maxByOrNull { it.size }?.let { big -> listOf(big.size / 2, big.size - 1).forEach { if (shown.size < SHOWN) shown += big[it] } }
-        shown.forEach { f -> append("\n--- ").append(f.name).append(" (").append(kb(f.text)).append(", começo) ---\n").append(head(f.text, PER_FILE)).append('\n') }
+        if (groups.size > FOLDERS) append("… e mais ").append(groups.size - FOLDERS).append(" pastas\n")
+        // The start of one text of each kind (alike folder, alike name), the most common kinds first, while there is room.
+        val kinds = texts.groupBy { shape(it.name.substringBeforeLast('/', "")) + "/" + shape(it.name.substringAfterLast('/')) }
+            .values.sortedWith(compareByDescending<List<TextFile>> { it.size }.thenBy { it.first().name })
+        var room = TEXTS
+        for (kind in kinds.take(SHOWN)) {
+            if (room < 300) break
+            val f = kind.first()
+            val shown = head(f.text, minOf(PER_FILE, room))
+            room -= shown.length
+            append("\n--- ").append(f.name).append(" (").append(kb(f.text)).append(if (kind.size > 1) ", começo; há ${kind.size} assim" else ", começo").append(") ---\n").append(shown).append('\n')
+        }
     }
+
+    /** A name with its numbers taken out: "2024-12-17" and "2022-01-23" are alike. */
+    private fun shape(s: String): String = s.replace(Regex("""\d+"""), "#")
 
     private const val TEXT = 0
     private const val PHOTO = 1

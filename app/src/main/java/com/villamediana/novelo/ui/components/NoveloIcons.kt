@@ -15,6 +15,7 @@ object NoveloIcons {
     val Pause: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_pause)
     val Gallery: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_gallery)
     val File: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_file)
+    val Folder: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_folder)
     val Upload: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_upload)
     val Tune: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_tune)
     val Back: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_back)
