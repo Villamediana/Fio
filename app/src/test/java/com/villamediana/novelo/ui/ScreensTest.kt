@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -1057,6 +1058,36 @@ class ScreensTest {
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
         assertTrue(nav.top is Screen.Library)
+    }
+
+    /** Diário: a + writes today's by hand while today has none; once today has one, no +. */
+    @Test
+    fun theDiaryPlusWritesTodayOnly() {
+        runBlocking { graph.db.entries().insert(Entry(kind = "diary", title = "Ontem", body = "Foi bom.", createdAt = now - day, updatedAt = now)) }
+        val nav = Nav().apply { go(Screen.Library(Filter.DIARY)) }
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val s = nav.top) {
+                    is Screen.Library -> LibraryScreen(nav, s)
+                    is Screen.Entry -> EntryScreen(nav, s.id)
+                    else -> Unit
+                }
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Diário de hoje").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Diário de hoje").performClick()
+        compose.waitUntil(5_000) { nav.top is Screen.Entry }
+        val made = runBlocking { graph.db.entries().get((nav.top as Screen.Entry).id)!! }
+        assertEquals("diary", made.kind)
+        // Written without a title and left: kept, with its day's title.
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-title").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("entry-body").performTextInput("Hoje escrevi à mão.")
+        compose.mainClock.advanceTimeBy(300)
+        nav.back()
+        compose.waitUntil(5_000) { runBlocking { graph.db.entries().get(made.id)?.title } == com.villamediana.novelo.mind.DayDiary.title(made.createdAt, zone) }
+        // Today has one now: no +.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Hoje escrevi à mão.", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithContentDescription("Diário de hoje").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

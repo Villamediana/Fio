@@ -506,6 +506,9 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Fotos no cartão do Diário** (1.52.0): carrossel (`DayThumbs`, `LazyRow` de larguras diferentes, 112 dp) que
   desliza de lado; a próxima cortada na margem diz que tem mais, e a linha do cartão conta ("6 fotos"). Um toque
   abre a foto grande (`PhotoViewer`) com as do dia, sem abrir a entrada; fechar volta onde estava.
+- **+ do Diário** (1.53.0): ao lado da busca, só na aba Diário e só enquanto hoje não tem entrada (um diário por
+  dia: faz o de hoje, não de outro dia). Abre a entrada nova; saindo sem nada, não fica; escrita sem título,
+  ganha o do dia (`Library.dropIfEmpty`).
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 

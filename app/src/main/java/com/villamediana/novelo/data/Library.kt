@@ -136,10 +136,14 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         return db.entries().insert(Entry(kind = kind.key, title = "", status = if (kind == Kind.TASK) Status.TODO.key else null, createdAt = now, updatedAt = now))
     }
 
-    /** An item made by hand and left with nothing written: it isn't kept. */
-    suspend fun dropIfEmpty(id: Long) {
+    /**
+     * An item made by hand, left: with nothing written it isn't kept; a diary written without a
+     * title takes its day's ("Sexta-feira, 13 de novembro"), like the others.
+     */
+    suspend fun dropIfEmpty(id: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) {
         val e = db.entries().get(id) ?: return
         if (e.title.isBlank() && e.body.isBlank() && Steps.read(e.steps).isEmpty()) db.entries().delete(id)
+        else if (e.kindEnum == Kind.DIARY && e.title.isBlank()) db.entries().update(e.copy(title = com.villamediana.novelo.mind.DayDiary.title(e.createdAt, zone)))
     }
 
     /** Tasks put in this order by hand (held and dragged in the list): each keeps its place. */

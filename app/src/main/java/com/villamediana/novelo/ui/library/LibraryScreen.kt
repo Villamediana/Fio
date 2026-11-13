@@ -254,10 +254,17 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        // On Tarefas and Notas, a quiet + makes one by hand (it opens on its title).
+        // On Tarefas, Notas and Diário, a quiet + makes one by hand (it opens on its title).
+        // Diário: the + writes today's by hand, only while today has none (one diary a day; it
+        // makes today's, not another day's).
+        val todayWritten = remember(entries) {
+            val today = com.villamediana.novelo.mind.DayDiary.bounds(System.currentTimeMillis(), ZoneId.systemDefault())
+            entries.orEmpty().any { it.kindEnum == Kind.DIARY && it.createdAt in today }
+        }
         val makes = when (TABS.getOrNull(pager.currentPage)) {
             Filter.TASKS -> Kind.TASK
             Filter.NOTES -> Kind.NOTE
+            Filter.DIARY -> Kind.DIARY.takeIf { entries != null && !todayWritten }
             else -> null
         }
         Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = if (makes != null && !searching) 4.dp else 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -272,7 +279,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
             if (makes != null && !searching) {
-                QuietIcon(NoveloIcons.Plus, t(if (makes == Kind.TASK) R.string.new_task else R.string.new_note), {
+                QuietIcon(NoveloIcons.Plus, t(when (makes) { Kind.TASK -> R.string.new_task; Kind.NOTE -> R.string.new_note; else -> R.string.new_diary }), {
                     scope.launch { nav.go(Screen.Entry(graph.library.create(makes))) }
                 }, alpha = 0.55f)
             }
