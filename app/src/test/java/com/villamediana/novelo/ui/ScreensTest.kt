@@ -1058,6 +1058,14 @@ class ScreensTest {
         compose.onNodeWithContentDescription("Fechar").performClick()
         compose.waitUntil(3_000) { compose.onAllNodesWithContentDescription("photo-viewer").fetchSemanticsNodes().isEmpty() }
         assertTrue(nav.top is Screen.Library)
+        // Swiped on to its end and past it, again and again: the carousel stops there, the tab stays Diário.
+        repeat(4) {
+            compose.onNodeWithTag("diary-photos", useUnmergedTree = true).performTouchInput { swipe(Offset(right - 10f, centerY), Offset(left + 10f, centerY), 150) }
+            compose.mainClock.advanceTimeBy(600)
+        }
+        compose.waitForIdle()
+        assertEquals(Filter.DIARY, (nav.top as Screen.Library).filter)
+        compose.onNodeWithText("Dia de praia").assertExists()
     }
 
     /** Diário: a + writes today's by hand while today has none; once today has one, no +. */

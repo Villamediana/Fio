@@ -505,7 +505,9 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   a mais nova em cima, depois as movidas na ordem delas. O cartão diz o dia (`EntryCard(dated)`).
 - **Fotos no cartão do Diário** (1.52.0): carrossel (`DayThumbs`, `LazyRow` de larguras diferentes, 112 dp) que
   desliza de lado; a próxima cortada na margem diz que tem mais, e a linha do cartão conta ("6 fotos"). Um toque
-  abre a foto grande (`PhotoViewer`) com as do dia, sem abrir a entrada; fechar volta onde estava.
+  abre a foto grande (`PhotoViewer`) com as do dia, sem abrir a entrada; fechar volta onde estava. Na 1.53.1 o
+  carrossel guarda o arrasto (`KeepSideways`, nestedScroll que consome a sobra e o fling): no fim ele para,
+  não passa pra troca de aba.
 - **+ do Diário** (1.53.0): ao lado da busca, só na aba Diário e só enquanto hoje não tem entrada (um diário por
   dia: faz o de hoje, não de outro dia). Abre a entrada nova; saindo sem nada, não fica; escrita sem título,
   ganha o do dia (`Library.dropIfEmpty`).
