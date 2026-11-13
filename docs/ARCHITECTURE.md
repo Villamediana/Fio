@@ -80,7 +80,9 @@ provedor nas duas: "Usar a mesma chave de quem pensa/ouve" copia a chave com um 
 (`Hearing.byApi`): a gravação inteira quando para de falar (até 20 MB), ou pedaços de 5 min nas pausas, cada um guardado
 (`api:300p`); só o ouvido do celular ouve enquanto ela fala. A chave de quem ouve é `hear_by` (a antiga `hear` do Fio
 podia dizer "api"). Sem o ouvido no celular, fotos e arquivos ficam sem a descrição do Omni (o texto lido nelas segue)
-e a busca por sentido vira só por palavras. O idioma da fala é
+e a busca por sentido vira só por palavras. Primeiros passos (1.56): o 2º passo é "Quem vai ouvir você?" — o
+ouvido do Novelo (baixa; sem o Baixar não segue) ou a API dela (provedor que ouve, chave, modelo; nada pra baixar).
+O "Começar" do último passo só espera o ouvido quando é o Novelo que ouve (`earsNeeded`). O idioma da fala é
 sempre automático (sem opção) e o backup vai sozinho todo dia (sem frequência a escolher). No diário, as fotos do dia vêm antes do texto, que fica numa página
 costurada.
 

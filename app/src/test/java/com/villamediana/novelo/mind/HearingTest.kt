@@ -6,6 +6,7 @@ import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.Job
 import com.villamediana.novelo.settings.Source
 import com.villamediana.novelo.ui.settings.intelligenceSummary
+import com.villamediana.novelo.ui.setup.earsNeeded
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -154,6 +155,17 @@ class HearingTest {
         st.shareKey(Job.THINK, Job.HEAR)
         assertEquals("think-key", st.apiKey(Job.HEAR))
         assertEquals("https://api.openai.com/v1", st.current().api(Job.HEAR).address)
+    }
+
+    @Test
+    fun theFirstStepsWaitForTheEarsOnlyWhenTheyHear() {
+        assertTrue(earsNeeded(Source.NOVELO, true, LocalModel.State.Missing))
+        assertTrue(earsNeeded(Source.NOVELO, true, LocalModel.State.Downloading(0.4f, 1, 2)))
+        assertTrue(!earsNeeded(Source.NOVELO, true, LocalModel.State.Ready))
+        // Her API hears: nothing to download, nothing to wait for.
+        assertTrue(!earsNeeded(Source.API, true, LocalModel.State.Missing))
+        // A build without the engine can't have them.
+        assertTrue(!earsNeeded(Source.NOVELO, false, LocalModel.State.Missing))
     }
 
     @Test

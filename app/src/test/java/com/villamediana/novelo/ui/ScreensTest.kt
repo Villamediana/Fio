@@ -1258,12 +1258,28 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(500)
         shot("32-setup-permissions")
         compose.onNodeWithText("Agora não").performClick()
-        // Right after the permissions, the ears: they come only when she agrees (Baixar), and go on in
-        // the background while she goes on. (This build has no engine: it can't have them, so it lets
-        // her go; with the engine, Continuar waits for her Baixar.)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("O ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
+        // Right after the permissions, who hears her: the Novelo's ears (they come only when she agrees,
+        // Baixar, and go on in the background) or her own API (nothing to download). (This build has
+        // no engine: it can't have the ears, so it lets her go; with the engine, Continuar waits for her Baixar.)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem vai ouvir você?").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("O ouvido do Novelo").assertExists()
         compose.mainClock.advanceTimeBy(800)
-        shot("33a-setup-ears")
+        shot("33a-setup-hear")
+        // Her API: whose (only those that hear), then the key; it goes on only when it is whole.
+        compose.onNodeWithText("Sua própria API").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("provider-line-hear").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Escolha de quem é a IA").assertExists()
+        assertTrue(compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("provider-line-hear").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("OpenAI").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(compose.onAllNodesWithText("Anthropic").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("OpenAI").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Coloque a chave").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(800)
+        shot("33b-setup-hear-own")
+        // Back to the Novelo's ears.
+        compose.onNodeWithText("O ouvido do Novelo").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Continuar").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Continuar").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Onde guardar seu backup?").fetchSemanticsNodes().isNotEmpty() }
         compose.mainClock.advanceTimeBy(800)
@@ -1301,6 +1317,8 @@ class ScreensTest {
         runBlocking {
             graph.settings.setBackupFolder("", "")
             graph.settings.setApiProvider("")
+            graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "")
+            graph.settings.setHear(com.villamediana.novelo.settings.Source.NOVELO)
             graph.settings.setThink(com.villamediana.novelo.settings.Source.API)
         }
     }

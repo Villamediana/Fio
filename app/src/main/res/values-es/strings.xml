@@ -301,7 +301,6 @@
     <string name="setup_backup_back">Tu copia de %1$s volvió: %2$s.</string>
     <string name="setup_backup_bringing">Buscando una copia en la carpeta…</string>
     <string name="setup_ears_title">El oído de Novelo</string>
-    <string name="setup_ears_line">Te escucha aquí en el celular, sin internet. Se descarga una sola vez (%1$s).</string>
     <string name="setup_ears_wait">Esperando el oído…</string>
     <string name="backup_kept_aside">la copia que ya estaba en la carpeta quedó guardada como “%1$s”</string>
     <string name="setup_need_provider">Elige de quién es la IA</string>
@@ -391,4 +390,8 @@
     <string name="ai_thinks_with">piensa con %1$s</string>
     <string name="api_same_key_thinks">Usar la misma clave de la que piensa</string>
     <string name="api_same_key_hears">Usar la misma clave de la que oye</string>
+    <string name="setup_hear_title">¿Quién te va a oír?</string>
+    <string name="setup_hear_novelo_line">En el celular, sin internet. Se descarga una vez (%1$s).</string>
+    <string name="setup_hear_own">Tu propia API</string>
+    <string name="setup_hear_own_line">Whisper, transcribe… con tu clave. Nada que descargar.</string>
 </resources>
