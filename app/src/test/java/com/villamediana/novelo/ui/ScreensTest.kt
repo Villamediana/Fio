@@ -800,17 +800,26 @@ class ScreensTest {
             }
         }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Dia 199").fetchSemanticsNodes().isNotEmpty() }
-        // The list moves: the handle shows; held and taken all the way down, the month there beside the finger.
+        // The list moves: the handle slides in. Still a moment, it goes (nothing on the edge); the
+        // list moves again, it comes back.
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("entries").performTouchInput { swipe(Offset(centerX, bottom - 100f), Offset(centerX, bottom - 500f), 200) }
         compose.mainClock.advanceTimeBy(300)
-        compose.onNodeWithTag("fast-scroll").performTouchInput { down(center); moveBy(Offset(0f, 60f)); moveBy(Offset(0f, 6_000f)) }
+        assertTrue(compose.onAllNodesWithTag("fast-scroll").fetchSemanticsNodes().isNotEmpty())
+        compose.mainClock.advanceTimeBy(3_000)
+        assertTrue(compose.onAllNodesWithTag("fast-scroll").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("entries").performTouchInput { swipe(Offset(centerX, bottom - 100f), Offset(centerX, bottom - 300f), 200) }
+        compose.mainClock.advanceTimeBy(100)
+        assertTrue(compose.onAllNodesWithTag("fast-scroll").fetchSemanticsNodes().isNotEmpty())
+        // Taken anywhere along the edge (here far below the handle) and down to the end: the month
+        // there beside the finger.
+        compose.onNodeWithTag("fast-scroll-track").performTouchInput { down(Offset(centerX, height * 0.6f)); moveBy(Offset(0f, 60f)); moveTo(Offset(centerX, bottom - 1f)) }
         compose.mainClock.advanceTimeBy(300)
         val first = start.month.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, com.villamediana.novelo.ui.components.PT)
             .replaceFirstChar { it.titlecase(com.villamediana.novelo.ui.components.PT) } + " " + start.year
         compose.onNodeWithTag("fast-scroll-label").assertTextEquals(first)
         shot("26-diary-fast-scroll")
-        compose.onNodeWithTag("fast-scroll").performTouchInput { up() }
+        compose.onNodeWithTag("fast-scroll-track").performTouchInput { up() }
         compose.mainClock.autoAdvance = true
         compose.waitUntil(5_000) { compose.onAllNodesWithText("O primeiro dia").fetchSemanticsNodes().isNotEmpty() }
         // Opened and back: the list is where it was, not at the top.

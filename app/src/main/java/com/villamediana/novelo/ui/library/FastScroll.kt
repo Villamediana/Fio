@@ -2,10 +2,12 @@ package com.villamediana.novelo.ui.library
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -45,9 +47,10 @@ import kotlin.math.roundToInt
 
 /**
  * A long list crossed by its edge (the diary, years of days). While the list moves, a small handle
- * shows on the right where you are; held and dragged, the list goes with it and a tag beside the
- * finger says where it is ([labelAt], the month) — the first entry is one drag down. A moment
- * still, the handle goes away (and doesn't take touches while gone).
+ * slides in on the right where you are; the finger takes it anywhere along that edge (not only on
+ * the handle), the handle comes under it and the list goes with it, and a tag beside the finger says
+ * where it is ([labelAt], the month) — the first entry is one drag down. The list still for a moment,
+ * the handle slides away and the edge is the list's again; it moves, the handle comes back.
  */
 @Composable
 internal fun FastScroll(state: LazyListState, labelAt: (Int) -> String?, modifier: Modifier = Modifier) {
@@ -63,7 +66,13 @@ internal fun FastScroll(state: LazyListState, labelAt: (Int) -> String?, modifie
     LaunchedEffect(moving) {
         if (moving) awake = true else { delay(FAST_SCROLL_STAYS_MS); awake = false }
     }
-    val alpha by animateFloatAsState(if (awake) 1f else 0f, if (awake) Motion.enter(160) else Motion.exit(400), label = "fast-scroll")
+    val shown by animateFloatAsState(
+        if (awake) 1f else 0f,
+        tween(if (awake) 260 else 420, easing = Motion.Ease),
+        label = "fast-scroll",
+    )
+    // Gone: nothing on the edge, the touches there are the list's.
+    if (!awake && shown == 0f) return
     val thick by animateDpAsState(if (dragging) 6.dp else 4.dp, Motion.soft(), label = "fast-scroll-thick")
     val density = LocalDensity.current
 
@@ -74,6 +83,7 @@ internal fun FastScroll(state: LazyListState, labelAt: (Int) -> String?, modifie
         val totalNow by rememberUpdatedState(total)
         val fraction = if (dragging) held else where
         val top = (fraction * track).roundToInt()
+        val away = with(density) { 14.dp.toPx() } * (1f - shown)
 
         // The tag: the month where the finger is, beside it.
         if (dragging) {
@@ -84,7 +94,7 @@ internal fun FastScroll(state: LazyListState, labelAt: (Int) -> String?, modifie
                     color = NoveloColors.Background,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset { IntOffset(-with(density) { 44.dp.roundToPx() }, top + ((thumb - with(density) { 36.dp.toPx() }) / 2).roundToInt()) }
+                        .offset { IntOffset(-with(density) { 48.dp.roundToPx() }, top + ((thumb - with(density) { 36.dp.toPx() }) / 2).roundToInt()) }
                         .height(36.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(NoveloColors.Text)
@@ -93,42 +103,50 @@ internal fun FastScroll(state: LazyListState, labelAt: (Int) -> String?, modifie
                 )
             }
         }
-        // The handle: a thin line on the edge, a wide place to take it.
+        // The edge: anywhere along it the finger takes the handle, which comes under the finger.
         Box(
             Modifier
                 .align(Alignment.TopEnd)
-                .offset { IntOffset(0, top) }
-                .size(TOUCH_WIDE, THUMB_TALL)
-                .graphicsLayer { this.alpha = alpha }
-                .testTag("fast-scroll")
-                .then(
-                    if (!awake && !dragging) Modifier
-                    else Modifier.pointerInput(Unit) {
-                        detectVerticalDragGestures(
-                            onDragStart = { dragging = true; held = position(state); asked = -1 },
-                            onDragEnd = { dragging = false },
-                            onDragCancel = { dragging = false },
-                        ) { change, dy ->
-                            change.consume()
-                            held = (held + dy / trackNow).coerceIn(0f, 1f)
-                            val i = index(held, totalNow)
-                            if (i != asked) {
-                                asked = i
-                                scope.launch { state.scrollToItem(i) }
-                            }
+                .fillMaxHeight()
+                .width(TOUCH_WIDE)
+                .testTag("fast-scroll-track")
+                .pointerInput(Unit) {
+                    fun follow(y: Float) {
+                        held = ((y - thumb / 2) / trackNow).coerceIn(0f, 1f)
+                        val i = index(held, totalNow)
+                        if (i != asked) {
+                            asked = i
+                            scope.launch { state.scrollToItem(i) }
                         }
-                    },
-                ),
-            contentAlignment = Alignment.CenterEnd,
+                    }
+                    detectVerticalDragGestures(
+                        onDragStart = { at -> dragging = true; asked = -1; follow(at.y) },
+                        onDragEnd = { dragging = false },
+                        onDragCancel = { dragging = false },
+                    ) { change, _ ->
+                        change.consume()
+                        follow(change.position.y)
+                    }
+                },
         ) {
+            // The handle: a thin line on the edge, sliding in and out with the list.
             Box(
                 Modifier
-                    .padding(end = 4.dp)
-                    .width(thick)
-                    .height(THUMB_TALL - 12.dp)
-                    .clip(CircleShape)
-                    .background(if (dragging) NoveloColors.Accent else NoveloColors.TextFaint),
-            )
+                    .offset { IntOffset(away.roundToInt(), top) }
+                    .size(TOUCH_WIDE, THUMB_TALL)
+                    .graphicsLayer { alpha = shown }
+                    .testTag("fast-scroll"),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Box(
+                    Modifier
+                        .padding(end = 4.dp)
+                        .width(thick)
+                        .height(THUMB_TALL - 12.dp)
+                        .clip(CircleShape)
+                        .background(if (dragging) NoveloColors.Accent else NoveloColors.TextFaint),
+                )
+            }
         }
     }
 }
@@ -149,6 +167,8 @@ private fun index(fraction: Float, total: Int): Int = (fraction * (total - 1)).r
 
 /** Below this, the list is short enough to just scroll. */
 internal const val FAST_SCROLL_MIN_ITEMS = 30
-private const val FAST_SCROLL_STAYS_MS = 1_500L
+/** How long the handle stays once the list is still. */
+private const val FAST_SCROLL_STAYS_MS = 1_000L
 private val THUMB_TALL = 56.dp
-private val TOUCH_WIDE = 32.dp
+/** The edge the finger takes it on: wider than the line, easy for a thumb. */
+private val TOUCH_WIDE = 40.dp
