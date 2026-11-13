@@ -500,6 +500,9 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   compartilhar/apagar enquanto ainda escondido.
 - **Segurar no arquivo** (1.50.0): menu com Abrir, Compartilhar (`shareFile`) e Apagar (diálogo "Apagar este
   arquivo?"); escondido, segurar só pede pra ver.
+- **Notas à mão** (1.51.0): a aba Notas é uma lista só (sem rótulo de dia), na ordem que ela deixa — segurar e
+  arrastar como nas tarefas (`Entry.position`, `Library.reorder`); `byHand`: as não movidas (novas) primeiro,
+  a mais nova em cima, depois as movidas na ordem delas. O cartão diz o dia (`EntryCard(dated)`).
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 
