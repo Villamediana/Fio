@@ -55,7 +55,7 @@ data class Recipe(
     val delimiter: String? = null,
     /** csv: the first line has the names of the columns. */
     val header: Boolean = true,
-    /** The date in the file's name (one file a day), with (?<date>…). */
+    /** The date in the file's path, its folders or its name (one file a day), with (?<date>…); the nearest the file counts. */
     @SerialName("date_from_name") val dateFromName: String? = null,
     /** "iso", "epoch_s", "epoch_ms" or a java.time pattern ("dd/MM/yyyy"). */
     @SerialName("date_format") val dateFormat: String = ISO,
@@ -73,7 +73,7 @@ data class Recipe(
     @SerialName("note_title") val noteTitle: String = NAME,
     /** In a .zip: the photos to bring to the gallery (a regex on the path); null: none. */
     val photos: String? = null,
-    /** A photo without its date inside: the date in its name, with (?<date>…). */
+    /** The photo's date in its path (the day folder it is in, or its name), with (?<date>…); before the camera's date inside it. */
     @SerialName("photo_date_from_name") val photoDateFromName: String? = null,
     /** How that date is written (as [dateFormat]); null: as the entries' one. */
     @SerialName("photo_date_format") val photoDateFormat: String? = null,
@@ -174,7 +174,7 @@ object Recipes {
                 "csv" -> fromCsv(r, f)
                 else -> fromText(r, f)
             } ?: continue
-            val fromName = r.dateFromName?.let { Regex(it).find(f.name)?.let(::dateGroup) }
+            val fromName = r.dateFromName?.let { inPath(Regex(it), f.name) }
             for (e in raw) {
                 var body = e.body.replace("\r\n", "\n").replace('\r', '\n')
                 if (r.html) body = plain(body)
@@ -221,7 +221,13 @@ object Recipes {
         return FoundNote(f.time, title.take(TITLE_MAX), body)
     }
 
-    /** The photos the recipe picked, each on the day it was taken (inside it, or in its name); and how many had no date. */
+    /**
+     * A date in a file's path (its folders and its name): the one nearest the file, when there are
+     * more ("diario-2026-11-13/2022-01-23/texto.txt" is of 2022-01-23).
+     */
+    private fun inPath(regex: Regex, path: String): String? = regex.findAll(path).lastOrNull()?.let(::dateGroup)
+
+    /** The photos the recipe picked, each on its day (in its path, or inside it); and how many had no date. */
     private fun photos(r: Recipe, others: List<OtherFile>, zone: ZoneId): Pair<List<FoundPhoto>, Int> {
         val which = r.photos?.let { Regex(it, RegexOption.IGNORE_CASE) } ?: return emptyList<FoundPhoto>() to 0
         val inName = r.photoDateFromName?.let { Regex(it) }
@@ -230,8 +236,9 @@ object Recipes {
         for (o in others) {
             val file = o.file ?: continue
             if (!which.containsMatchIn(o.name)) continue
-            val at = o.taken?.let { exif(it, o.offset, zone) }
-                ?: inName?.find(o.name.substringAfterLast('/'))?.let(::dateGroup)?.let { date(it, r.photoDateFormat ?: r.dateFormat, r.dateLocale, zone) }
+            // The date the recipe saw in the path (the day of the entry it is in, or its name) first; the camera's then.
+            val at = inName?.let { inPath(it, o.name) }?.let { date(it, r.photoDateFormat ?: r.dateFormat, r.dateLocale, zone) }
+                ?: o.taken?.let { exif(it, o.offset, zone) }
             if (at == null) undated++ else out += FoundPhoto(at, file)
         }
         // The same photo twice in the .zip (a copy in another folder) comes once.

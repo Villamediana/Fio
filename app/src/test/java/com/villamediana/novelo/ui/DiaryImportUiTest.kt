@@ -14,6 +14,7 @@ import com.villamediana.novelo.importer.Reading
 import com.villamediana.novelo.importer.Recipe
 import com.villamediana.novelo.settings.ThemeMode
 import com.villamediana.novelo.ui.settings.DiaryImportBody
+import com.villamediana.novelo.ui.settings.ImportChoice
 import com.villamediana.novelo.ui.theme.NoveloTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -48,6 +49,18 @@ class DiaryImportUiTest {
         compose.onNodeWithTag("import-main").performClick()
         assertEquals(1, again)
         assertEquals(1, confirmed)
+    }
+
+    @Test fun aFileOrAFolder() {
+        var file = 0
+        var folder = 0
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { ImportChoice(onFile = { file++ }, onFolder = { folder++ }) } }
+        compose.onNodeWithText("Um arquivo").assertIsDisplayed()
+        compose.onNodeWithText("Uma pasta").assertIsDisplayed()
+        compose.onNodeWithTag("import-folder").performClick()
+        compose.onNodeWithTag("import-file").performClick()
+        assertEquals(1, file)
+        assertEquals(1, folder)
     }
 
     @Test fun nothingCameOutSoTheMainWayIsToRecognizeAgain() {
