@@ -212,6 +212,14 @@ Na 1.15.0:
   pelo `UiModeManager.setApplicationNightMode` (12+), splash na cor dela por `setSplashScreenTheme` (13+,
   `Theme.Novelo.Splash.<Cor>`), ícone por `activity-alias` (`.MainActivity` é o vermelhão de sempre, as outras
   cores `.MainActivity<Cor>`), trocado no `onStop`. A tela real é `NoveloActivity`.
+- **Abertura → microfone (1.54.0, `ui/home/Opening`)**: quando a splash sai, o app já desenha a bola dela no mesmo
+  lugar (`OpeningLayer` por cima de tudo, centro do `iconView`, bola de 84dp = 31,5/108 da caixa de 288dp) e tira
+  a splash. A bola desce até o botão lendo `OrbSpot` (centro, raio e o centro do mic) a cada quadro, o papel some,
+  saem três ondas que param antes do texto, o pontilhado sai de dentro da bola e a ponta do fio se desenha;
+  1,46 s ao todo. O botão fica escondido (`Modifier.orbSpot()`) até o fim, e o último quadro é desenhado pelas
+  funções do próprio `Orb` (`drawStitchRing`, `drawLooseEnd`, `drawYarn`), então a troca não mexe um pixel
+  (`OpeningTest` compara: 1º quadro = splash, último = botão, Home depois = último quadro). Um toque encerra na
+  hora (`dispatchTouchEvent`). Sem botão na tela (aberto num item, primeiros passos), só esmaece como antes.
 
 Na 1.15.1: o molde de resposta no fim das instruções mostra só campos usados (antes listava todos com
 null/[]/false e um modelo pequeno copiava, escrevendo à toa no celular).
