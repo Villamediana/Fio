@@ -671,13 +671,11 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         }
         Filter.TASKS -> {
             val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }
-            // Moved by hand: in that order; the ones not moved yet (new ones) first, by due day, the newest first.
-            val byDue: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
-            val sortKey = compareBy<Entry>({ if (it.position == null) 0 else 1 }, { it.position ?: 0L }, byDue)
+            // Each group by category, together (see arrange); what she moved by hand stays where she put it.
             buildList {
-                add(t(R.string.status_doing) to byStatus[Status.DOING].orEmpty().sortedWith(sortKey))
-                add(t(R.string.status_todo) to byStatus[Status.TODO].orEmpty().sortedWith(sortKey))
-                add(t(R.string.status_waiting) to byStatus[Status.WAITING].orEmpty().sortedWith(sortKey))
+                add(t(R.string.status_doing) to arrange(byStatus[Status.DOING].orEmpty()))
+                add(t(R.string.status_todo) to arrange(byStatus[Status.TODO].orEmpty()))
+                add(t(R.string.status_waiting) to arrange(byStatus[Status.WAITING].orEmpty()))
                 if (showDone) add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
             }
         }
@@ -694,6 +692,29 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
  * is to be done; it stays here to come back (Miguel, 1.42.0).
  */
 internal const val SHOW_KEPT_TODAY = false
+
+/**
+ * A group of tasks in order, together by category: what she moved by hand ([Entry.position]) stays in
+ * her order; the others (new ones, never moved) go next to the ones of their category — after the
+ * last of them. The ones of a category not there yet, and the ones with none yet, come on top,
+ * together, the categories with the most tasks first; inside, by due day, the newest first.
+ */
+internal fun arrange(tasks: List<Entry>): List<Entry> {
+    val key: (Entry) -> String = { it.category?.let(Categories::fold).orEmpty() }
+    val size = tasks.groupingBy(key).eachCount()
+    val byDue: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
+    val placed = tasks.filter { it.position != null }.sortedBy { it.position }.toMutableList()
+    val loose = tasks.filter { it.position == null }
+        .sortedWith(compareByDescending<Entry> { size[key(it)] ?: 0 }.thenBy(key).thenBy(byDue))
+    val top = ArrayList<Entry>()
+    for (t in loose) {
+        val k = key(t)
+        // One with no category yet (made by hand, to be organized) stays on top, where it is seen.
+        val last = if (t.category == null) -1 else placed.indexOfLast { key(it) == k }
+        if (last >= 0) placed.add(last + 1, t) else top += t
+    }
+    return top + placed
+}
 
 /** The groups with only the tasks of [category] (all of them when null). */
 internal fun inCategory(sections: List<Pair<String?, List<Entry>>>, category: String?): List<Pair<String?, List<Entry>>> =
