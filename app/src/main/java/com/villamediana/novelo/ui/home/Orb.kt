@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -119,7 +121,7 @@ fun Orb(
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val c = center
-            val r = this.size.minDimension * 0.30f * press * (1f - 0.06f * work)
+            val r = this.size.minDimension * BALL * press * (1f - 0.06f * work)
             val lvl = smooth
             val t = time
 
@@ -242,7 +244,7 @@ fun Orb(
                     if (mode == OrbMode.LOCKED) NoveloIcons.Stop else NoveloIcons.Mic,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(38.dp).graphicsLayer {
+                    modifier = Modifier.size(MIC).onGloballyPositioned { OrbSpot.mic = it.boundsInWindow().center }.graphicsLayer {
                         alpha = 1f - 0.45f * work
                         val s = 1f + 0.08f * listen
                         scaleX = s; scaleY = s
@@ -255,10 +257,25 @@ fun Orb(
 
 private const val TAP_MS = 320L
 
-/** Where the button's center is on the window right now (null: not on screen), for the opening to land on it. */
+/** The ball's radius, in parts of the button's size. */
+internal const val BALL = 0.30f
+
+/** The mic (or the stop) in the middle of the ball. */
+internal val MIC = 38.dp
+
+/** Where the button's center and ball are on the window right now (null: not on screen), for the opening to land on it. */
 object OrbSpot {
-    @Volatile var center: Offset? = null
+    var center by mutableStateOf<Offset?>(null)
+    var radius by mutableFloatStateOf(0f)
+    /** The mic's own center: the layout puts it where whole pixels fall, a hair off the ball's. */
+    var mic by mutableStateOf<Offset?>(null)
 }
+
+/** On the button: tells where it is, and stays hidden while the opening's ball stands in for it (see [Opening]). */
+fun Modifier.orbSpot(): Modifier = onGloballyPositioned {
+    OrbSpot.center = it.boundsInWindow().center
+    OrbSpot.radius = it.size.width * BALL
+}.graphicsLayer { alpha = if (Opening.run != null) 0f else 1f }
 
 /** The yarn's lines across the ball (center [c], radius [r]), as they cross it. */
 fun DrawScope.drawYarn(c: Offset, r: Float, color: Color) {
@@ -281,14 +298,20 @@ fun DrawScope.drawStitchRing(c: Offset, r: Float, color: Color, strength: Float)
 
 /** The yarn's loose end: out of the ball at the bottom right, a little curl; [swell] keeps it on the ball as it grows. */
 fun DrawScope.drawLooseEnd(c: Offset, r: Float, color: Color, swell: Float = 1f) {
+    drawPath(looseEndPath(c, r, swell), color, style = Stroke(width = LOOSE_END.toPx(), cap = StrokeCap.Round))
+}
+
+/** The loose end's line, from the ball out to the curl. */
+internal fun looseEndPath(c: Offset, r: Float, swell: Float = 1f): Path {
     val o = Offset(c.x + (swell - 1f) * r * 0.66f, c.y + (swell - 1f) * r * 0.66f)
-    val p = Path().apply {
+    return Path().apply {
         moveTo(o.x + r * 0.62f, o.y + r * 0.66f)
         cubicTo(o.x + r * 0.92f, o.y + r * 0.96f, o.x + r * 1.20f, o.y + r * 0.94f, o.x + r * 1.24f, o.y + r * 1.20f)
         cubicTo(o.x + r * 1.28f, o.y + r * 1.44f, o.x + r * 1.02f, o.y + r * 1.50f, o.x + r * 0.98f, o.y + r * 1.34f)
     }
-    drawPath(p, color, style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round))
 }
+
+internal val LOOSE_END = 2.4.dp
 
 /** From the center, in radii: start, two handles, end. */
 private val YARN = listOf(

@@ -4,10 +4,17 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
-import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
-import android.animation.ValueAnimator
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.MotionEvent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.core.splashscreen.SplashScreenViewProvider
+import com.villamediana.novelo.ui.home.Opening
+import com.villamediana.novelo.ui.home.OpeningLayer
 import com.villamediana.novelo.ui.home.OrbSpot
 import com.villamediana.novelo.settings.Lang
 import android.view.animation.DecelerateInterpolator
@@ -69,9 +76,13 @@ class NoveloActivity : androidx.fragment.app.FragmentActivity() {
             setContent {
                 val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = s)
                 NoveloTheme(mode = settings.theme, accent = settings.accent) {
-                    // The first steps once (permissions, backup, who thinks), then the app.
-                    if (settings.setupDone) NoveloRoot(ask = ask, onAskHandled = { ask = null })
-                    else com.villamediana.novelo.ui.setup.SetupScreen(onDone = {})
+                    Box(Modifier.fillMaxSize(), propagateMinConstraints = true) {
+                        // The first steps once (permissions, backup, who thinks), then the app.
+                        if (settings.setupDone) NoveloRoot(ask = ask, onAskHandled = { ask = null })
+                        else com.villamediana.novelo.ui.setup.SetupScreen(onDone = {})
+                        // The splash's ball on its way to the button.
+                        OpeningLayer()
+                    }
                 }
             }
             first = s
@@ -81,36 +92,35 @@ class NoveloActivity : androidx.fragment.app.FragmentActivity() {
     }
 
     /**
-     * The opening's ball is the button's, at the same size: it glides to where the button is while
-     * the paper around it fades, and when it gets there it is simply the button. Without a ball or
-     * a button on screen (opened on an item), the opening just fades.
+     * The opening's ball becomes the button: the app draws it where the splash had it and takes it
+     * from there (see Opening). Without a ball or a button on screen (opened on an item), the
+     * opening just fades.
      */
     private fun land(splash: SplashScreenViewProvider) {
         val view = splash.view
         val icon = runCatching { splash.iconView }.getOrNull()
-        val target = OrbSpot.center
-        val background = view.background?.mutate()
-        if (icon == null || target == null || background == null) {
+        if (icon == null || OrbSpot.center == null) {
             view.animate().alpha(0f).setDuration(SPLASH_FADE_MS).setInterpolator(DecelerateInterpolator()).withEndAction { splash.remove() }.start()
             return
         }
         val at = IntArray(2).also { icon.getLocationInWindow(it) }
-        val dx = target.x - (at[0] + icon.width / 2f)
-        val dy = target.y - (at[1] + icon.height / 2f)
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = SPLASH_FADE_MS
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { a ->
-                val f = a.animatedValue as Float
-                background.alpha = ((1f - f) * 255).toInt()
-                icon.translationX = dx * f
-                icon.translationY = dy * f
-            }
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) = splash.remove()
-            })
-            start()
-        }
+        // Before Android 13 the splash is always the terracotta one (Look); from 13 on, in her accent.
+        val terracotta = Build.VERSION.SDK_INT < 33
+        Opening.start(
+            Opening.Run(
+                from = Offset(at[0] + icon.width / 2f, at[1] + icon.height / 2f),
+                paper = (view.background as? ColorDrawable)?.color?.let { Color(it) },
+                ball = if (terracotta) Color(getColor(R.color.splash_vermilion)) else null,
+                onBall = if (terracotta) Color(getColor(R.color.splash_vermilion_on)) else null,
+                dropSplash = { splash.remove() },
+            ),
+        )
+    }
+
+    /** A touch during the opening ends it: the button is there at once, and the touch is its. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) Opening.end()
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onStop() {
@@ -149,7 +159,7 @@ class NoveloActivity : androidx.fragment.app.FragmentActivity() {
         /** The logo on screen at least this long, so it is seen. */
         private const val SPLASH_MIN_MS = 700L
 
-        /** Then it fades into the app. */
+        /** Then it fades into the app (when it has no button to land on). */
         private const val SPLASH_FADE_MS = 450L
 
         fun openEntry(context: Context, id: Long): Intent = Intent(context, NoveloActivity::class.java)
