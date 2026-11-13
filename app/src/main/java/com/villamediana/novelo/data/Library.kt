@@ -137,35 +137,19 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
     }
 
     /**
-     * Everything an import read: the entries into the diary ([importDiaries]), the notes in as notes
-     * and the photos into the gallery, each on its day ([photosDir]: where Novelo keeps them). What
-     * is already here (the same note, the same photo) isn't brought twice.
+     * Everything an import read: the entries into the diary ([importDiaries]) and the photos into
+     * the gallery, each on its day ([photosDir]: where Novelo keeps them). A photo already here
+     * isn't brought twice.
      */
     suspend fun importAll(r: com.villamediana.novelo.importer.Reading, photosDir: java.io.File, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): com.villamediana.novelo.importer.Kept {
         val days = importDiaries(r.found, zone)
-        val notes = importNotes(r.notes)
         val photos = importPhotos(r.photos, photosDir)
         val dated = r.found.map { it.at } + r.photos.map { it.at }
-        return days.copy(from = dated.minOrNull() ?: 0, to = dated.maxOrNull() ?: 0, notes = notes, photos = photos)
-    }
-
-    /** Notes read from files: each one new, unless a note with the same title and text is here. How many came in. */
-    suspend fun importNotes(notes: List<com.villamediana.novelo.importer.FoundNote>): Int = db.withTransaction {
-        if (notes.isEmpty()) return@withTransaction 0
-        val now = clock()
-        val had = db.backup().entries().filter { it.kindEnum == Kind.NOTE }.map { it.title.trim() to it.body.trim() }.toMutableSet()
-        var added = 0
-        for (n in notes) {
-            if (!had.add(n.title.trim() to n.body.trim())) continue
-            val at = n.at ?: now
-            db.entries().insert(Entry(kind = Kind.NOTE.key, title = n.title, body = n.body, createdAt = at, updatedAt = at))
-            added++
-        }
-        added
+        return days.copy(from = dated.minOrNull() ?: 0, to = dated.maxOrNull() ?: 0, photos = photos)
     }
 
     /**
-     * Photos into the gallery, each on the day it was taken (loose: the day's diary shows it). Named
+     * Photos into the gallery, each on its day (loose: the day's diary shows it). Named
      * by what's in it, so a photo imported before isn't brought again. How many came in.
      */
     suspend fun importPhotos(photos: List<com.villamediana.novelo.importer.FoundPhoto>, photosDir: java.io.File): Int {
