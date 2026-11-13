@@ -99,7 +99,7 @@ fun SettingsScreen(nav: Nav) {
                 when (s.theme) { ThemeMode.SYSTEM -> t(R.string.theme_system); ThemeMode.LIGHT -> t(R.string.theme_light); ThemeMode.DARK -> t(R.string.theme_dark) } + " · " + NoveloAccents.byId(s.accent).name.lowercase(),
                 false, open == Part.THEME, { toggle(Part.THEME) },
             ) { ThemeSection() }
-            Fold(t(R.string.backup), backup.first, backup.second, open == Part.BACKUP, { toggle(Part.BACKUP) }) { BackupSection() }
+            Fold(t(R.string.backup), backup.first, backup.second, open == Part.BACKUP, { toggle(Part.BACKUP) }) { BackupSection(onSeeDiary = { nav.go(com.villamediana.novelo.ui.Screen.Library(com.villamediana.novelo.ui.Filter.DIARY)) }) }
             Fold(t(R.string.privacy), if (s.lockSensitive) t(R.string.privacy_on) else t(R.string.privacy_off), false, open == Part.PRIVACY, { toggle(Part.PRIVACY) }) { PrivacySection() }
             Fold(t(R.string.language), Lang.current.label, false, open == Part.LANGUAGE, { toggle(Part.LANGUAGE) }) { LanguagePicker() }
 

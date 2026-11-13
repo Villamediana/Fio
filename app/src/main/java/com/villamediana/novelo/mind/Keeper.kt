@@ -156,7 +156,7 @@ class Keeper(
      */
     private fun repeating(ask: RepeatAsk?, remind: Long?, now: Long, z: ZoneId): Pair<String?, Long?> {
         val every = ask?.every?.trim()?.lowercase()?.takeIf { it.isNotEmpty() && it !in STOP } ?: return null to remind
-        val base = remind ?: java.time.LocalDate.now(z).atTime(9, 0).atZone(z).toInstant().toEpochMilli()
+        val base = remind ?: java.time.Instant.ofEpochMilli(now).atZone(z).toLocalDate().atTime(9, 0).atZone(z).toInstant().toEpochMilli()
         val rule = com.villamediana.novelo.remind.Repeat.from(every, ask.days, base, z) ?: return null to remind
         // The first time is the reminder said, when it falls on the rule; otherwise the rule's next.
         val first = rule.next(maxOf(base, now + 1) - 1, z) ?: return null to remind

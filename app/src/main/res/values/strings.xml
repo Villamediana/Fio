@@ -372,4 +372,53 @@
     <string name="reminder_save">Salvar</string>
     <string name="reminder_remove">Tirar lembrete</string>
     <string name="step_edit">Escrever de novo</string>
+    <!-- Importar diário -->
+    <string name="import_title">Importar diário</string>
+    <string name="import_line">De outro app: TXT, Markdown, JSON, CSV ou ZIP</string>
+    <string name="import_opening">Abrindo o arquivo…</string>
+    <string name="import_recognizing">Reconhecendo o padrão…</string>
+    <string name="import_recognizing_line">O Omni, aqui no celular, lê uma amostra do arquivo e reconhece o padrão. Nada sai do celular.</string>
+    <string name="import_range">de %1$s a %2$s</string>
+    <string name="import_none">Nenhuma entrada saiu com esse padrão.</string>
+    <string name="import_preview">Como vão ficar</string>
+    <string name="import_again">Reconhecer de novo</string>
+    <string name="import_go">Importar</string>
+    <string name="import_saving">Importando…</string>
+    <string name="import_backing">Fazendo o backup…</string>
+    <string name="import_done">Pronto</string>
+    <string name="import_backup_done">Backup feito.</string>
+    <string name="import_backup_none">Sem pasta de backup ainda: escolha uma acima pra guardar.</string>
+    <string name="import_backup_failed">O backup não foi: %1$s</string>
+    <string name="import_see">Ver no diário</string>
+    <string name="import_not_text">Esse arquivo não é texto. O Novelo importa TXT, Markdown, JSON, CSV ou um ZIP com eles.</string>
+    <string name="import_too_big">Arquivo grande demais (até 40 MB).</string>
+    <string name="import_bad_answer">A resposta não veio como uma receita de importação. Tente de novo.</string>
+    <string name="import_status_busy">importando…</string>
+    <string name="import_status_ready">padrão reconhecido · toque pra ver</string>
+    <string name="import_status_failed">não deu · toque pra ver</string>
+    <string name="import_status_done">último: %1$s</string>
+    <plurals name="import_entries">
+        <item quantity="one">1 entrada</item>
+        <item quantity="other">%d entradas</item>
+    </plurals>
+    <plurals name="import_days">
+        <item quantity="one">1 dia</item>
+        <item quantity="other">%d dias</item>
+    </plurals>
+    <plurals name="import_undated">
+        <item quantity="one">1 sem data fica de fora</item>
+        <item quantity="other">%d sem data ficam de fora</item>
+    </plurals>
+    <plurals name="import_unread">
+        <item quantity="one">1 arquivo não abriu</item>
+        <item quantity="other">%d arquivos não abriram</item>
+    </plurals>
+    <plurals name="import_new">
+        <item quantity="one">1 dia novo no diário</item>
+        <item quantity="other">%d dias novos no diário</item>
+    </plurals>
+    <plurals name="import_joined">
+        <item quantity="one">1 dia que já tinha diário ganhou o que faltava</item>
+        <item quantity="other">%d dias que já tinham diário ganharam o que faltava</item>
+    </plurals>
 </resources>
