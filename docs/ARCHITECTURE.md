@@ -467,6 +467,11 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   quando a lista anda e sai 1 s depois de parar (sumida, não fica nada na borda nem pega toque). Na 1.43.0 a faixa
   inteira da direita (40 dp) pega o dedo, não só a alça: ela vem pra baixo do dedo e a lista vai junto
   (`scrollToItem`), com uma etiqueta ao lado dizendo o mês ("Abril 2026") — a primeira entrada fica a um arrasto.
+  Na 1.44.0, sem tremer e sem pop: o lugar da alça é `scrolled()` (itens acima da tela contra acima + abaixo, o de
+  cima e o de baixo pela parte fora de vista — contar os itens na tela fazia ela pular quando entrava um cartão
+  alto ou um rótulo baixo); o dedo parado na divisa entre dois dias não sacode a lista (`nextItem`, só troca
+  0,8 item depois); ao soltar a alça desliza do dedo até o lugar da lista e a etiqueta some em fade; some em
+  560 ms (FastOutSlowIn). No fundo da faixa, a lista vai até o fim de verdade.
 - **Volta pro mesmo lugar**: a biblioteca fica num `SaveableStateHolder` (`rememberLibraryKept` no `NoveloRoot`)
   enquanto estiver na pilha; abrir uma entrada e voltar mantém o scroll de cada aba e a busca. Voltou pra home,
   o estado é apagado e entra do topo.
