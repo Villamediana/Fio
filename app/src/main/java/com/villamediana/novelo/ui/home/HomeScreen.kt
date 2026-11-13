@@ -169,8 +169,8 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     ) {
         Column(Modifier.fillMaxSize().graphicsLayer { translationX = lean.floatValue }.statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Writing instead of talking: a light quill, there for whoever wants it.
-                if (state !is MindState.Listening) QuietIcon(NoveloIcons.Quill, t(R.string.write), { writing = true }, alpha = 0.4f)
+                // Writing instead of talking: a light pencil, there for whoever wants it.
+                if (state !is MindState.Listening) QuietIcon(NoveloIcons.Pencil, t(R.string.write), { writing = true }, alpha = 0.4f)
                 Spacer(Modifier.weight(1f))
                 QuietIcon(NoveloIcons.Tune, t(R.string.settings), { nav.go(Screen.Settings) }, alpha = 0.55f)
             }
