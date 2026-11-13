@@ -111,10 +111,11 @@ import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 
 /**
- * The first steps, once: the permissions (and the language), the Novelo's ears (they come only
- * when she agrees, and go on in the background), the backup folder (a must; a backup already there
- * comes back), and who thinks with her — the Novelo's own intelligence or hers. The app opens only
- * with the ears on the phone.
+ * The first steps, once: the permissions (and the language), who hears her — the Novelo's ears
+ * (they come only when she agrees, and go on in the background) or her own API (nothing to
+ * download) —, the backup folder (a must; a backup already there comes back), and who thinks with
+ * her — the Novelo's own intelligence or hers. When the Novelo hears, the app opens only with the
+ * ears on the phone.
  */
 @Composable
 fun SetupScreen(onDone: () -> Unit) {
@@ -132,7 +133,7 @@ fun SetupScreen(onDone: () -> Unit) {
         ) { at ->
             when (at) {
                 0 -> PermissionsStep(onNext = { step = 1 })
-                1 -> EarsStep(onNext = { step = 2 })
+                1 -> HearStep(onNext = { step = 2 })
                 2 -> BackupStep(onNext = { step = 3 })
                 else -> IntelligenceStep(onDone = onDone)
             }
@@ -240,11 +241,12 @@ private fun Card(modifier: Modifier = Modifier, selected: Boolean = false, onCli
     ) { content() }
 }
 
-/** A choice with nothing under its name: a roomy card, the name in the middle of it. */
+/** A choice: a roomy card, the name in the middle of it (and, when there is one, a line under it). */
 @Composable
-private fun ChoiceTitle(text: String) {
-    Box(Modifier.fillMaxWidth().heightIn(min = 50.dp), contentAlignment = Alignment.CenterStart) {
+private fun ChoiceTitle(text: String, line: String? = null) {
+    Column(Modifier.fillMaxWidth().heightIn(min = 50.dp), verticalArrangement = Arrangement.Center) {
         Text(text, style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text)
+        if (line != null) Text(line, style = MaterialTheme.typography.bodySmall, color = NoveloColors.TextMuted, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -398,8 +400,8 @@ private fun IntelligenceStep(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
     val ears by graph.localModel.state.collectAsStateWithLifecycle()
-    // The app opens only with the ears on the phone (they came down while she went on).
-    val earsReady = ears == LocalModel.State.Ready || !LocalEngine.available
+    // When the Novelo hears, the app opens only with the ears on the phone (they came down while she went on).
+    val earsReady = !earsNeeded(s.hear, LocalEngine.available, ears)
     val percent = NumberFormat.getPercentInstance(Lang.locale)
     // Hers when her API already thinks; the Novelo's otherwise.
     var own by rememberSaveable { mutableStateOf(s.think == Source.API) }
@@ -442,7 +444,7 @@ private fun IntelligenceStep(onDone: () -> Unit) {
             // The ears stopped (no room, the download failed, gone) or wait for the Wi-Fi: what to do
             // is here too — the button can't go on without them, and the setup has no way back.
             val stuck = ears == LocalModel.State.Missing || ears is LocalModel.State.Failed || (ears as? LocalModel.State.Downloading)?.waiting != null
-            if (LocalEngine.available && stuck) {
+            if (s.hear == Source.NOVELO && LocalEngine.available && stuck) {
                 Spacer(Modifier.height(8.dp))
                 Text(t(R.string.setup_ears_title), style = MaterialTheme.typography.titleMedium, color = NoveloColors.Text)
                 LocalDownload(Modifier.padding(top = 6.dp))
@@ -460,27 +462,57 @@ internal enum class OwnReady(val need: Int) {
     READY(R.string.setup_continue),
 }
 
-// ——— 4. The ears ———
+/** The last step waits for the ears: only when the Novelo hears and they can be on this phone, until they are. */
+internal fun earsNeeded(hear: Source, engine: Boolean, ears: LocalModel.State): Boolean =
+    hear == Source.NOVELO && engine && ears != LocalModel.State.Ready
+
+// ——— 1b. Who hears ———
 
 /**
- * The Novelo's ears (LFM3-Omni, on the phone): without them nothing is heard. They never come by
- * themselves — she agrees (Baixar; off Wi-Fi she picks Wi-Fi or mobile data). Once they are coming
- * she goes on (it goes on in the background), and the last step's "Começar" waits for them. (A build
- * without the engine, only for tests, can't have them: it lets her go.)
+ * Who hears her: the Novelo's ears (LFM3-Omni, on the phone, offline) or her own API (a
+ * transcription model, nothing to download). The ears never come by themselves — she agrees
+ * (Baixar; off Wi-Fi she picks Wi-Fi or mobile data); once they are coming she goes on (it goes on
+ * in the background), and the last step's "Começar" waits for them. Her API goes on only when it
+ * is whole: whose, the key, connected, the model. (A build without the engine, only for tests,
+ * can't have the ears: it lets her go.)
  */
 @Composable
-private fun EarsStep(onNext: () -> Unit) {
+private fun HearStep(onNext: () -> Unit) {
     val graph = NoveloApplication.graph
+    val st = graph.settings
+    val scope = rememberCoroutineScope()
+    val s by st.now.collectAsStateWithLifecycle()
     val state by graph.localModel.state.collectAsStateWithLifecycle()
+    var own by rememberSaveable { mutableStateOf(s.hear == Source.API) }
+    var ownReady by remember { mutableStateOf(OwnReady.PROVIDER) }
     val agreed = !LocalEngine.available || state == LocalModel.State.Ready || state == LocalModel.State.Checking || state is LocalModel.State.Downloading
     Page(
-        title = t(R.string.setup_ears_title),
-        line = t(R.string.setup_ears_line, formatBytes(graph.localModel.totalBytes)),
-        primary = t(if (agreed) R.string.setup_continue else R.string.setup_ears_agree),
+        title = t(R.string.setup_hear_title),
+        line = t(R.string.setup_ai_line),
+        primary = when {
+            own && ownReady != OwnReady.READY -> t(ownReady.need)
+            !own && !agreed -> t(R.string.setup_ears_agree)
+            else -> t(R.string.setup_continue)
+        },
         onPrimary = onNext,
-        primaryEnabled = agreed,
+        primaryEnabled = if (own) ownReady == OwnReady.READY else agreed,
     ) {
-        LocalDownload()
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(selected = !own, onClick = {
+                own = false
+                scope.launch { st.setHear(Source.NOVELO) }
+            }) {
+                ChoiceTitle(t(R.string.setup_ears_title), t(R.string.setup_hear_novelo_line, formatBytes(graph.localModel.totalBytes)))
+            }
+            Card(selected = own, onClick = {
+                own = true
+                scope.launch { st.setHear(Source.API) }
+            }) {
+                ChoiceTitle(t(R.string.setup_hear_own), t(R.string.setup_hear_own_line))
+            }
+            Spacer(Modifier.height(6.dp))
+            if (own) OwnSetup(job = Job.HEAR, onReady = { ownReady = it }) else LocalDownload()
+        }
     }
 }
 

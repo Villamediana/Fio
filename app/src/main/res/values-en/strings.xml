@@ -301,7 +301,6 @@
     <string name="setup_backup_back">Your backup from %1$s is back: %2$s.</string>
     <string name="setup_backup_bringing">Looking for a backup in the folder…</string>
     <string name="setup_ears_title">Novelo\'s ears</string>
-    <string name="setup_ears_line">They hear you right here on the phone, offline. Downloaded once (%1$s).</string>
     <string name="setup_ears_wait">Waiting for the ears…</string>
     <string name="backup_kept_aside">the backup already in the folder was kept as “%1$s”</string>
     <string name="setup_need_provider">Choose whose AI it is</string>
@@ -391,4 +390,8 @@
     <string name="ai_thinks_with">thinks with %1$s</string>
     <string name="api_same_key_thinks">Use the same key as the one that thinks</string>
     <string name="api_same_key_hears">Use the same key as the one that hears</string>
+    <string name="setup_hear_title">Who will hear you?</string>
+    <string name="setup_hear_novelo_line">On the phone, offline. Downloads once (%1$s).</string>
+    <string name="setup_hear_own">Your own API</string>
+    <string name="setup_hear_own_line">Whisper, transcribe… with your key. Nothing to download.</string>
 </resources>
