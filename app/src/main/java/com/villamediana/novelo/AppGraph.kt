@@ -200,10 +200,11 @@ class AppGraph(context: Context) {
             scope = scope,
             ready = omni::readiness,
             ask = omni::ask,
-            keep = { library.importDiaries(it) },
+            keep = { library.importAll(it, captures) },
             backup = { backups.save() },
             backupProblem = { settings.current().let { s -> if (s.backupFolder.isBlank()) null else s.backupNote.takeIf { s.backupFailed } } },
             language = { com.villamediana.novelo.settings.Lang.current.label },
+            stage = { File(appContext.cacheDir, "import") },
         )
     }
 

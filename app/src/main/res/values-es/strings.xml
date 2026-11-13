@@ -374,12 +374,12 @@
     <string name="step_edit">Escribir de nuevo</string>
     <!-- Importar diario -->
     <string name="import_title">Importar diario</string>
-    <string name="import_line">De otra app: TXT, Markdown, JSON, CSV o ZIP</string>
+    <string name="import_line">De otra app: TXT, Markdown, JSON, CSV o ZIP con notas y fotos</string>
     <string name="import_opening">Abriendo el archivo…</string>
     <string name="import_recognizing">Reconociendo el patrón…</string>
-    <string name="import_recognizing_line">Omni, aquí en el celular, lee una muestra del archivo y reconoce el patrón. Nada sale del celular.</string>
+    <string name="import_recognizing_line">Omni, aquí en el celular, lee una muestra del archivo (en un ZIP, cómo se organizan las carpetas) y reconoce el patrón. Nada sale del celular.</string>
     <string name="import_range">del %1$s al %2$s</string>
-    <string name="import_none">Ninguna entrada salió con este patrón.</string>
+    <string name="import_none">Nada salió con este patrón.</string>
     <string name="import_preview">Cómo van a quedar</string>
     <string name="import_again">Reconocer de nuevo</string>
     <string name="import_go">Importar</string>
@@ -391,7 +391,7 @@
     <string name="import_backup_failed">El backup no se hizo: %1$s</string>
     <string name="import_see">Ver en el diario</string>
     <string name="import_not_text">Este archivo no es texto. Novelo importa TXT, Markdown, JSON, CSV o un ZIP con ellos.</string>
-    <string name="import_too_big">Archivo demasiado grande (hasta 40 MB).</string>
+    <string name="import_too_big">Demasiado texto (hasta 40 MB de texto).</string>
     <string name="import_bad_answer">La respuesta no vino como una receta de importación. Intenta de nuevo.</string>
     <string name="import_status_busy">importando…</string>
     <string name="import_status_ready">patrón reconocido · toca para ver</string>
@@ -420,5 +420,27 @@
     <plurals name="import_joined">
         <item quantity="one">1 día que ya tenía diario recibió lo que faltaba</item>
         <item quantity="other">%d días que ya tenían diario recibieron lo que faltaba</item>
+    </plurals>
+    <string name="import_nothing_inside">Nada aquí que Novelo sepa leer. Dentro del ZIP: %1$s.</string>
+    <string name="import_note">Nota</string>
+    <plurals name="import_notes">
+        <item quantity="one">1 nota</item>
+        <item quantity="other">%d notas</item>
+    </plurals>
+    <plurals name="import_photos">
+        <item quantity="one">1 foto</item>
+        <item quantity="other">%d fotos</item>
+    </plurals>
+    <plurals name="import_photos_undated">
+        <item quantity="one">1 foto sin fecha queda fuera</item>
+        <item quantity="other">%d fotos sin fecha quedan fuera</item>
+    </plurals>
+    <plurals name="import_notes_new">
+        <item quantity="one">1 nota nueva</item>
+        <item quantity="other">%d notas nuevas</item>
+    </plurals>
+    <plurals name="import_photos_new">
+        <item quantity="one">1 foto nueva en la galería, en su día</item>
+        <item quantity="other">%d fotos nuevas en la galería, cada una en su día</item>
     </plurals>
 </resources>

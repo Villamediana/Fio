@@ -130,12 +130,90 @@ class DiaryImportTest {
             }
         }.toByteArray()
         val files = Unpack.files("export.zip", zip.inputStream())
-        assertEquals(listOf("Diario/2024-03-01.md", "Diario/2024-03-02.md"), files.map { it.name })
+        assertEquals(listOf("Diario/2024-03-01.md", "Diario/2024-03-02.md"), files.texts.map { it.name })
         val r = recipe("""{"app": "Obsidian", "about": "…", "shape": "text", "files": "\\.md$", "date_from_name": "(?<date>\\d{4}-\\d{2}-\\d{2})", "date_format": "iso", "first_line_title": true}""")
-        val read = Recipes.apply(r, files, zone)
+        val read = Recipes.apply(r, files.texts, zone)
         assertEquals(listOf("Março", "Segundo dia."), read.found.map { it.title })
         assertEquals(LocalDate.of(2024, 3, 2), day(read.found[1].at))
-        assertTrue(Sample.of("export.zip", files).contains("2 ARQUIVOS DE TEXTO"))
+        assertTrue(Sample.of("export.zip", files.texts, files.others).contains("Diario/ — 2 de texto (.md), 1 outros (.jpg): 2024-03-01.md"))
+    }
+
+    private fun zipOf(vararg files: Pair<String, ByteArray>): ByteArray = ByteArrayOutputStream().also { out ->
+        ZipOutputStream(out).use { z -> files.forEach { (name, bytes) -> z.putNextEntry(ZipEntry(name)); z.write(bytes); z.closeEntry() } }
+    }.toByteArray()
+
+    private fun jpeg(seed: Int) = byteArrayOf(-1, -40, -1, -32, 0, 16, 74, 70, 73, 70, 0, 1, 0, 0, 0, seed.toByte(), -1, -39)
+
+    private fun stage() = kotlin.io.path.createTempDirectory("stage").toFile()
+
+    @Test fun aZipWithFoldersBringsTheDiaryTheNotesAndThePhotosEachOnItsDay() = runBlocking {
+        val zip = zipOf(
+            "meu-diario/dias/2024-03-01.md" to "Primeiro dia de março.".toByteArray(),
+            "meu-diario/dias/2024-03-02.md" to "Segundo dia.".toByteArray(),
+            "meu-diario/notas/Ideias.md" to "# Ideias\nUm livro sobre o mar.".toByteArray(),
+            "meu-diario/fotos/IMG_20240302_101010.jpg" to jpeg(1),
+            "meu-diario/fotos/sem-nome.jpg" to jpeg(2),
+            "meu-diario/fotos/miniaturas/IMG_20240302_101010_thumb.jpg" to jpeg(3),
+            "meu-diario/dados.db" to ByteArray(4000) { 0 },
+        )
+        val stage = stage()
+        val files = Unpack.files("diario.zip", zip.inputStream(), stage)
+        assertEquals(3, files.texts.size)
+        assertEquals(3, files.photos)
+        val sample = Sample.of("diario.zip", files.texts, files.others)
+        assertTrue(sample, sample.contains("meu-diario/fotos/ — 2 fotos (.jpg, sem data dentro)"))
+        assertTrue(sample, sample.contains("meu-diario/ — 1 outros (.db)"))
+        assertTrue(sample, sample.contains("--- meu-diario/notas/Ideias.md"))
+
+        val r = recipe(
+            """{"app": "Meu Diário", "about": "…", "shape": "text", "files": "/dias/", "date_from_name": "(?<date>\\d{4}-\\d{2}-\\d{2})", """ +
+                """"notes": "/notas/", "note_title": "first_line", "photos": "/fotos/[^/]+\\.jpg$", "photo_date_from_name": "(?<date>\\d{8})", "photo_date_format": "yyyyMMdd"}""",
+        )
+        val read = Recipes.apply(r, files.texts, zone, files.others)
+        assertEquals(2, read.found.size)
+        assertEquals(listOf("Ideias"), read.notes.map { it.title })
+        assertEquals("Um livro sobre o mar.", read.notes.single().body)
+        assertEquals(1, read.photos.size)
+        assertEquals(LocalDate.of(2024, 3, 2), day(read.photos.single().at))
+        assertEquals(1, read.undatedPhotos)
+
+        val photosDir = stage()
+        val kept = library.importAll(read, photosDir, zone)
+        assertEquals(2, kept.added)
+        assertEquals(1, kept.notes)
+        assertEquals(1, kept.photos)
+        val photo = db.backup().captures().single { it.source == "photo" }
+        assertEquals(LocalDate.of(2024, 3, 2), day(photo.createdAt))
+        assertTrue(java.io.File(photo.imagePath!!).isFile)
+        assertEquals(1, db.entries().all().count { it.kindEnum == Kind.NOTE })
+
+        // The same .zip again: nothing twice.
+        val again = library.importAll(read, photosDir, zone)
+        assertEquals(0, again.added)
+        assertEquals(0, again.notes)
+        assertEquals(0, again.photos)
+        assertEquals(1, db.backup().captures().count { it.source == "photo" })
+    }
+
+    @Test fun aZipInsideAZipIsOpenedToo() {
+        val inner = zipOf("2024-03-01.txt" to "Dentro.".toByteArray())
+        val files = Unpack.files("fora.zip", zipOf("export/dentro.zip" to inner).inputStream())
+        assertEquals(listOf("export/dentro.zip/2024-03-01.txt"), files.texts.map { it.name })
+    }
+
+    @Test fun theCamerasDateInsideAPhoto() {
+        assertEquals(LocalDateTime.of(2024, 1, 15, 10, 30).atZone(zone).toInstant().toEpochMilli(), Recipes.exif("2024:01:15 10:30:00", null, zone))
+        assertEquals(LocalDateTime.of(2024, 1, 15, 10, 30).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(), Recipes.exif("2024:01:15 10:30:00", "+00:00", zone))
+        assertNull(Recipes.exif("0000:00:00 00:00:00", null, zone))
+    }
+
+    @Test fun aZipWithNothingToReadSaysWhatIsInIt() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val importer = DiaryImport(scope = scope, ready = { null }, ask = { _, _ -> "" }, keep = { error("no") }, backup = { true }, stage = { stage() })
+        val zip = zipOf("app/dados.db" to ByteArray(4000) { 0 }, "app/config.bin" to ByteArray(100) { 0 })
+        importer.open("diario.zip") { zip.inputStream() }
+        val failed = withTimeout(5_000) { importer.state.first { it is DiaryImport.State.Failed } } as DiaryImport.State.Failed
+        assertTrue(failed.message, failed.message.contains(".db") && failed.message.contains(".bin"))
     }
 
     @Test fun oldWindowsTextComesWithItsAccents() {
@@ -195,7 +273,7 @@ class DiaryImportTest {
                 asked += user
                 """{"app": "Texto", "about": "Cada entrada começa com a data.", "shape": "text", "start": "^(?<date>\\d{4}-\\d{2}-\\d{2})$", "date_format": "iso"}"""
             },
-            keep = { library.importDiaries(it, zone) },
+            keep = { library.importAll(it, stage(), zone) },
             backup = { backedUp = true; true },
             zone = { zone },
         )

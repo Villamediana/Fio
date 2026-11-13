@@ -67,29 +67,63 @@ data class Recipe(
     val html: Boolean = false,
     /** What to take out of the text (image references and the like), as regexes. */
     val clean: List<String> = emptyList(),
+    /** In a .zip: the files that are notes, one note each (a regex on the path); they are not diary entries. */
+    val notes: String? = null,
+    /** A note's title: [NAME] (the file's name) or [FIRST_LINE]. */
+    @SerialName("note_title") val noteTitle: String = NAME,
+    /** In a .zip: the photos to bring to the gallery (a regex on the path); null: none. */
+    val photos: String? = null,
+    /** A photo without its date inside: the date in its name, with (?<date>…). */
+    @SerialName("photo_date_from_name") val photoDateFromName: String? = null,
+    /** How that date is written (as [dateFormat]); null: as the entries' one. */
+    @SerialName("photo_date_format") val photoDateFormat: String? = null,
 ) {
     companion object {
         const val ISO = "iso"
         const val EPOCH_S = "epoch_s"
         const val EPOCH_MS = "epoch_ms"
+        const val NAME = "name"
+        const val FIRST_LINE = "first_line"
         val SHAPES = setOf("json", "text", "csv")
     }
 }
 
-/** One file of what she picked (the file itself, or each text file in a .zip). */
-data class TextFile(val name: String, val text: String)
+/** One file of what she picked (the file itself, or each text file in a .zip); [time]: the file's own date in the .zip. */
+data class TextFile(val name: String, val text: String, val time: Long? = null)
+
+/**
+ * A file in a .zip that isn't text. A photo is set aside in [file] (named by its content), with
+ * the date it was taken as the camera wrote it inside ([taken], EXIF "yyyy:MM:dd HH:mm:ss", plus
+ * [offset] when written); anything else is only its name and size.
+ */
+data class OtherFile(val name: String, val size: Long, val file: java.io.File? = null, val taken: String? = null, val offset: String? = null) {
+    val isPhoto: Boolean get() = file != null
+}
 
 /** An entry read from the file. */
 data class Found(val at: Long, val title: String, val body: String, val tags: List<String> = emptyList())
 
-/** What a recipe got out of the files: the entries, and what had to stay out. */
+/** A note read from a file of its own; [at]: the file's date (null: none, it takes the import's). */
+data class FoundNote(val at: Long?, val title: String, val body: String)
+
+/** A photo to bring, on the day it was taken. */
+data class FoundPhoto(val at: Long, val file: java.io.File)
+
+/** What a recipe got out of the files: the entries, the notes and photos, and what had to stay out. */
 data class Reading(
     val found: List<Found>,
     /** Entries with text but no date the recipe could read. */
     val undated: Int = 0,
     /** Files the recipe couldn't read at all (not JSON, say). */
     val unread: Int = 0,
+    val notes: List<FoundNote> = emptyList(),
+    val photos: List<FoundPhoto> = emptyList(),
+    /** Photos picked with no date inside nor in the name: they stay out. */
+    val undatedPhotos: Int = 0,
 ) {
+    /** Nothing came out at all. */
+    val isEmpty: Boolean get() = found.isEmpty() && notes.isEmpty() && photos.isEmpty()
+
     /** How many days the entries fall on (the diary is one a day). */
     fun days(zone: ZoneId): Int = found.map { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }.distinct().size
 }
@@ -108,23 +142,32 @@ object Recipes {
         if (from < 0 || to <= from) return null
         val r = runCatching { json.decodeFromString(Recipe.serializer(), text.substring(from, to + 1)) }.getOrNull() ?: return null
         if (r.shape !in Recipe.SHAPES) return null
-        val regexes = listOfNotNull(r.files, r.start, r.dateRegex, r.titleRegex, r.dateFromName) + r.clean
+        val regexes = listOfNotNull(r.files, r.start, r.dateRegex, r.titleRegex, r.dateFromName, r.notes, r.photos, r.photoDateFromName) + r.clean
         if (regexes.any { runCatching { Regex(it) }.isFailure }) return null
-        if (formatter(r.dateFormat, r.dateLocale) == null && r.dateFormat !in setOf(Recipe.ISO, Recipe.EPOCH_S, Recipe.EPOCH_MS)) return null
+        if (!formatOk(r.dateFormat, r.dateLocale)) return null
+        if (r.photoDateFormat != null && !formatOk(r.photoDateFormat, r.dateLocale)) return null
         return r
     }
 
     /** The recipe as the model can read it again (when she asks to recognize once more). */
     fun write(r: Recipe): String = Json { encodeDefaults = false; explicitNulls = false }.encodeToString(Recipe.serializer(), r)
 
-    /** [r] applied to every file it is for: the entries with a date, oldest first. */
-    fun apply(r: Recipe, files: List<TextFile>, zone: ZoneId): Reading {
+    private fun formatOk(format: String, locale: String?) = format in setOf(Recipe.ISO, Recipe.EPOCH_S, Recipe.EPOCH_MS) || formatter(format, locale) != null
+
+    /**
+     * [r] applied to every file it is for: the entries with a date (oldest first), the notes, and
+     * the photos on the day they were taken ([others]: what in a .zip isn't text).
+     */
+    fun apply(r: Recipe, files: List<TextFile>, zone: ZoneId, others: List<OtherFile> = emptyList()): Reading {
         val which = r.files?.let { Regex(it, RegexOption.IGNORE_CASE) }
-        val chosen = files.filter { f -> which == null || which.containsMatchIn(f.name) }
+        val noteFiles = r.notes?.let { Regex(it, RegexOption.IGNORE_CASE) }
+        val chosen = files.filter { f -> (which == null || which.containsMatchIn(f.name)) && noteFiles?.containsMatchIn(f.name) != true }
         val found = ArrayList<Found>()
         var undated = 0
         var unread = 0
         val clean = r.clean.map { Regex(it, RegexOption.MULTILINE) }
+        val notes = if (noteFiles == null) emptyList() else files.filter { noteFiles.containsMatchIn(it.name) }.mapNotNull { note(r, it, clean) }
+        val (photos, undatedPhotos) = photos(r, others, zone)
         for (f in chosen) {
             val raw = when (r.shape) {
                 "json" -> fromJson(r, f) ?: run { unread++; null }
@@ -156,8 +199,51 @@ object Recipes {
                 found += Found(at, title, body, e.tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct())
             }
         }
-        return Reading(found.sortedBy { it.at }, undated, unread)
+        return Reading(found.sortedBy { it.at }, undated, unread, notes, photos, undatedPhotos)
     }
+
+    /** A file that is a note: its title (the name, or the first line) and its text. */
+    private fun note(r: Recipe, f: TextFile, clean: List<Regex>): FoundNote? {
+        var body = f.text.replace("\r\n", "\n").replace('\r', '\n')
+        if (r.html) body = plain(body)
+        clean.forEach { body = it.replace(body, "") }
+        var title = ""
+        if (r.noteTitle == Recipe.FIRST_LINE) {
+            val lines = body.trim().lines()
+            lines.firstOrNull { it.isNotBlank() }?.let { first ->
+                title = first.trim().trimStart('#', '*', ' ').trimEnd('*', ' ')
+                body = lines.dropWhile { it.isBlank() }.drop(1).joinToString("\n")
+            }
+        }
+        if (title.isEmpty()) title = f.name.substringAfterLast('/').substringBeforeLast('.')
+        body = tidy(body)
+        if (body.isEmpty() && title.isEmpty()) return null
+        return FoundNote(f.time, title.take(TITLE_MAX), body)
+    }
+
+    /** The photos the recipe picked, each on the day it was taken (inside it, or in its name); and how many had no date. */
+    private fun photos(r: Recipe, others: List<OtherFile>, zone: ZoneId): Pair<List<FoundPhoto>, Int> {
+        val which = r.photos?.let { Regex(it, RegexOption.IGNORE_CASE) } ?: return emptyList<FoundPhoto>() to 0
+        val inName = r.photoDateFromName?.let { Regex(it) }
+        val out = ArrayList<FoundPhoto>()
+        var undated = 0
+        for (o in others) {
+            val file = o.file ?: continue
+            if (!which.containsMatchIn(o.name)) continue
+            val at = o.taken?.let { exif(it, o.offset, zone) }
+                ?: inName?.find(o.name.substringAfterLast('/'))?.let(::dateGroup)?.let { date(it, r.photoDateFormat ?: r.dateFormat, r.dateLocale, zone) }
+            if (at == null) undated++ else out += FoundPhoto(at, file)
+        }
+        // The same photo twice in the .zip (a copy in another folder) comes once.
+        return out.distinctBy { it.file.name }.sortedBy { it.at } to undated
+    }
+
+    /** The date a camera writes inside the photo ("2024:01:15 10:30:00"; [offset] "-03:00" when it wrote one). */
+    fun exif(taken: String, offset: String?, zone: ZoneId): Long? = runCatching {
+        val local = LocalDateTime.parse(taken.trim(), DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss"))
+        val at = offset?.trim()?.takeIf { it.isNotEmpty() }?.let { local.atOffset(java.time.ZoneOffset.of(it)).toInstant() } ?: local.atZone(zone).toInstant()
+        at.toEpochMilli().takeIf { local.year > 1970 }
+    }.getOrNull()
 
     /** One entry as it is in the file, before the date is read. */
     private data class Raw(val date: String?, val title: String, val body: String, val tags: List<String> = emptyList())
