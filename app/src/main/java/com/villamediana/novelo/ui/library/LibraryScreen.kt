@@ -299,7 +299,6 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
                         f == Filter.GALLERY -> Gallery(photos, empty = { Empty(Filter.GALLERY) })
-                        f == Filter.FILES -> FilesTab(files, empty = { Empty(Filter.FILES) })
                         list != null -> Entries(f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle, dayPhotos = dayPhotos)
                     }
                 }
@@ -441,6 +440,12 @@ private fun Entries(
     }
 }
 
+/**
+ * Where a file the search found lives, in a few words: its item's title, or the day's diary. (The
+ * Arquivos tab is gone, 1.47.0: each file lives in its item — a task, the diary, or a note.)
+ */
+internal fun where(f: com.villamediana.novelo.data.KeptFile): String = f.home?.title?.take(40) ?: t(R.string.file_in_diary)
+
 /** "Janeiro 2022": where the handle on the edge is (FastScroll). */
 internal fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(at).atZone(zone).let { d -> d.month.getDisplayName(TextStyle.FULL_STANDALONE, PT).replaceFirstChar { it.titlecase(PT) } + " " + d.year }
@@ -448,6 +453,7 @@ internal fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
 /**
  * The tabs shown, in order. Hidden for now, their code kept: Conexões (the drawing stays in
  * ui/graph) and Tudo (Miguel, 1.46.0; the search, which looks in everything, still goes as ALL).
+ * Arquivos is gone (1.47.0): a file lives in its item.
  */
 private val TABS = Filter.entries - Filter.LINKS - Filter.ALL
 
@@ -457,7 +463,6 @@ private fun title(f: Filter) = when (f) {
     Filter.NOTES -> t(R.string.tab_notes)
     Filter.DIARY -> t(R.string.tab_diary)
     Filter.GALLERY -> t(R.string.gallery)
-    Filter.FILES -> t(R.string.tab_files)
     Filter.ALL -> t(R.string.tab_all)
     Filter.LINKS -> t(R.string.tab_links)
 }
@@ -642,7 +647,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.NOTES -> byDay(all.filter { it.kindEnum == Kind.NOTE }, zone, today)
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today)
         Filter.ALL -> byDay(all, zone, today)
-        Filter.GALLERY, Filter.FILES, Filter.LINKS -> emptyList()
+        Filter.GALLERY, Filter.LINKS -> emptyList()
     }
 }
 
@@ -720,7 +725,6 @@ private fun Empty(filter: Filter) {
                 Filter.NOTES -> t(R.string.empty_notes)
                 Filter.DIARY -> t(R.string.empty_diary)
                 Filter.GALLERY -> t(R.string.empty_gallery)
-                Filter.FILES -> t(R.string.empty_files)
                 Filter.ALL -> t(R.string.empty_all)
                 Filter.LINKS -> t(R.string.empty_links)
             },
@@ -732,7 +736,6 @@ private fun Empty(filter: Filter) {
             when (filter) {
                 Filter.LINKS -> t(R.string.empty_links_line)
                 Filter.GALLERY -> t(R.string.empty_gallery_line)
-                Filter.FILES -> t(R.string.empty_files_line)
                 else -> t(R.string.empty_line)
             },
             style = MaterialTheme.typography.bodyMedium,

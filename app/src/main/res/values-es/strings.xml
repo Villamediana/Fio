@@ -335,8 +335,6 @@
     <string name="send_file">Enviar el archivo</string>
     <string name="send_files">Enviar los archivos</string>
     <string name="tab_files">Archivos</string>
-    <string name="empty_files">Ningún archivo todavía.</string>
-    <string name="empty_files_line">Los archivos que adjuntas quedan aquí y donde pertenecen.</string>
     <string name="file_in_diary">en el diario del día</string>
     <string name="file_gone">Este archivo ya no está en el celular</string>
     <string name="file_no_app">Ninguna app del celular abre este archivo</string>

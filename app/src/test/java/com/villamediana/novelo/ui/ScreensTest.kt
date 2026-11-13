@@ -215,11 +215,12 @@ class ScreensTest {
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         screen.value = Screen.Settings
         shot("08-settings")
-        // Conexões and Tudo are hidden for now: no tab for them, the last one is Arquivos.
+        // Conexões and Tudo are hidden for now, Arquivos is gone: the last tab is Galeria.
         screen.value = Screen.Library(Filter.TODAY)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Arquivos").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Galeria").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithText("Tudo").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Arquivos").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -585,7 +586,7 @@ class ScreensTest {
     }
 
     @Test
-    fun filesLiveInTheirItemAndInTheFilesTab() {
+    fun filesLiveInTheirItemAndTheSearchFindsThem() {
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         val id = runBlocking {
             val e = graph.db.entries().insert(Entry(kind = "note", title = "Meu currículo", body = "A versão de 2026.", createdAt = now, updatedAt = now))
@@ -615,16 +616,10 @@ class ScreensTest {
         compose.onNodeWithText("PDF · 234 KB").assertExists()
         compose.mainClock.advanceTimeBy(600)
         shot("52-entry-file")
-        // The Arquivos tab: the file and where it lives.
-        screen.value = Screen.Library(Filter.FILES)
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("files-list").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Arquivos").assertExists()
-        compose.onNodeWithText("PDF · 234 KB · Meu currículo").assertExists()
-        compose.mainClock.advanceTimeBy(600)
-        shot("53-files-tab")
-        // The search finds it by what it is.
+        // The search finds it by what it is, saying where it lives.
         screen.value = Screen.Library(Filter.ALL, search = true, query = "curriculo")
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("found-file-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("PDF · 234 KB · Meu currículo").assertExists()
         compose.mainClock.advanceTimeBy(600)
         shot("54-files-search")
     }

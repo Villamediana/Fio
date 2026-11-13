@@ -428,9 +428,10 @@ Omni não disse nada). O modelo online só classifica: põe o número do arquivo
 diário do dia (`Attached.fileHomes`: o primeiro item marcado que ainda existe, senão nenhum).
 
 Na tela: o item mostra seus arquivos debaixo do texto (`ui/entry/Files.kt`, um toque abre no app que ela
-escolher, via `FileProvider` em `captures/`); o diário do dia mostra os soltos do dia. Aba **Arquivos**
-(`Filter.FILES`): todos, por dia, dizendo onde moram; os de item sensível ficam fora da aba e da busca (no
-item, borrados como o resto). A busca acha pelo nome e pela descrição (`FileRecall`, com as palavras do Omni
+escolher, via `FileProvider` em `captures/`); o diário do dia mostra os soltos do dia. A aba **Arquivos**
+(`Filter.FILES`, todos por dia) saiu na 1.47.0 a pedido do Miguel: cada arquivo mora no seu item (tarefa,
+diário, ou nota — que já tem a sensibilidade). Os de item sensível ficam fora da busca (no item, borrados como
+o resto). A busca acha pelo nome e pela descrição (`FileRecall`, com as palavras do Omni
 também). Backup: `Snapshot.files` → `Arquivos/<ano>/<data hora> (<id>) <nome>`, link no Markdown do item, e
 o import devolve com o nome dele.
 
@@ -472,7 +473,7 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   alto ou um rótulo baixo); o dedo parado na divisa entre dois dias não sacode a lista (`nextItem`, só troca
   0,8 item depois); ao soltar a alça desliza do dedo até o lugar da lista e a etiqueta some em fade; some em
   560 ms (FastOutSlowIn). No fundo da faixa, a lista vai até o fim de verdade.
-  Na 1.45.0, em todas as abas (fora a busca): Notas, Tudo, Arquivos e Galeria dizem o mês (`month()`); Hoje e
+  Na 1.45.0, em todas as abas (fora a busca): Notas, Tudo, Arquivos (até a 1.46) e Galeria dizem o mês (`month()`); Hoje e
   Tarefas dizem o grupo (Atrasadas, A fazer…).
 - **Volta pro mesmo lugar**: a biblioteca fica num `SaveableStateHolder` (`rememberLibraryKept` no `NoveloRoot`)
   enquanto estiver na pilha; abrir uma entrada e voltar mantém o scroll de cada aba e a busca. Voltou pra home,

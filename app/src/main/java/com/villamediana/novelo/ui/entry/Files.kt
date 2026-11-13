@@ -125,7 +125,7 @@ internal fun FileRow(f: KeptFile, onClick: () -> Unit, modifier: Modifier = Modi
     }
 }
 
-/** Taking [f] out of Novelo, once more asked: from its item, the day's diary, the Arquivos tab and the phone. */
+/** Taking [f] out of Novelo, once more asked: from its item (or the day's diary) and the phone. */
 @Composable
 internal fun RemoveFile(f: KeptFile, onDone: () -> Unit) {
     val graph = NoveloApplication.graph
