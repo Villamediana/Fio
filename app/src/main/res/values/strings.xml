@@ -400,4 +400,11 @@
     <string name="category_choose">Escolher categoria</string>
     <string name="category_new">Nova categoria</string>
     <string name="category_rename">Renomear</string>
+    <!-- Travinha da Home (1.58) -->
+    <string name="ready_title">Falta pouco pra começar</string>
+    <string name="ready_ears">O ouvido do Novelo ainda não está no celular.</string>
+    <string name="ready_or_api">ou ouvir pela sua API</string>
+    <string name="ready_hear_api">Falta configurar quem ouve.</string>
+    <string name="ready_think_api">Falta configurar quem pensa.</string>
+    <string name="ready_set_up">Configurar</string>
 </resources>

@@ -400,4 +400,11 @@
     <string name="category_choose">Choose a category</string>
     <string name="category_new">New category</string>
     <string name="category_rename">Rename</string>
+    <!-- Travinha da Home (1.58) -->
+    <string name="ready_title">Almost ready</string>
+    <string name="ready_ears">Novelo\'s ears aren\'t on the phone yet.</string>
+    <string name="ready_or_api">or hear through your API</string>
+    <string name="ready_hear_api">Who hears still needs setting up.</string>
+    <string name="ready_think_api">Who thinks still needs setting up.</string>
+    <string name="ready_set_up">Set up</string>
 </resources>

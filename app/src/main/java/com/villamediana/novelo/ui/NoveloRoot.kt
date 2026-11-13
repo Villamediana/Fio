@@ -87,7 +87,7 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
                 Screen.Home -> HomeScreen(nav, talkAbout = talk, onTalkHandled = onAskHandled)
                 is Screen.Library -> library.SaveableStateProvider(LIBRARY_KEPT) { LibraryScreen(nav, screen) }
                 is Screen.Entry -> EntryScreen(nav, screen.id)
-                Screen.Settings -> SettingsScreen(nav)
+                is Screen.Settings -> SettingsScreen(nav, openAi = screen.ai)
                 Screen.Camera -> CameraScreen(nav)
             }
         }

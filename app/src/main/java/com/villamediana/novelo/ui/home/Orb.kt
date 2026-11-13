@@ -75,6 +75,8 @@ fun Orb(
     modifier: Modifier = Modifier,
     size: Dp = 280.dp,
     onCancelZone: (Boolean) -> Unit = {},
+    /** Something to hear or think with is missing: a lock instead of the mic (and a tap records nothing). */
+    locked: Boolean = false,
 ) {
     val view = LocalView.current
     val current by rememberUpdatedState(mode)
@@ -241,7 +243,11 @@ fun Orb(
             // Listening by itself: the stop, drawn like the mic (a thin line), says "toque pra parar".
             run {
                 Icon(
-                    if (mode == OrbMode.LOCKED) NoveloIcons.Stop else NoveloIcons.Mic,
+                    when {
+                        mode == OrbMode.LOCKED -> NoveloIcons.Stop
+                        locked && mode == OrbMode.IDLE -> NoveloIcons.Lock
+                        else -> NoveloIcons.Mic
+                    },
                     contentDescription = null,
                     tint = iconTint,
                     modifier = Modifier.size(MIC).onGloballyPositioned { OrbSpot.mic = it.boundsInWindow().center }.graphicsLayer {
@@ -269,6 +275,8 @@ object OrbSpot {
     var radius by mutableFloatStateOf(0f)
     /** The mic's own center: the layout puts it where whole pixels fall, a hair off the ball's. */
     var mic by mutableStateOf<Offset?>(null)
+    /** The button shows the lock (something is missing): the opening lands on a lock. */
+    var locked by mutableStateOf(false)
 }
 
 /** On the button: tells where it is, and stays hidden while the opening's ball stands in for it (see [Opening]). */

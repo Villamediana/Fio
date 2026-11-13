@@ -523,7 +523,7 @@ private fun HearStep(onNext: () -> Unit) {
  * room, and that it goes on with the app in the background.
  */
 @Composable
-internal fun LocalDownload(modifier: Modifier = Modifier) {
+internal fun LocalDownload(modifier: Modifier = Modifier, centered: Boolean = false) {
     val model = NoveloApplication.graph.localModel
     val state by model.state.collectAsStateWithLifecycle()
     val onWifi by remember { model.wifi() }.collectAsStateWithLifecycle(initialValue = remember { model.onWifi() })
@@ -544,7 +544,7 @@ internal fun LocalDownload(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(modifier.fillMaxWidth().animateContentSize()) {
+    Column(modifier.fillMaxWidth().animateContentSize(), horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
         when {
             !LocalEngine.available -> Note(t(R.string.local_not_in_version), NoveloColors.Danger)
             state == LocalModel.State.Ready -> Note(t(R.string.setup_local_ready), NoveloColors.Success)

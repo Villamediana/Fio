@@ -10,7 +10,8 @@ sealed interface Screen {
     /** [topic] opens the LINKS tab with that knot already touched. */
     data class Library(val filter: Filter, val search: Boolean = false, val query: String = "", val topic: Long? = null) : Screen
     data class Entry(val id: Long) : Screen
-    data object Settings : Screen
+    /** [ai]: opened on Inteligência (from the main screen, when something there is missing). */
+    data class Settings(val ai: Boolean = false) : Screen
     data object Camera : Screen
 }
 

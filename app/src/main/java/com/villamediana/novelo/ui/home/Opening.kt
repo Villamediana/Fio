@@ -138,6 +138,7 @@ internal fun OpeningFrame(run: Opening.Run, time: () -> Float) {
         onBallFrom = run.onBall ?: p.onAccent,
         onBall = p.onAccent,
         mic = rememberVectorPainter(NoveloIcons.Mic),
+        lock = rememberVectorPainter(NoveloIcons.Lock),
         micSize = with(density) { MIC.toPx() },
         splashRadius = with(density) { SPLASH_BALL.toPx() },
     )
@@ -149,7 +150,7 @@ internal fun OpeningFrame(run: Opening.Run, time: () -> Float) {
             .drawBehind {
                 val target = OrbSpot.center ?: return@drawBehind
                 val mic = OrbSpot.mic?.let { it - target } ?: Offset.Zero
-                drawOpening(time(), run.from - origin, target - origin, OrbSpot.radius, mic, look)
+                drawOpening(time(), run.from - origin, target - origin, OrbSpot.radius, mic, look, locked = OrbSpot.locked)
             },
     )
 }
@@ -161,6 +162,8 @@ internal class OpeningLook(
     val onBallFrom: Color,
     val onBall: Color,
     val mic: VectorPainter,
+    /** The button's lock, when something is missing: the splash's mic turns into it on the way. */
+    val lock: VectorPainter,
     val micSize: Float,
     val splashRadius: Float,
 )
@@ -172,7 +175,7 @@ private fun span(t: Float, from: Float, to: Float): Float = ((t - from) / (to - 
  * way from [from] (the splash's size) to [to] (the button's [toRadius], its mic [mic] off the center). At [OpeningTime.END] it is
  * exactly the button at rest, drawn the button's way.
  */
-internal fun DrawScope.drawOpening(t: Float, from: Offset, to: Offset, toRadius: Float, mic: Offset, look: OpeningLook) {
+internal fun DrawScope.drawOpening(t: Float, from: Offset, to: Offset, toRadius: Float, mic: Offset, look: OpeningLook, locked: Boolean = false) {
     val move = Glide.transform(span(t, 0f, OpeningTime.MOVE))
     val c = lerp(from, to, move)
     val swell = sin(PI.toFloat() * span(t, OpeningTime.SWELL_FROM, OpeningTime.SWELL_TO))
@@ -205,8 +208,11 @@ internal fun DrawScope.drawOpening(t: Float, from: Offset, to: Offset, toRadius:
     clipPath(drop) { drawYarn(c, r, on.copy(alpha = 0.24f)) }
     drawCircle(fill, radius = r * 0.36f, center = c)
     val m = c + mic * move
+    // Locked: the mic gives way to the lock as it lands (the button's own then).
+    val lock = if (locked) move else 0f
     translate(m.x - look.micSize / 2f, m.y - look.micSize / 2f) {
-        with(look.mic) { draw(Size(look.micSize, look.micSize), colorFilter = ColorFilter.tint(on)) }
+        if (lock < 1f) with(look.mic) { draw(Size(look.micSize, look.micSize), alpha = 1f - lock, colorFilter = ColorFilter.tint(on)) }
+        if (lock > 0f) with(look.lock) { draw(Size(look.micSize, look.micSize), alpha = lock, colorFilter = ColorFilter.tint(on)) }
     }
 }
 

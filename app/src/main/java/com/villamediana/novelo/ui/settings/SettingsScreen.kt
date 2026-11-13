@@ -80,12 +80,12 @@ private enum class Part { AI, THEME, BACKUP, PRIVACY, LANGUAGE }
  * when something is missing) and opens right there, one at a time; under them, what the app is.
  */
 @Composable
-fun SettingsScreen(nav: Nav) {
+fun SettingsScreen(nav: Nav, openAi: Boolean = false) {
     val graph = NoveloApplication.graph
     val s by graph.settings.now.collectAsStateWithLifecycle()
     val local by graph.localModel.state.collectAsStateWithLifecycle()
     val busy by graph.backups.busy.collectAsStateWithLifecycle()
-    var open by rememberSaveable { mutableStateOf<Part?>(null) }
+    var open by rememberSaveable { mutableStateOf(if (openAi) Part.AI else null) }
     fun toggle(p: Part) { open = if (open == p) null else p }
 
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
