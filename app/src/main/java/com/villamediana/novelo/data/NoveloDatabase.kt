@@ -68,7 +68,8 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE kind = 'task' AND category IS NULL AND (status IS NULL OR status != 'done') ORDER BY createdAt")
     suspend fun uncategorized(): List<Entry>
 
-    @Query("UPDATE entries SET category = :category WHERE id = :id")
+    /** In another category: it leaves where it was moved by hand and goes with the ones of that one. */
+    @Query("UPDATE entries SET category = :category, position = NULL WHERE id = :id")
     suspend fun setCategory(id: Long, category: String?)
 }
 
@@ -256,7 +257,7 @@ interface BackupDao {
 
 @Database(
     entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 10,
+    version = 11,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10)],
 )
@@ -286,8 +287,18 @@ abstract class NoveloDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * The tasks go together by category (1.59): the order set by hand before there were categories
+         * is let go once, so each group starts arranged; what she moves from now on stays.
+         */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE entries SET position = NULL WHERE kind = 'task'")
+            }
+        }
+
         fun open(context: Context): NoveloDatabase =
-            Room.databaseBuilder(context.applicationContext, NoveloDatabase::class.java, "novelo.db").addMigrations(MIGRATION_2_3).build()
+            Room.databaseBuilder(context.applicationContext, NoveloDatabase::class.java, "novelo.db").addMigrations(MIGRATION_2_3, MIGRATION_10_11).build()
 
         fun inMemory(context: Context): NoveloDatabase =
             Room.inMemoryDatabaseBuilder(context.applicationContext, NoveloDatabase::class.java).allowMainThreadQueries().build()

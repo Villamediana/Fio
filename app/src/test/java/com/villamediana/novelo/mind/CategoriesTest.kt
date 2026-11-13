@@ -112,6 +112,43 @@ class CategoriesTest {
     }
 
     @Test
+    fun theTasksGoTogetherByCategory() {
+        var id = 0L
+        fun e(c: String?, position: Long? = null, due: Long? = null) = Entry(id = ++id, kind = "task", title = "$id", status = "todo", category = c, position = position, dueAt = due, createdAt = now + id, updatedAt = now)
+        // Nothing moved by hand: together, the category with the most first (inside, the newest first).
+        val a1 = e("Trabalho"); val b1 = e("Casa"); val a2 = e("trabalho"); val a3 = e("Trabalho")
+        assertEquals(listOf(a3.id, a2.id, a1.id, b1.id), com.villamediana.novelo.ui.library.arrange(listOf(a1, b1, a2, a3)).map { it.id })
+        // Moved by hand: her order stays; a new one goes after the last of its category, one of a new category on top.
+        val p1 = e("Casa", 0); val p2 = e("Trabalho", 1); val p3 = e("Casa", 2)
+        val newCasa = e("Casa"); val newSaude = e("Saúde")
+        assertEquals(listOf(newSaude.id, p1.id, p2.id, p3.id, newCasa.id), com.villamediana.novelo.ui.library.arrange(listOf(newCasa, p3, newSaude, p1, p2)).map { it.id })
+        // One with no category yet stays on top (it is organized when the app starts).
+        val loose = e(null)
+        assertEquals(loose.id, com.villamediana.novelo.ui.library.arrange(listOf(p1, p2, e(null, 3), loose)).first().id)
+    }
+
+    @Test
+    fun inAnotherCategoryItGoesWithThoseOnes() = runBlocking {
+        val t = db.entries().insert(Entry(kind = "task", title = "Pia", status = "todo", category = "Trabalho", position = 3, createdAt = now, updatedAt = now))
+        com.villamediana.novelo.data.Library(db, com.villamediana.novelo.remind.Reminders(ApplicationProvider.getApplicationContext(), db)).setCategory(t, "Casa")
+        assertEquals("Casa" to null, db.entries().get(t)!!.let { it.category to it.position })
+        // By the model too.
+        db.entries().update(db.entries().get(t)!!.copy(position = 4))
+        Keeper(db, zone = { zone }, clock = { now }).apply(Brain.parse("""{"reply":"ok","update":[{"id":$t,"category":"Trabalho"}]}""")!!, null)
+        assertEquals("Trabalho" to null, db.entries().get(t)!!.let { it.category to it.position })
+    }
+
+    @Test
+    fun theOrderFromBeforeCategoriesIsLetGoOnce() = runBlocking {
+        val t = db.entries().insert(Entry(kind = "task", title = "Pia", status = "todo", position = 3, createdAt = now, updatedAt = now))
+        val n = db.entries().insert(Entry(kind = "note", title = "Ideia", position = 1, createdAt = now, updatedAt = now))
+        NoveloDatabase.MIGRATION_10_11.migrate(db.openHelper.writableDatabase)
+        assertNull(db.entries().get(t)!!.position)
+        // The notes' order is not the tasks'.
+        assertEquals(1L, db.entries().get(n)!!.position)
+    }
+
+    @Test
     fun oneCategoryOnTheScreenKeepsTheOthersInTheirPlaces() {
         // Whole group: 1 2 3 4 5; on the screen only 2 and 4 (one category), moved to 4, 2.
         assertEquals(listOf(1L, 4L, 3L, 2L, 5L), mergeOrder(listOf(1L, 2L, 3L, 4L, 5L), listOf(4L, 2L)))

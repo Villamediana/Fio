@@ -1063,7 +1063,7 @@ class ScreensTest {
     fun tasksGoByCategory() {
         val ids = runBlocking {
             listOf("Mandar o relatório" to "Trabalho", "Consertar a pia" to "Casa", "Ligar pro cliente" to "Trabalho", "Comprar ração" to "Casa", "Marcar dentista" to "Saúde")
-                .mapIndexed { i, (title, c) -> graph.db.entries().insert(Entry(kind = "task", title = title, status = "todo", category = c, position = i.toLong(), createdAt = now, updatedAt = now)) }
+                .mapIndexed { i, (title, c) -> graph.db.entries().insert(Entry(kind = "task", title = title, status = "todo", category = c, createdAt = now - i, updatedAt = now)) }
         }
         val nav = Nav().apply { go(Screen.Library(Filter.TASKS)) }
         val screen = androidx.compose.runtime.mutableStateOf<Screen>(Screen.Library(Filter.TASKS))

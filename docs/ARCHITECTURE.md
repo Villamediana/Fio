@@ -555,6 +555,11 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   pelo nome); cada cartão diz a dele (Hoje e Tarefas, quando não está filtrado). Segurar continua sendo arrastar;
   filtrado, a ordem nova entra na do grupo inteiro (`mergeOrder`). Na tarefa, o chip "● Casa ⌄" abre as categorias:
   tocar muda, o lápis renomeia (no nome de outra, junta), e "Nova categoria".
+- **Juntas por categoria (1.59.0):** em cada grupo de Tarefas (`arrange`), o que ela arrastou fica na ordem dela; as
+  outras (novas, nunca arrastadas) entram depois da última da mesma categoria; categoria que ainda não está ali (ou
+  nenhuma) vai pro topo, junta, as categorias com mais tarefas primeiro. Trocar de categoria (ela ou o modelo) tira
+  a tarefa do lugar manual (`position = NULL`) e ela vai pro grupo da nova. Banco v11 (`MIGRATION_10_11`): a ordem
+  manual de antes das categorias foi solta uma vez, pra cada grupo começar arrumado.
 
 ## Lançar versão
 

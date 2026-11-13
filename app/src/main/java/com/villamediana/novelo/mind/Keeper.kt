@@ -132,7 +132,8 @@ class Keeper(
                 e = e.copy(steps = Steps.write(steps))
             }
             change.title?.takeIf { it.isNotBlank() }?.let { e = e.copy(title = it.trim().take(140)) }
-            if (e.kindEnum == Kind.TASK) category(change.category)?.let { e = e.copy(category = it) }
+            // In another category: it goes with the ones of that one (out of where it was moved by hand).
+            if (e.kindEnum == Kind.TASK) category(change.category)?.takeIf { it != e.category }?.let { e = e.copy(category = it, position = null) }
             // What she said changed what the item is: its text written again.
             change.body?.takeIf { it.isNotBlank() }?.let { e = e.copy(body = it.trim()) }
             // One text per item: what is new joins it (no history kept apart that says the same again).
