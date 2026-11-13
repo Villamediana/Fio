@@ -487,6 +487,20 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Aba Tudo oculta** (1.46.0): saiu de `TABS` como Conexões; o código fica. A busca (da home, `Filter.ALL` com
   `search = true`) continua procurando em tudo; com a busca vazia, a página é a primeira aba (Hoje).
 
+## Menu do item e sensível (1.49.0)
+
+- **⋮ por tipo** (`ui/entry/ItemMenu.kt`, `ItemMenu` + `MenuAction`): tarefa = Apagar; nota = Compartilhar,
+  Marcar/Tirar de sensível, Apagar; diário = Marcar/Tirar de sensível, Apagar. Saíram os "Virar …"
+  (`Library.setKind` fica pro modelo). Cartão redondo com ícone fino; Apagar em vermelho sob uma linha.
+- **Apagar** pergunta com o diálogo do Android (`ConfirmDialog`, era a folha `ConfirmSheet`), também pra arquivo.
+- **Compartilhar nota** (`shareNote`): folha de compartilhar com título + texto e os arquivos e fotos dela
+  (`ACTION_SEND_MULTIPLE`, ClipData pra permissão passar pelo seletor).
+- **Segurança**: "Tirar de sensível" pedia nada — dava pra destrancar sem a trava. Agora `needsLock`:
+  item sensível com a trava ligada (e o celular com uma) pede a trava pra tirar de sensível SEMPRE, e pra
+  compartilhar/apagar enquanto ainda escondido.
+- **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
+  sem blur (Android < 12), só o lugar dela.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

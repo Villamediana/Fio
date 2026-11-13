@@ -50,8 +50,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.material3.Icon
 import com.villamediana.novelo.ui.components.NoveloIcons
 import androidx.compose.material3.MaterialTheme
@@ -136,12 +135,20 @@ fun EntryScreen(nav: Nav, id: Long) {
         if (!prefs.lockSensitive || activity == null || !Unlock.available(here)) revealed = true
         else scope.launch { if (Unlock.ask(activity)) revealed = true }
     }
+    // What a locked sensitive item lets go of only with the phone's lock: being shown, shared, taken
+    // out of sensitive, deleted. [always]: even when it is open on screen already (taking it out of
+    // sensitive unlocks it for good, so it asks every time).
+    val withLock: (Boolean, () -> Unit) -> Unit = { always, then ->
+        val activity = here.screen()
+        val need = activity != null && needsLock(e.sensitive, always, revealed, prefs.lockSensitive, Unlock.available(here))
+        if (!need) then() else scope.launch { if (Unlock.ask(activity!!)) then() }
+    }
     var menu by remember { mutableStateOf(false) }
     // Deleting asks once more, saying what goes with it (the photos and files that live only in it).
     var askDelete by remember { mutableStateOf(false) }
     if (askDelete) {
         val inside by produceState<Pair<List<Long>, List<Long>>?>(null, e.id) { value = lib.onlyIn(e.id) }
-        com.villamediana.novelo.ui.sheets.ConfirmSheet(
+        com.villamediana.novelo.ui.sheets.ConfirmDialog(
             title = t(R.string.delete_item_title),
             line = inside?.takeIf { (p, f) -> p.isNotEmpty() || f.isNotEmpty() }?.let { t(R.string.delete_item_with) },
             yes = t(R.string.delete),
@@ -170,16 +177,19 @@ fun EntryScreen(nav: Nav, id: Long) {
             Spacer(Modifier.weight(1f))
             Box {
                 QuietIcon(NoveloIcons.More, t(R.string.more), { menu = true }, alpha = 0.7f)
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = NoveloColors.Surface) {
-                    Kind.entries.filter { it != kind }.forEach { k ->
-                        DropdownMenuItem(text = { Text(t(R.string.turn_into, kindLabel(k).lowercase())) }, onClick = { menu = false; scope.launch { lib.setKind(e.id, k) } })
+                // What makes sense for what it is: a task only goes away; a note is shared, kept
+                // sensitive or not, deleted; the diary is kept sensitive or not, deleted.
+                val actions = buildList {
+                    if (kind == Kind.NOTE) add(MenuAction(NoveloIcons.Share, t(R.string.share), "menu-share") { withLock(false) { scope.launch { shareNote(here, e) } } })
+                    if (kind != Kind.TASK) {
+                        add(
+                            if (e.sensitive) MenuAction(NoveloIcons.Unlock, t(R.string.not_sensitive), "menu-sensitive") { withLock(true) { revealed = true; scope.launch { lib.setSensitive(e.id, false) } } }
+                            else MenuAction(NoveloIcons.Lock, t(R.string.mark_sensitive), "menu-sensitive") { scope.launch { lib.setSensitive(e.id, true) } },
+                        )
                     }
-                    DropdownMenuItem(
-                        text = { Text(if (e.sensitive) t(R.string.not_sensitive) else t(R.string.mark_sensitive)) },
-                        onClick = { menu = false; scope.launch { lib.setSensitive(e.id, !e.sensitive) } },
-                    )
-                    DropdownMenuItem(text = { Text(t(R.string.delete), color = NoveloColors.Danger) }, onClick = { menu = false; askDelete = true })
+                    add(MenuAction(NoveloIcons.Trash, t(R.string.delete), "menu-delete", danger = true) { withLock(false) { askDelete = true } })
                 }
+                ItemMenu(expanded = menu, onDismiss = { menu = false }, actions = actions, offset = DpOffset((-8).dp, 0.dp))
             }
         }
 
@@ -515,3 +525,11 @@ private fun TapToSee(modifier: Modifier, onClick: () -> Unit) {
         Text(t(R.string.tap_to_see), style = MaterialTheme.typography.labelLarge, color = NoveloColors.Accent)
     }
 }
+
+/**
+ * Whether doing something to an item asks the phone's lock first: only a sensitive one, only when
+ * she asked for the lock (and the phone has one), and only while it is still hidden — unless
+ * [always] (taking it out of sensitive asks even when it is open).
+ */
+internal fun needsLock(sensitive: Boolean, always: Boolean, revealed: Boolean, lockOn: Boolean, phoneHasLock: Boolean): Boolean =
+    sensitive && lockOn && phoneHasLock && (always || !revealed)

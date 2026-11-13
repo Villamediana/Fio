@@ -84,9 +84,9 @@
     <string name="search">Buscar</string>
     <string name="back">Voltar</string>
     <string name="more">Mais</string>
-    <string name="turn_into">Virar %1$s</string>
-    <string name="not_sensitive">Não é sensível</string>
+    <string name="not_sensitive">Tirar de sensível</string>
     <string name="mark_sensitive">Marcar como sensível</string>
+    <string name="share">Compartilhar</string>
     <string name="delete">Apagar</string>
     <string name="details_hint">Detalhes…</string>
     <string name="tap_to_see">Toque pra ver</string>

@@ -585,6 +585,57 @@ class ScreensTest {
         assertTrue(compose.onAllNodesWithText("Toque pra ver").fetchSemanticsNodes().isEmpty())
     }
 
+    /** The ⋮ menu has what makes sense for what the item is; deleting asks once, the phone's way. */
+    @Test
+    fun theMenuOffersWhatMakesSense() {
+        val ids = runBlocking {
+            listOf("task", "note", "diary").associateWith { k -> graph.db.entries().insert(Entry(kind = k, title = "Um $k", body = "Texto.", status = if (k == "task") "todo" else null, createdAt = now, updatedAt = now)) }
+        }
+        val open = androidx.compose.runtime.mutableStateOf(ids.getValue("task"))
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { androidx.compose.runtime.key(open.value) { EntryScreen(Nav(), open.value) } } }
+        // Another item opens in a new screen (its menu closed).
+        fun menu(id: Long): List<String> {
+            open.value = id
+            compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Mais").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithContentDescription("Mais").performClick()
+            compose.waitUntil(3_000) { compose.onAllNodesWithTag("menu-delete").fetchSemanticsNodes().isNotEmpty() }
+            val shown = listOf("menu-share", "menu-sensitive", "menu-delete").filter { compose.onAllNodesWithTag(it).fetchSemanticsNodes().isNotEmpty() }
+            return shown
+        }
+        assertEquals(listOf("menu-delete"), menu(ids.getValue("task")))
+        assertEquals(listOf("menu-sensitive", "menu-delete"), menu(ids.getValue("diary")))
+        assertEquals(listOf("menu-share", "menu-sensitive", "menu-delete"), menu(ids.getValue("note")))
+        compose.mainClock.advanceTimeBy(400)
+        shot("56-note-menu")
+        // Deleting: a dialog in the middle, and only "Apagar" takes it away.
+        compose.onNodeWithTag("menu-delete").performClick()
+        compose.waitUntil(3_000) { compose.onAllNodesWithTag("confirm-yes").fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(400)
+        shot("57-delete-dialog")
+        compose.onNodeWithTag("confirm-yes").performClick()
+        runBlocking { withTimeout(5_000) { while (graph.db.entries().get(ids.getValue("note")) != null) kotlinx.coroutines.delay(20) } }
+    }
+
+    /** Hidden, a file's preview is there blurred like the text (consistent), not left out. */
+    @Test
+    fun aHiddenItemBlursItsFilesPreview() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val id = runBlocking {
+            val e = graph.db.entries().insert(Entry(kind = "note", title = "Senhas", body = "As do banco.", sensitive = true, createdAt = now, updatedAt = now))
+            val f = File(File(context.filesDir, "captures/files/7-7").apply { mkdirs() }, "senhas.txt").apply { writeText("banco 1234\ncartão 9876") }
+            graph.db.captures().insert(
+                Capture(createdAt = now, source = Capture.FILE, filePath = f.path, fileName = f.name, fileMime = "text/plain", fileSize = f.length(), state = Capture.DONE, outcomes = """[{"entryId":$e,"action":"created","files":true}]"""),
+            )
+            e
+        }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { EntryScreen(Nav(), id) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-hidden-0").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("entry-file-preview-0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Toque pra ver").assertExists()
+        compose.mainClock.advanceTimeBy(600)
+        shot("58-hidden-file-preview")
+    }
+
     @Test
     fun filesLiveInTheirItemAndTheSearchFindsThem() {
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
