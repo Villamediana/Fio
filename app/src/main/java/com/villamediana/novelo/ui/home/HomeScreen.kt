@@ -46,6 +46,7 @@ import com.villamediana.novelo.ui.components.NoveloIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,6 +111,12 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val settings by graph.settings.now.collectAsStateWithLifecycle()
     val entries by graph.library.all().collectAsStateWithLifecycle(initialValue = emptyList())
     val staged by mind.staged.collectAsStateWithLifecycle()
+    val ears by graph.localModel.state.collectAsStateWithLifecycle()
+    // What is still missing to hear and think (the ears, her APIs): the button is locked until it is there.
+    val missing = remember(settings, ears) { missing(settings, ears, com.villamediana.novelo.local.LocalEngine.available) }
+    val locked = missing.isNotEmpty()
+    var nudge by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    SideEffect { OrbSpot.locked = locked }
 
     var focus by remember { mutableStateOf<Entry?>(null) }
     var writing by remember { mutableStateOf(false) }
@@ -172,20 +179,25 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                 // Writing instead of talking: a light pencil, there for whoever wants it.
                 if (state !is MindState.Listening) QuietIcon(NoveloIcons.Pencil, t(R.string.write), { writing = true }, alpha = 0.4f)
                 Spacer(Modifier.weight(1f))
-                QuietIcon(NoveloIcons.Tune, t(R.string.settings), { nav.go(Screen.Settings) }, alpha = 0.55f)
+                QuietIcon(NoveloIcons.Tune, t(R.string.settings), { nav.go(Screen.Settings()) }, alpha = 0.55f)
             }
 
             Spacer(Modifier.weight(1f - 0.82f * lift))
             // The opening's ball lands where this one is (see Opening).
-            DisposableEffect(Unit) { onDispose { OrbSpot.center = null } }
+            DisposableEffect(Unit) { onDispose { OrbSpot.center = null; OrbSpot.locked = false } }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Orb(
                     modifier = Modifier.orbSpot(),
                     mode = mode,
                     level = level,
                     size = (280 - 70 * lift).dp,
+                    locked = locked,
                     onStart = {
-                        if (!hasMic()) {
+                        if (locked) {
+                            // Locked: nothing records; the card under it says what is missing.
+                            nudge++
+                            false
+                        } else if (!hasMic()) {
                             wantsAfterPermission = focus?.id ?: 0L
                             micPermission.launch(Manifest.permission.RECORD_AUDIO)
                             false
@@ -218,7 +230,9 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         onDismiss = mind::dismiss,
                         onRetry = { mind.retry(it) },
                         onDiscard = { mind.discard(it) },
-                        onSettings = { nav.go(Screen.Settings) },
+                        onSettings = { nav.go(Screen.Settings(ai = true)) },
+                        missing = missing,
+                        nudge = nudge,
                         onStop = mind::stopWork,
                         onCancel = mind::cancelListening,
                     )
@@ -417,6 +431,8 @@ private fun StatusArea(
     onSettings: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
+    missing: List<Missing> = emptyList(),
+    nudge: Int = 0,
 ) {
     AnimatedContent(
         targetState = state,
@@ -437,7 +453,7 @@ private fun StatusArea(
     ) { s ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             when (s) {
-                MindState.Idle -> Text(
+                MindState.Idle -> if (missing.isNotEmpty()) ReadyCard(missing, nudge, onSettings) else Text(
                     if (hintSeen) t(R.string.invite) else t(R.string.hint_first),
                     style = com.villamediana.novelo.ui.theme.NoveloText.Invite,
                     color = NoveloColors.TextMuted,

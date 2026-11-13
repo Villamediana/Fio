@@ -531,6 +531,15 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
 - **Prévia escondida**: no item sensível não revelado, a prévia do arquivo aparece borrada (20 dp) como o texto;
   sem blur (Android < 12), só o lugar dela.
 
+## Travinha da Home (1.58.0)
+
+- `ui/home/Ready.kt`: `missing(settings, ouvido, motor)` diz o que falta pro que ela escolheu — o ouvido no
+  celular quando o Novelo ouve (build sem motor, só de teste, não conta), a API de quem ouve, a API de quem pensa.
+- Faltando algo: o botão mostra um cadeado no lugar do mic e o toque não grava (só sacode o cartão, `nudge`); embaixo,
+  o `ReadyCard`: o ouvido baixa ali mesmo (`LocalDownload`, com Wi-Fi/dados e progresso) ou "ou ouvir pela sua API";
+  as APIs com "Configurar", que abre Ajustes já na Inteligência (`Screen.Settings(ai = true)`; o problema que
+  pede Ajustes também abre lá). A abertura pousa no cadeado (`OrbSpot.locked`): o mic vira cadeado no caminho.
+
 ## Categorias das tarefas (1.57.0)
 
 - **Onde vive:** `Entry.category` (texto, só tarefa; banco v10 por AutoMigration). Sem tabela à parte: a categoria

@@ -7,6 +7,8 @@ import com.villamediana.novelo.settings.Job
 import com.villamediana.novelo.settings.Source
 import com.villamediana.novelo.ui.settings.intelligenceSummary
 import com.villamediana.novelo.ui.setup.earsNeeded
+import com.villamediana.novelo.ui.home.Missing
+import com.villamediana.novelo.ui.home.missing
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -166,6 +168,23 @@ class HearingTest {
         assertTrue(!earsNeeded(Source.API, true, LocalModel.State.Missing))
         // A build without the engine can't have them.
         assertTrue(!earsNeeded(Source.NOVELO, false, LocalModel.State.Missing))
+    }
+
+    @Test
+    fun whatIsMissingIsWhatSheChose() = runBlocking {
+        st.setHear(Source.NOVELO); st.setThink(Source.NOVELO)
+        assertEquals(listOf(Missing.EARS), missing(st.current(), LocalModel.State.Missing, true))
+        assertEquals(listOf(Missing.EARS), missing(st.current(), LocalModel.State.Downloading(0.5f, 1, 2), true))
+        assertTrue(missing(st.current(), LocalModel.State.Ready, true).isEmpty())
+        // Her API hears: no ears needed, her API is.
+        st.setHear(Source.API)
+        assertEquals(listOf(Missing.HEAR_API), missing(st.current(), LocalModel.State.Missing, true))
+        herApi()
+        assertTrue(missing(st.current(), LocalModel.State.Missing, true).isEmpty())
+        st.setThink(Source.API)
+        assertEquals(listOf(Missing.THINK_API), missing(st.current(), LocalModel.State.Missing, true))
+        st.setThink(Source.NOVELO)
+        Unit
     }
 
     @Test

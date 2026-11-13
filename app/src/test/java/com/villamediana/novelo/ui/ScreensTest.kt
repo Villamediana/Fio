@@ -190,7 +190,7 @@ class ScreensTest {
                 when (val s = screen.value) {
                     is Screen.Library -> LibraryScreen(nav, s)
                     is Screen.Entry -> EntryScreen(nav, s.id)
-                    Screen.Settings -> SettingsScreen(nav)
+                    is Screen.Settings -> SettingsScreen(nav)
                     else -> Unit
                 }
             }
@@ -215,7 +215,7 @@ class ScreensTest {
         // One text per item: no "Andamento" apart, no "Conexões" repeating what the text says.
         assertTrue(compose.onAllNodesWithText("Andamento").fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithText("Conexões").fetchSemanticsNodes().isEmpty())
-        screen.value = Screen.Settings
+        screen.value = Screen.Settings()
         shot("08-settings")
         // Conexões and Tudo are hidden for now, Arquivos is gone: the last tab is Galeria.
         screen.value = Screen.Library(Filter.TODAY)
@@ -997,6 +997,67 @@ class ScreensTest {
         assertEquals(ids[1], order.first())
     }
 
+    /** Something to hear or think with missing: the button is locked (a lock, nothing records) and a card says what, with the way to it. */
+    @Test
+    fun theButtonIsLockedUntilItCanHearAndThink() {
+        val st = graph.settings
+        runBlocking {
+            st.setHear(Source.API)
+            st.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "")
+            st.setApiKey(com.villamediana.novelo.settings.Job.HEAR, "")
+            st.setModel(com.villamediana.novelo.settings.Job.HEAR, "")
+            st.setThink(Source.NOVELO)
+            st.setHintSeen()
+        }
+        val nav = Nav()
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { HomeScreen(nav, talkAbout = null, onTalkHandled = {}) } }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("ready-card").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Falta configurar quem ouve.").assertExists()
+            compose.onNodeWithText("Configurar").assertExists()
+            assertTrue(compose.onAllNodesWithText("O que está na sua cabeça?").fetchSemanticsNodes().isEmpty())
+            // A tap on the button records nothing.
+            compose.onNodeWithContentDescription("Falar").performClick()
+            compose.mainClock.advanceTimeBy(500)
+            assertTrue(graph.mind.state.value !is MindState.Listening)
+            shot("64-home-locked")
+            // Set up: the card goes, the button is itself again.
+            server.start()
+            runBlocking {
+                st.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "custom")
+                st.setApiBase(com.villamediana.novelo.settings.Job.HEAR, server.url("/v1").toString())
+                st.setApiKey(com.villamediana.novelo.settings.Job.HEAR, "k")
+                st.setModel(com.villamediana.novelo.settings.Job.HEAR, "whisper-1")
+            }
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("ready-card").fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithText("O que está na sua cabeça?").assertExists()
+        } finally {
+            runBlocking {
+                st.setHear(Source.NOVELO)
+                st.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "")
+                st.setApiBase(com.villamediana.novelo.settings.Job.HEAR, "")
+                st.setApiKey(com.villamediana.novelo.settings.Job.HEAR, "")
+                st.setModel(com.villamediana.novelo.settings.Job.HEAR, "")
+            }
+        }
+    }
+
+    /** The card when the ears are missing: the download right there, or her API instead (in Ajustes). */
+    @Test
+    fun theEarsCanComeFromTheMainScreen() {
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                Box(Modifier.fillMaxSize().background(NoveloColors.Background).padding(22.dp)) {
+                    com.villamediana.novelo.ui.home.ReadyCard(listOf(com.villamediana.novelo.ui.home.Missing.EARS, com.villamediana.novelo.ui.home.Missing.THINK_API), nudge = 0, onSettings = {})
+                }
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("ou ouvir pela sua API").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Falta configurar quem pensa.").assertExists()
+        compose.mainClock.advanceTimeBy(500)
+        shot("64b-ready-card-ears")
+    }
+
     /** Tarefas: the categories as filters on top, each card says its own; in the task, a chip to change it. */
     @Test
     fun tasksGoByCategory() {
@@ -1298,6 +1359,12 @@ class ScreensTest {
             graph.settings.setThinkModel("")
             graph.settings.setBackupFolder("", "")
             graph.settings.setThink(com.villamediana.novelo.settings.Source.NOVELO)
+            // …nor of the one that hears.
+            graph.settings.setHear(com.villamediana.novelo.settings.Source.NOVELO)
+            graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "")
+            graph.settings.setApiBase(com.villamediana.novelo.settings.Job.HEAR, "")
+            graph.settings.setApiKey(com.villamediana.novelo.settings.Job.HEAR, "")
+            graph.settings.setModel(com.villamediana.novelo.settings.Job.HEAR, "")
         }
         var done = false
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { com.villamediana.novelo.ui.setup.SetupScreen(onDone = { done = true }) } }

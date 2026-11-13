@@ -50,7 +50,8 @@ import kotlin.math.abs
 class OpeningTest {
     @get:Rule val compose = createComposeRule()
 
-    @After fun clear() { Opening.end() }
+    @org.junit.Before fun fresh() { OrbSpot.locked = false }
+    @After fun clear() { Opening.end(); OrbSpot.locked = false }
 
     private fun capture(): Bitmap {
         compose.waitForIdle()
@@ -96,6 +97,29 @@ class OpeningTest {
         val share = differ(button, opening)
         println("last frame vs button: ${"%.5f".format(share * 100)}% of pixels differ")
         assertTrue("the last frame should be the button ($share)", share < 0.00001)
+    }
+
+    @Test
+    fun aLockedButtonIsLandedOnToo() {
+        val level = mutableFloatStateOf(0f)
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                Box(Modifier.fillMaxSize().background(NoveloColors.Background)) {
+                    Box(Modifier.align(Alignment.Center)) {
+                        Orb(mode = OrbMode.IDLE, level = level, onStart = { false }, onLock = {}, onStop = {}, onCancel = {}, modifier = Modifier.orbSpot(), locked = true)
+                    }
+                    Opening.run?.let { OpeningFrame(it) { OpeningTime.END } }
+                }
+            }
+        }
+        compose.runOnIdle { OrbSpot.locked = true }
+        val button = capture()
+        val spot = OrbSpot.center!!
+        compose.runOnIdle { Opening.start(Opening.Run(from = Offset(spot.x, spot.y + 180f))) }
+        val opening = capture()
+        compose.runOnIdle { OrbSpot.locked = false }
+        val share = differ(button, opening)
+        assertTrue("the last frame should be the locked button ($share)", share < 0.00001)
     }
 
     @Test
