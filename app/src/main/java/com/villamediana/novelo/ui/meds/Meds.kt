@@ -116,8 +116,8 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
     var who by rememberSaveable { mutableStateOf<String?>(null) }
     var showEnded by rememberSaveable { mutableStateOf(false) }
     val named = today.meds.filter { it.name.isNotBlank() }
-    // The people (her first, "Você"), when there is more than one.
-    val people = remember(named) { named.map { it.person }.distinctBy { it?.let(Categories::fold) }.sortedWith(compareBy<String?>({ it != null }, { it?.let(Categories::fold) })) }
+    // The people of the medicines in use (her first, "Você"), when there is more than one.
+    val people = remember(named, now / 60_000) { named.filterNot { Doses.ended(it, now) }.map { it.person }.distinctBy { it?.let(Categories::fold) }.sortedWith(compareBy<String?>({ it != null }, { it?.let(Categories::fold) })) }
     val chosen = who?.takeIf { w -> people.any { (it ?: ME) == w } }
     fun mine(m: Med) = chosen == null || (m.person ?: ME) == chosen
     val shown = named.filter(::mine)

@@ -272,6 +272,29 @@ class MedsTest {
         assertTrue(text, text.contains("doses: 1 de 14 dadas"))
     }
 
+    /** Rodada 2: a dose marked by mistake ("não, essa não dei", "dei só uma vez") is let go. */
+    @Test
+    fun aDoseMarkedByMistakeIsLetGo() = runBlocking {
+        val id = db.meds().insert(med("Losartana", listOf("08:00", "20:00"), start = at(today.minusDays(3), 0)))
+        val keeper = Keeper(db, zone = { zone }, clock = { at(today, 20, 5) })
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"id":$id,"taken_at":["08:00","20:00"]}]}""")!!, null)
+        assertEquals(2, db.meds().allTaken().size)
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"id":$id,"untaken_at":["20:00"]}]}""")!!, null)
+        assertEquals(listOf(at(today, 8)), db.meds().allTaken().map { it.at })
+        // The one of now, not given after all.
+        Keeper(db, zone = { zone }, clock = { at(today, 8, 10) }).apply(Brain.parse("""{"reply":"ok","meds":[{"id":$id,"taken":false}]}""")!!, null)
+        assertTrue(db.meds().allTaken().isEmpty())
+    }
+
+    /** Rodada 2: medicines that answer a question are shown (their numbers as the context writes them). */
+    @Test
+    fun medicinesThatAnswerAreShown() {
+        val plan = Brain.parse("""{"reply":"O Cooper toma estes.","show_meds":["remédio#3",4,"#5"]}""")!!
+        assertEquals(listOf(3L, 4L, 5L), plan.showMeds)
+        assertFalse(Brain.parse("""{"reply":"ok","search":["x"],"show_meds":[3]}""")!!.isLookupOnly)
+        assertTrue(Brain.SYSTEM.contains("show_meds"))
+    }
+
     @Test
     fun theTreatmentGoesAlongItsDays() {
         val m = med("A", listOf("08:00"), start = at(today.minusDays(3), 9), end = Doses.endOf(today.plusDays(6), zone))

@@ -630,7 +630,7 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
                 AppearingCard(i++) { EntryCard(e, onClick = { onOpen(e.id) }, label = outcomeLabel(o, e), onToggle = { onToggle(e.id) }) }
             }
             // The medicines made or changed: their own cards (a tap opens one).
-            if (s.meds.isNotEmpty()) {
+            if (s.meds.isNotEmpty() || s.shownMeds.isNotEmpty()) {
                 val meds by remember { com.villamediana.novelo.NoveloApplication.graph.library.meds() }.collectAsState(initial = emptyList())
                 val taken by remember { com.villamediana.novelo.NoveloApplication.graph.library.allTaken() }.collectAsState(initial = emptyList())
                 val now = remember { System.currentTimeMillis() }
@@ -642,6 +642,11 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
                             taken = taken.filter { it.medId == m.id }.map { it.at }.toSet(),
                         )
                     }
+                }
+                // The ones that answer a question ("o que o Cooper toma?"): as they are.
+                s.shownMeds.forEach { id ->
+                    val m = meds.firstOrNull { it.id == id } ?: return@forEach
+                    AppearingCard(i++) { com.villamediana.novelo.ui.meds.MedCard(m, now, onClick = { onOpenMed(m.id) }, taken = taken.filter { it.medId == m.id }.map { it.at }.toSet()) }
                 }
             }
             val terms = remember(s.said) { Words.of(s.said).filter { it.length >= 4 } }
