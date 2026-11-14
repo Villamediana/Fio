@@ -477,4 +477,9 @@
     <string name="med_doses_course">%1$d of %2$d doses</string>
     <string name="med_doses_today">today: %1$d of %2$d</string>
     <string name="category_none">No category</string>
+    <string name="tabs_title">Tabs</string>
+    <string name="tabs_line">Hold and drag to change the order. The eye hides a tab or shows it again.</string>
+    <string name="tabs_move">Move %1$s</string>
+    <string name="tabs_hide">Hide %1$s</string>
+    <string name="tabs_show">Show %1$s</string>
 </resources>

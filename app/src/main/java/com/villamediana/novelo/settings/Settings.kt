@@ -100,6 +100,10 @@ data class NoveloSettings(
     val backupFailed: Boolean = false,
     /** The first steps (permissions, backup, intelligence) were gone through. */
     val setupDone: Boolean = false,
+    /** The library's tabs in her order ("today,tasks,diary…"); empty: the usual order. */
+    val tabOrder: String = "",
+    /** The tabs she hid ("gallery,meds"). */
+    val tabsHidden: String = "",
 ) {
     val provider: Provider get() = Providers.of(apiProvider)
 
@@ -145,6 +149,8 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             backupNote = p[BACKUP_NOTE].orEmpty(),
             backupFailed = p[BACKUP_FAILED] ?: false,
             setupDone = p[SETUP_DONE] ?: false,
+            tabOrder = p[TAB_ORDER].orEmpty(),
+            tabsHidden = p[TABS_HIDDEN].orEmpty(),
         )
     }
 
@@ -194,6 +200,12 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
     suspend fun setHintSeen() = store.edit { it[HINT_SEEN] = true }
     suspend fun setLockSensitive(on: Boolean) = store.edit { it[LOCK_SENSITIVE] = on }
+
+    /** The library's tabs: their order and the ones hidden (keys as [com.villamediana.novelo.ui.library.TabOrder] writes them). */
+    suspend fun setTabs(order: List<String>, hidden: Set<String>) = store.edit {
+        it[TAB_ORDER] = order.joinToString(",")
+        it[TABS_HIDDEN] = hidden.joinToString(",")
+    }
     suspend fun setBackupPlace(place: String) = store.edit { it[BACKUP_PLACE] = place }
 
     suspend fun setBackupFolder(uri: String, place: String) = store.edit {
@@ -230,6 +242,8 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val ACCENT = stringPreferencesKey("accent")
         val HINT_SEEN = booleanPreferencesKey("hint_seen")
         val LOCK_SENSITIVE = booleanPreferencesKey("lock_sensitive")
+        val TAB_ORDER = stringPreferencesKey("tab_order")
+        val TABS_HIDDEN = stringPreferencesKey("tabs_hidden")
         val BACKUP_FOLDER = stringPreferencesKey("backup_folder")
         val BACKUP_PLACE = stringPreferencesKey("backup_place")
         val BACKUP_AT = longPreferencesKey("backup_at")
