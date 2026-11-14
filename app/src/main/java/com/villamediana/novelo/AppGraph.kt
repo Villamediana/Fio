@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.stateIn
 import okhttp3.OkHttpClient
 import java.io.File
 import java.time.ZoneId
@@ -67,6 +68,17 @@ class AppGraph(context: Context) {
     val recorder: Recorder by lazy { Recorder() }
     val reminders: Reminders by lazy { Reminders(appContext, db) }
     val library: Library by lazy { Library(db, reminders) }
+
+    /**
+     * The medicines and the doses given, kept in memory from the start: a screen that shows them (Hoje,
+     * Remédios) is drawn with them already there — nothing coming in a beat later.
+     */
+    val medsNow: kotlinx.coroutines.flow.StateFlow<List<com.villamediana.novelo.data.Med>?> by lazy {
+        library.meds().stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
+    }
+    val takenNow: kotlinx.coroutines.flow.StateFlow<List<com.villamediana.novelo.data.MedTaken>?> by lazy {
+        library.allTaken().stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
+    }
     /** The search by meaning: Omni gives the words her notes may use for what she looks for. */
     val meaning: Meaning by lazy { Meaning(engine, localModel) }
     /** What she was writing and didn't send (kept a day). */

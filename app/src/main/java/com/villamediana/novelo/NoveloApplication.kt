@@ -19,6 +19,8 @@ class NoveloApplication : Application() {
         graph = AppGraph(this)
         Notifications.createChannels(this)
         graph.scope.launch { runCatching { graph.reminders.syncAll() } }
+        // The medicines in memory from the start (Hoje and Remédios are drawn with them there).
+        graph.medsNow; graph.takenNow
         // One diary a day (days left with two from before become one).
         graph.scope.launch { runCatching { graph.library.joinDayDiaries() } }
         // Medicines that began the minute they were written (before 1.64.1): from the start of that day.
