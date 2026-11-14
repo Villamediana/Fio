@@ -403,6 +403,15 @@ private fun Entries(
     onFold: () -> Unit = {},
 ) {
     val searched = terms != null
+    // Hoje › Pra hoje: each task with its hour on the left, the one due now or next in the accent ("agora", "próximo").
+    val now = com.villamediana.novelo.ui.meds.rememberNow()
+    val forToday = t(R.string.section_for_today)
+    val dayStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val dayEnd = dayStart + 86_400_000L
+    val focusId = remember(sections, now / 60_000) {
+        if (filter != Filter.TODAY) null
+        else sections.firstOrNull { it.first == forToday }?.second?.firstOrNull { e -> todayTime(e, dayStart, dayEnd)?.let { it >= now - FOCUS_BEFORE_MS } == true }?.id
+    }
     // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); Notas: a note
     // moves in the one list. Let go, the order is kept.
     val movable = (filter == Filter.TASKS || filter == Filter.NOTES) && !searched
@@ -504,6 +513,14 @@ private fun Entries(
                             shape = shape,
                             dated = !searched && filter == Filter.NOTES,
                             showCategory = !searched && showCategories,
+                            clock = if (!searched && filter == Filter.TODAY && label == forToday) todayTime(e, dayStart, dayEnd)?.let { at ->
+                                com.villamediana.novelo.ui.components.Clock(
+                                    Dates.time(at),
+                                    note = if (e.id == focusId) t(if (at <= now) R.string.med_now else R.string.med_next) else null,
+                                    accent = e.id == focusId,
+                                    gone = at < now && e.id != focusId,
+                                )
+                            } else null,
                             modifier = modifier,
                         )
                     }
@@ -731,13 +748,17 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.TODAY -> {
             val late = open.filter { it.dueAt != null && it.dueAt < startToday }.sortedBy { it.dueAt }
             val due = open.filter { (it.dueAt != null && it.dueAt in startToday until endToday) || (it.remindAt != null && it.remindAt in startToday until endToday) }
-                .filter { it !in late }.sortedBy { it.remindAt ?: it.dueAt }
+                .filter { it !in late }
+            // By the hour, like the medicines (Miguel, 1.67): the ones with a time today in its order; the others after.
+            val timed = due.mapNotNull { e -> todayTime(e, startToday, endToday)?.let { e to it } }.sortedBy { it.second }.map { it.first }
+            val loose = due.filter { it !in timed }.sortedBy { it.dueAt ?: it.createdAt }
             val doing = open.filter { it.statusEnum == Status.DOING && it !in late && it !in due }
             val said = all.filter { it.createdAt >= startToday && it.kindEnum != Kind.TASK }
             val doneToday = tasks.filter { it.doneAt != null && it.doneAt >= startToday }
             listOfNotNull(
                 t(R.string.section_late) to late,
-                t(R.string.section_for_today) to due,
+                t(R.string.section_for_today) to timed,
+                t(R.string.section_through_day) to loose,
                 DOING to doing,
                 (t(R.string.section_kept_today) to said).takeIf { SHOW_KEPT_TODAY },
                 t(R.string.section_done_today) to doneToday,
@@ -760,6 +781,10 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         Filter.GALLERY, Filter.LINKS, Filter.MEDS -> emptyList()
     }
 }
+
+/** A task's time today: its reminder today, or its due time today (a due day without an hour has none). */
+internal fun todayTime(e: Entry, startToday: Long, endToday: Long): Long? =
+    e.remindAt?.takeIf { it in startToday until endToday } ?: e.dueAt?.takeIf { e.dueHasTime && it in startToday until endToday }
 
 /**
  * Hoje › "Guardado hoje" (the notes and diary said today) is hidden for now, to keep the tab to what
@@ -833,6 +858,9 @@ private fun FoldHeader(label: String, count: Int, open: Boolean, onClick: () -> 
         Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = turn })
     }
 }
+
+/** A time stays "agora" this long after it, while not done (as the medicines). */
+private const val FOCUS_BEFORE_MS = 90 * 60_000L
 
 /** Between two days of the diary that have no label. */
 private val DAY_GAP = 16.dp

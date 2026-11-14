@@ -375,6 +375,9 @@ object Dates {
     fun due(e: Entry, zone: ZoneId = ZoneId.systemDefault()): String? = e.dueAt?.let { if (e.dueHasTime) dayTime(it, zone) else day(it, zone) }
 }
 
+/** The hour on the left of a card in Hoje (as the medicines): its time, "agora"/"próximo" under the one due, the ones gone quieter. */
+data class Clock(val text: String, val note: String? = null, val accent: Boolean = false, val gone: Boolean = false)
+
 /**
  * One entry as a card: the title, and one quiet line of what matters (due, steps, status, a
  * snippet). The same on the main screen's answers and in the lists. [label] says what just happened
@@ -397,6 +400,8 @@ fun EntryCard(
     dated: Boolean = false,
     /** A task's category, quiet, at the start of the line under it. */
     showCategory: Boolean = false,
+    /** Hoje: its hour on the left (then not said again in the line under it). */
+    clock: Clock? = null,
 ) {
     val kind = entry.kindEnum
     val done = entry.statusEnum == Status.DONE
@@ -410,9 +415,19 @@ fun EntryCard(
             .background(NoveloColors.Surface)
             .stitched(shape, StitchColor)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(start = if (checkable) 6.dp else 20.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
+            .padding(start = if (clock != null) 18.dp else if (checkable) 6.dp else 20.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (clock != null) {
+            Column(Modifier.width(56.dp)) {
+                Text(
+                    clock.text,
+                    style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                    color = when { clock.accent -> NoveloColors.Accent; clock.gone -> NoveloColors.TextFaint; else -> NoveloColors.Text },
+                )
+                clock.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = NoveloColors.Accent) }
+            }
+        }
         if (checkable) CheckCircle(done, NoveloColors.Accent, onToggle!!)
         Column(Modifier.weight(1f)) {
             if (label != null) {
@@ -450,7 +465,7 @@ fun EntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday, dated = dated)
+            val meta = meta(entry, named = showKind && label == null && !checkable, withStatus = showStatus, inToday = inToday, dated = dated, timeShown = clock != null)
             val category = entry.category?.takeIf { showCategory && kind == Kind.TASK }
             if (meta.isNotEmpty() || category != null) {
                 Spacer(Modifier.height(5.dp))
@@ -481,6 +496,8 @@ fun meta(
     zone: ZoneId = ZoneId.systemDefault(),
     now: Long = System.currentTimeMillis(),
     dated: Boolean = false,
+    /** Its hour today is on the card already (Hoje): not said again here. */
+    timeShown: Boolean = false,
 ): List<Pair<String, Boolean>> = buildList<Pair<String, Boolean>> {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     fun dayOf(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
@@ -492,7 +509,7 @@ fun meta(
     e.dueAt?.let { due ->
         val day = dayOf(due)
         val text = when {
-            inToday && day == today -> if (e.dueHasTime) Dates.time(due, zone) else null
+            inToday && day == today -> if (e.dueHasTime && !timeShown) Dates.time(due, zone) else null
             e.dueHasTime -> Dates.day(due, zone, today) + " · " + Dates.time(due, zone)
             else -> Dates.day(due, zone, today)
         }
@@ -500,7 +517,7 @@ fun meta(
     }
     val steps = Steps.read(e.steps)
     if (steps.isNotEmpty()) add("${steps.count { it.done }}/${steps.size}" to false)
-    e.remindAt?.takeIf { it > now && !(e.dueHasTime && it == e.dueAt) }?.let { r ->
+    e.remindAt?.takeIf { it > now && !(e.dueHasTime && it == e.dueAt) && !(timeShown && dayOf(it) == today) }?.let { r ->
         val day = dayOf(r)
         val sameDay = e.dueAt?.let { dayOf(it) == day } == true || (inToday && day == today)
         add(t(R.string.reminder_at, if (sameDay) Dates.time(r, zone) else Dates.day(r, zone, today) + " · " + Dates.time(r, zone)) to false)

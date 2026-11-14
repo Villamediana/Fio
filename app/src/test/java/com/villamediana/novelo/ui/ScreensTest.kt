@@ -1278,6 +1278,35 @@ class ScreensTest {
         }
     }
 
+    /** Hoje by the hour, like the medicines: the tasks with a time in its order (the one next in the accent), the others "ao longo do dia". */
+    @Test
+    fun hojeGoesByTheHour() {
+        val today = LocalDate.now(zone)
+        val nowTime = java.time.LocalTime.now(zone)
+        // Kept inside today whatever the hour the test runs.
+        val earlier = today.atTime(nowTime.minusHours(3).let { if (it.isAfter(nowTime)) java.time.LocalTime.MIN else it }).atZone(zone).toInstant().toEpochMilli()
+        val next = today.atTime(nowTime.plusHours(1).let { if (it.isBefore(nowTime)) java.time.LocalTime.of(23, 59) else it }).atZone(zone).toInstant().toEpochMilli()
+        val ids = runBlocking {
+            listOf(
+                Entry(kind = "task", title = "Ligar pro banco", status = "todo", dueAt = earlier, dueHasTime = true, createdAt = now, updatedAt = now),
+                Entry(kind = "task", title = "Comida meninos", status = "todo", remindAt = next, createdAt = now, updatedAt = now),
+                Entry(kind = "task", title = "Pagar a luz", status = "todo", dueAt = today.atStartOfDay(zone).toInstant().toEpochMilli(), createdAt = now, updatedAt = now),
+            ).map { graph.db.entries().insert(it) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.TODAY)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { (nav.top as? Screen.Library)?.let { LibraryScreen(nav, it) } } }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Comida meninos").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Pra hoje").assertExists()
+            compose.onNodeWithText("Ao longo do dia").assertExists()
+            compose.onAllNodesWithText("próximo")[0].assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("77-today-by-the-hour")
+        } finally {
+            runBlocking { ids.forEach { graph.db.entries().delete(it) } }
+        }
+    }
+
     /** Notas: one list in the order she sets — the newest on top, a note held and dragged moves; each card says its day. */
     @Test
     fun aNoteHeldAndDraggedMoves() {
