@@ -160,7 +160,20 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
     /** A new one, made by hand (it opens on its name): from now on, no times yet. */
     suspend fun newMed(): Long {
         val now = clock()
-        return db.meds().insert(Med(name = "", startsAt = now, createdAt = now, updatedAt = now))
+        // From today (the whole day: a time already gone today shows, to tick).
+        return db.meds().insert(Med(name = "", startsAt = com.villamediana.novelo.meds.Doses.startOfDay(now, java.time.ZoneId.systemDefault()), createdAt = now, updatedAt = now))
+    }
+
+    /**
+     * Before 1.64.1 a medicine said without a day (or "hoje" with no hour) began the minute it was written,
+     * and today's time already gone was lost: those begin at the start of that day. Runs on opening; one
+     * already right is left alone.
+     */
+    suspend fun fixMedStarts(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()) {
+        val wrong = db.meds().all().filter { it.startsAt / 60_000L == it.createdAt / 60_000L && it.startsAt != com.villamediana.novelo.meds.Doses.startOfDay(it.startsAt, zone) }
+        if (wrong.isEmpty()) return
+        wrong.forEach { db.meds().update(it.copy(startsAt = com.villamediana.novelo.meds.Doses.startOfDay(it.startsAt, zone))) }
+        reminders.syncMeds()
     }
 
     /** A medicine set by hand: kept, and its reminders go again. */

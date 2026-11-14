@@ -115,7 +115,7 @@ class MedsTest {
         assertEquals(listOf("00:00", "08:00", "16:00"), Doses.times(amox).map(Doses::hhmm))
         assertEquals(8, amox.everyHours)
         assertEquals(Doses.endOf(LocalDate.of(2026, 11, 20), zone), amox.endsAt)
-        assertEquals(now, amox.startsAt) // started today, said without an hour: from now on
+        assertEquals(at(today, 0), amox.startsAt) // said without a day or an hour: today, the whole of it
         assertNull(losartana.person)
         assertNull(losartana.amount)
         assertTrue(Doses.times(dipirona).isEmpty()) // only when needed
@@ -239,7 +239,8 @@ class MedsTest {
         assertEquals(2, c.taken)
         // Yesterday 20:00 went by without a tick; today 20:00 is still to come.
         assertEquals(listOf(true, false, true, false, false, false), c.dots.map { it.taken })
-        assertEquals(listOf(true, true, true, false, false, false), c.dots.map { it.past })
+        // Gone by: only yesterday's; today's are still to do (ticked or not) until the day ends.
+        assertEquals(listOf(true, true, false, false, false, false), c.dots.map { it.past })
         val forGood = Doses.course(m.copy(endsAt = null), emptySet(), now, zone)!!
         assertFalse(forGood.whole)
         assertEquals(2, forGood.dots.size)
@@ -293,6 +294,39 @@ class MedsTest {
         assertEquals(listOf(3L, 4L, 5L), plan.showMeds)
         assertFalse(Brain.parse("""{"reply":"ok","search":["x"],"show_meds":[3]}""")!!.isLookupOnly)
         assertTrue(Brain.SYSTEM.contains("show_meds"))
+    }
+
+    /**
+     * Bug 1.64: "um comprimido de 24 em 24 horas por 4 dias, começando às 8", said at 10:00 — today's 08:00
+     * stays (to tick, not gone) and the treatment has its 4 doses.
+     */
+    @Test
+    fun aTreatmentBegunTodayKeepsTodaysDose() = runBlocking {
+        val keeper = Keeper(db, zone = { zone }, clock = { now })
+        val said = listOf(
+            """{"name":"Com o dia","dose":"1 comprimido","times":["08:00"],"every_hours":24,"start":"2026-11-14","end":"2026-11-17"}""",
+            """{"name":"Sem o dia","dose":"1 comprimido","times":["08:00"],"every_hours":24,"end":"2026-11-17"}""",
+        )
+        for (med in said) {
+            val r = keeper.apply(Brain.parse("""{"reply":"ok","meds":[$med]}""")!!, null)
+            val m = db.meds().get(r.meds.single())!!
+            val c = Doses.course(m, emptySet(), now, zone)!!
+            assertEquals(4, c.dots.size)
+            assertEquals(at(today, 8), c.dots.first().at)
+            assertFalse(c.dots.first().past)
+            assertTrue(Doses.day(listOf(m), today, zone).any { it.at == at(today, 8) })
+        }
+    }
+
+    /** The ones made before the fix (begun the minute they were written) begin at the start of that day; the others stay. */
+    @Test
+    fun theOnesBegunAtTheMinuteAreFixed() = runBlocking {
+        val written = at(today, 10) + 23_000
+        val wrong = db.meds().insert(med("Antigo", listOf("08:00")).copy(startsAt = written / 60_000 * 60_000, createdAt = written))
+        val right = db.meds().insert(med("Certo", listOf("08:00")).copy(startsAt = at(today, 7), createdAt = written))
+        com.villamediana.novelo.data.Library(db, object : com.villamediana.novelo.mind.ReminderSync { override suspend fun sync(entryIds: List<Long>) {} }).fixMedStarts(zone)
+        assertEquals(at(today, 0), db.meds().get(wrong)!!.startsAt)
+        assertEquals(at(today, 7), db.meds().get(right)!!.startsAt)
     }
 
     @Test
