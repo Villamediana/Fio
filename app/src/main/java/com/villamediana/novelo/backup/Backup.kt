@@ -62,7 +62,7 @@ class Backup(
     suspend fun save(root: Shelf, key: String): Saved = lock.withLock {
         withContext(Dispatchers.IO) {
             val snap = snapshot()
-            if (snap.entries.isEmpty() && snap.captures.isEmpty()) return@withContext Saved(0, 0, null, empty = true)
+            if (snap.entries.isEmpty() && snap.captures.isEmpty() && snap.meds.isEmpty()) return@withContext Saved(0, 0, null, empty = true)
             val state = readState(key)
             val same = sha(json.encodeToString(Snapshot.serializer(), snap.copy(madeAt = 0)).toByteArray(Charsets.UTF_8))
             val counted = Saved(snap.entries.size, snap.photoCount, null, sounds = snap.soundCount, files = snap.files.size)
@@ -168,7 +168,7 @@ class Backup(
     suspend fun saveAside(root: Shelf): String? = lock.withLock {
         withContext(Dispatchers.IO) {
             val snap = snapshot()
-            if (snap.entries.isEmpty() && snap.captures.isEmpty()) return@withContext null
+            if (snap.entries.isEmpty() && snap.captures.isEmpty() && snap.meds.isEmpty()) return@withContext null
             val work = work()
             try {
                 val zip = File(work, "aside.zip")
@@ -235,8 +235,10 @@ class Backup(
         val oldFiles = b.captures().flatMap { listOfNotNull(it.imagePath, it.audioPath, it.filePath) }.toSet()
         val entryIds = snap.entries.map { it.id }.toSet()
         val topicIds = snap.topics.map { it.id }.toSet()
+        val medIds = snap.meds.map { it.id }.toSet()
         db.withTransaction {
             b.clearTies(); b.clearLinks(); b.clearProgress()
+            db.meds().clearTaken(); db.meds().clear()
             b.clearEntries(); b.clearTopics(); b.clearCaptures()
             b.putEntries(snap.entries)
             b.putTopics(snap.topics)
@@ -244,6 +246,8 @@ class Backup(
             b.putLinks(snap.links.filter { it.a in entryIds && it.b in entryIds })
             b.putProgress(snap.progress.filter { it.entryId in entryIds })
             b.putCaptures(captures)
+            db.meds().putAll(snap.meds)
+            db.meds().putTaken(snap.medsTaken.filter { it.medId in medIds })
         }
         // What was replaced leaves the app with its files.
         val now = captures.flatMap { listOfNotNull(it.imagePath, it.audioPath, it.filePath) }.toSet()
@@ -251,6 +255,7 @@ class Backup(
         // A file's own folder goes with it.
         File(dir, "files").listFiles()?.forEach { if (it.isDirectory && it.list().isNullOrEmpty()) it.delete() }
         runCatching { reminders.sync((before + entryIds).distinct()) }
+        runCatching { reminders.syncMeds() }
         return Restored(snap.entries.size, restored.size, sounds.size, files.size)
     }
 
@@ -326,6 +331,8 @@ class Backup(
                 ties = b.ties(),
                 links = b.links(),
                 progress = b.progress(),
+                meds = db.meds().all(),
+                medsTaken = db.meds().allTaken(),
                 photos = captures.filter { it.source == "photo" && it.imagePath?.let { p -> File(p).isFile } == true }
                     .associate { it.id to Readable.photoPath(it, zone()) },
                 sounds = captures.filter { (it.sound || (it.source != "photo" && it.transcript == null)) && hasAudio(it) }

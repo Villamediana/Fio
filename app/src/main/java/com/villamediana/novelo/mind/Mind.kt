@@ -53,6 +53,8 @@ sealed interface MindState {
         val typed: Boolean = false,
         /** Photos that answer (capture ids). */
         val photos: List<Long> = emptyList(),
+        /** Medicines made or changed. */
+        val meds: List<Long> = emptyList(),
     ) : MindState
 
     data class Problem(val captureId: Long?, val need: Need?, val message: String, val said: String? = null) : MindState
@@ -83,6 +85,12 @@ data class Staged(val file: File, val takenAt: Long, val name: String? = null) {
 /** Keeps reminders in step with the entries (AlarmManager in the app; a fake in the tests). */
 interface ReminderSync {
     suspend fun sync(entryIds: List<Long>)
+
+    /** The medicines' reminders again (one changed, was made or went). */
+    suspend fun syncMeds() {}
+
+    /** A time of the medicines ticked in the app: its notification goes once all of that time are taken. */
+    suspend fun medTaken(at: Long) {}
 }
 
 /**
@@ -633,7 +641,7 @@ class Mind(
             val plan = think(c, said, photo, typed, sent, seen, fileAlone = file, shows = shows)
             // The numbers the model gave each photo and file are theirs, in the order it saw them.
             val filesSent = if (file) listOf(c) else sentFiles
-            val result = keeper.apply(plan, id, sentPhotos = sent.take(MAX_SENT_SEEN).map { it.id }, sentFiles = filesSent.map { it.id })
+            val result = keeper.apply(plan, id, sentPhotos = sent.take(MAX_SENT_SEEN).map { it.id }, sentFiles = filesSent.map { it.id }, photo = if (photo) id else null)
             // A photo is the day's too: it shows in the day's diary (begun now when there is none).
             if (photo) diaryFor(c.createdAt)
             if (sent.isNotEmpty()) sent.map { it.createdAt }.distinctBy { DayDiary.bounds(it, zone()).first }.forEach { diaryFor(it) }
@@ -641,6 +649,7 @@ class Mind(
             filesSent.filter { f -> result.outcomes.none { it.holdsFile(f.id) } }
                 .map { it.createdAt }.distinctBy { DayDiary.bounds(it, zone()).first }.forEach { diaryFor(it) }
             runCatching { reminders.sync(result.touched) }
+            if (result.medsChanged) runCatching { reminders.syncMeds() }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
             val shownPhotos = plan.showPhotos.distinct().filter { p -> p != id && db.captures().get(p)?.let { it.source == "photo" && it.imagePath != null } == true }
             // The recording goes, unless the model saw its sound is what she wants kept.
@@ -660,7 +669,7 @@ class Mind(
             )
             if (!keep) c.audioPath?.let { File(it).delete() }
             // A file sent alone: nothing was said (its name isn't words of hers).
-            say(MindState.Answer(id, if (file) "" else said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos))
+            say(MindState.Answer(id, if (file) "" else said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos, meds = result.meds))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
@@ -744,7 +753,11 @@ class Mind(
         val taken = if (photo) c.createdAt else null
         val before = before(c, live)
         val categories = com.villamediana.novelo.data.Categories.inUse(all)
-        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows, categories = categories)
+        // Her medicines, with today's times taken: what "já dei o remédio do Cooper" is about.
+        val meds = db.meds().all()
+        val day = DayDiary.bounds(now, z)
+        val takenToday = if (meds.isEmpty()) emptyList() else db.meds().takenBetween(day.first, day.last)
+        val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows, categories = categories, meds = meds, taken = takenToday)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()
         var foundPhotos = emptyList<Photo>()
@@ -760,7 +773,7 @@ class Mind(
             foundPhotos = (foundPhotos + (if (plan.search.isEmpty()) emptyList() else pictures().search(plan.search.joinToString(" "), MAX_PHOTO_HITS)) +
                 (if (days == null) emptyList() else pictures().during(days, MAX_PHOTO_HITS))).distinctBy { it.id }
             looked += Brain.looked(plan)
-            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows, categories = categories)
+            val next = Brain.context(heard, now, z, open, found, focus, recent, looked = looked.joinToString(" · "), photo = photo, typed = typed, diary = diary, photos = foundPhotos, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows, categories = categories, meds = meds, taken = takenToday)
             plan = Brain.parse(thinking.answer(Brain.SYSTEM, next))
                 ?: plan.copy(search = emptyList(), period = null, reply = plan.reply.ifBlank { NOTHING_FOUND })
         }

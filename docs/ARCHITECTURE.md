@@ -561,6 +561,31 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   a tarefa do lugar manual (`position = NULL`) e ela vai pro grupo da nova. Banco v11 (`MIGRATION_10_11`): a ordem
   manual de antes das categorias foi solta uma vez, pra cada grupo começar arrumado.
 
+## Remédios (1.61.0)
+
+- **Onde vive:** tabelas próprias, não é `Entry` (remédio não é tarefa): `meds` (`Med`: nome, `strength` "500 mg",
+  `dose` "½ comprimido", `amount` "250 mg", `person` (null = ela), `times` JSON "HH:MM", `everyHours`, `days` JSON
+  1–7 (vazio = todo dia), `startsAt`, `endsAt` (fim do último dia; null = contínuo), `notes`, `photoId`) e
+  `med_taken` (`medId`, `at` = o horário, `takenAt`). Banco v12 por AutoMigration; vão no backup (`Snapshot.meds`).
+- **Horários:** `meds/Doses` (puro): os horários de um dia (`day` → `Slot(at, meds)`, os do mesmo horário juntos),
+  o próximo (`next`), "de N em N horas" (`every`), dias que faltam e o fio do tratamento (`progress`), e a conta da
+  dose (`amount`: 500 mg × ½ comprimido = 250 mg; só em unidades — gotas e ml não). `meds/MedText`: tudo em palavras.
+- **Lembrete:** `remind/MedAlarms` arma um alarme só, no próximo horário de qualquer remédio. Ao tocar, os do
+  horário que ainda não foram tomados vêm num aviso só ("Remédios das 08:00", um sozinho com o nome dele), com
+  "Tomado" (marca todos) e "Daqui a 15 min"; e arma o próximo. Qualquer mudança (tela, modelo, backup) e o
+  início do app armam de novo. Tocar no aviso abre a aba (`Ask.OpenMeds`).
+- **O modelo:** vê `REMÉDIOS:` no contexto (uma linha por remédio, com os horários de hoje e quais foram tomados) e
+  responde em `meds: [{id?, name, strength, dose, amount, person, times, every_hours, days, start, end, notes,
+  photos, taken, delete}]` (`mind/MedKeeper`). Regra no prompt: remédio nunca vira tarefa; sem horário dito, usa os
+  horários que os outros remédios já têm, pra os lembretes chegarem juntos; foto de receita ou caixa vira os
+  remédios dela (a foto fica com eles). "Começa hoje" sem hora é a partir de agora; "até dia X" é o dia X inteiro.
+- **Tela:** aba Remédios depois de Tarefas: Hoje (os horários do dia, um círculo pra marcar cada um; o de agora ou
+  o próximo no acento), os em uso (por pessoa quando há mais de uma, com filtro Todos · Você · Cooper…), os
+  terminados dobrados. Cada cartão: foto (ou cápsula na cor da pessoa), dose, horários, o fio do tratamento e
+  "faltam N dias". O + abre um remédio novo; `ui/meds/MedScreen` edita tudo à mão (pra quem, dose com toques
+  ¼ ½ 1 2, de tantas em tantas horas / horários certos / quando precisar, dias, começo e fim, como tomar). A aba
+  Hoje mostra os remédios do dia no topo; a resposta da Home mostra o cartão do remédio criado ou mudado.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

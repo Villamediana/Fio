@@ -278,6 +278,21 @@ class BackupTest {
     }
 
     @Test
+    fun theMedicinesTravelAndComeBack() = runBlocking {
+        aDay()
+        val med = db.meds().insert(com.villamediana.novelo.data.Med(name = "Amoxicilina", person = "Cooper", times = "[\"08:00\"]", startsAt = now, createdAt = now, updatedAt = now))
+        db.meds().take(com.villamediana.novelo.data.MedTaken(med, now, now))
+        val b = backup()
+        b.save(root, "k")
+        // Changed after: gone, and another made.
+        db.meds().delete(med)
+        db.meds().insert(com.villamediana.novelo.data.Med(name = "Depois", startsAt = now, createdAt = now, updatedAt = now))
+        b.restore(root, Backup.FILE)
+        assertEquals(listOf("Amoxicilina" to "Cooper"), db.meds().all().map { it.name to it.person })
+        assertEquals(listOf(med), db.meds().allTaken().map { it.medId })
+    }
+
+    @Test
     fun aSoundKeptGoesWithItsItemAndComesBack() = runBlocking {
         val note = db.entries().insert(Entry(kind = "note", title = "Música que eu inventei", createdAt = now, updatedAt = now))
         val wav = File(app, "voice-9.wav").apply { writeBytes(ByteArray(3000) { it.toByte() }) }

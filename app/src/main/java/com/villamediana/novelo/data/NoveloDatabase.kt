@@ -215,7 +215,7 @@ interface BackupDao {
     @Query("SELECT * FROM progress ORDER BY id")
     suspend fun progress(): List<Progress>
 
-    @Query("SELECT (SELECT COUNT(*) FROM entries) + (SELECT COUNT(*) FROM captures)")
+    @Query("SELECT (SELECT COUNT(*) FROM entries) + (SELECT COUNT(*) FROM captures) + (SELECT COUNT(*) FROM meds)")
     suspend fun count(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -256,10 +256,10 @@ interface BackupDao {
 }
 
 @Database(
-    entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class],
-    version = 11,
+    entities = [Entry::class, Capture::class, Topic::class, EntryTopic::class, Link::class, Progress::class, Med::class, MedTaken::class],
+    version = 12,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 11, to = 12)],
 )
 abstract class NoveloDatabase : RoomDatabase() {
     abstract fun entries(): EntryDao
@@ -267,6 +267,7 @@ abstract class NoveloDatabase : RoomDatabase() {
     abstract fun graph(): GraphDao
     abstract fun progress(): ProgressDao
     abstract fun backup(): BackupDao
+    abstract fun meds(): MedDao
 
     companion object {
         /**

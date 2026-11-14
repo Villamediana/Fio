@@ -37,6 +37,9 @@ data class Snapshot(
     val sounds: Map<Long, String> = emptyMap(),
     /** Each file kept (capture id) → its copy in the backup ("Arquivos/2026/… (id) name.pdf"). */
     val files: Map<Long, String> = emptyMap(),
+    /** The medicines and the times taken (since 1.61; an older backup has none). */
+    val meds: List<com.villamediana.novelo.data.Med> = emptyList(),
+    val medsTaken: List<com.villamediana.novelo.data.MedTaken> = emptyList(),
 ) {
     val photoCount: Int get() = photos.size
     val soundCount: Int get() = sounds.size

@@ -226,6 +226,7 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
                         inCancelZone = inCancelZone,
                         entries = entries,
                         onOpen = { nav.go(Screen.Entry(it)) },
+                        onOpenMed = { nav.go(Screen.Med(it)) },
                         onToggle = { id -> scope.launch { graph.library.toggleDone(id) } },
                         onDismiss = mind::dismiss,
                         onRetry = { mind.retry(it) },
@@ -427,6 +428,7 @@ private fun StatusArea(
     onToggle: (Long) -> Unit,
     onDismiss: () -> Unit,
     onRetry: (Long) -> Unit,
+    onOpenMed: (Long) -> Unit = {},
     onDiscard: (Long) -> Unit,
     onSettings: () -> Unit,
     onStop: () -> Unit,
@@ -462,7 +464,7 @@ private fun StatusArea(
                 )
                 is MindState.Listening -> ListeningText(s, inCancelZone, onCancel)
                 is MindState.Working -> WorkingText(s, onStop)
-                is MindState.Answer -> AnswerView(s, entries, onOpen, onToggle, onDismiss)
+                is MindState.Answer -> AnswerView(s, entries, onOpen, onToggle, onDismiss, onOpenMed)
                 is MindState.Problem -> ProblemView(s, onRetry, onDiscard, onSettings, onDismiss)
             }
         }
@@ -598,7 +600,7 @@ private fun Said(text: String, maxLines: Int) {
 }
 
 @Composable
-private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long) -> Unit, onToggle: (Long) -> Unit, onDismiss: () -> Unit) {
+private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long) -> Unit, onToggle: (Long) -> Unit, onDismiss: () -> Unit, onOpenMed: (Long) -> Unit = {}) {
     var showSaid by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -623,6 +625,17 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             s.outcomes.filter { it.action != Outcome.DELETED }.forEach { o ->
                 val e = byId[o.entryId] ?: return@forEach
                 AppearingCard(i++) { EntryCard(e, onClick = { onOpen(e.id) }, label = outcomeLabel(o, e), onToggle = { onToggle(e.id) }) }
+            }
+            // The medicines made or changed: their own cards (a tap opens one).
+            if (s.meds.isNotEmpty()) {
+                val meds by remember { com.villamediana.novelo.NoveloApplication.graph.library.meds() }.collectAsState(initial = emptyList())
+                val now = remember { System.currentTimeMillis() }
+                s.meds.forEach { id ->
+                    val m = meds.firstOrNull { it.id == id } ?: return@forEach
+                    AppearingCard(i++) {
+                        com.villamediana.novelo.ui.meds.MedCard(m, now, onClick = { onOpenMed(m.id) }, label = t(if (m.createdAt >= now - 120_000L) R.string.outcome_med_new else R.string.outcome_med_changed))
+                    }
+                }
             }
             val terms = remember(s.said) { Words.of(s.said).filter { it.length >= 4 } }
             s.shown.filter { id -> s.outcomes.none { it.entryId == id } }.forEach { id ->

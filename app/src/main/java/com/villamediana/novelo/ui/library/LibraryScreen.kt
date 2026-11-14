@@ -271,7 +271,9 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
             Filter.DIARY -> Kind.DIARY.takeIf { entries != null && !todayWritten }
             else -> null
         }
-        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = if (makes != null && !searching) 4.dp else 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Remédios: the + makes a medicine by hand (it opens on its name).
+        val makesMed = TABS.getOrNull(pager.currentPage) == Filter.MEDS
+        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = if ((makes != null || makesMed) && !searching) 4.dp else 16.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             QuietIcon(NoveloIcons.Back, t(R.string.back), { nav.back() }, alpha = 0.8f)
             SearchBar(
                 searching = searching,
@@ -286,6 +288,9 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                 QuietIcon(NoveloIcons.Plus, t(when (makes) { Kind.TASK -> R.string.new_task; Kind.NOTE -> R.string.new_note; else -> R.string.new_diary }), {
                     scope.launch { nav.go(Screen.Entry(graph.library.create(makes))) }
                 }, alpha = 0.55f)
+            }
+            if (makesMed && !searching) {
+                QuietIcon(NoveloIcons.Plus, t(R.string.new_med), { scope.launch { nav.go(Screen.Med(graph.library.newMed())) } }, alpha = 0.55f)
             }
         }
 
@@ -311,6 +316,31 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
                         f == Filter.GALLERY -> Gallery(photos, empty = { Empty(Filter.GALLERY) })
+                        f == Filter.MEDS -> com.villamediana.novelo.ui.meds.MedsPage(onOpen = { nav.go(Screen.Med(it)) }, empty = { Empty(Filter.MEDS) })
+                        f == Filter.TODAY && list != null -> {
+                            // Hoje: the day's medicines first (their times, to tick), then the tasks.
+                            val now = com.villamediana.novelo.ui.meds.rememberNow()
+                            val day = com.villamediana.novelo.ui.meds.rememberToday(now)
+                            val slots = day?.slots.orEmpty()
+                            val medsLabel = t(R.string.tab_meds)
+                            Entries(
+                                f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle,
+                                top = if (day == null || slots.isEmpty()) null else ({
+                                    item(key = "label-meds") { SectionLabel(medsLabel, Modifier.animateItem()) }
+                                    item(key = "today-meds") {
+                                        com.villamediana.novelo.ui.meds.TodayDoses(
+                                            slots, day.taken, now,
+                                            onToggle = { id, at -> graph.scope.launch { graph.library.toggleTaken(id, at) } },
+                                            onOpen = { nav.go(Screen.Med(it)) },
+                                            showPeople = slots.any { s -> s.meds.any { it.person != null } },
+                                            modifier = Modifier.animateItem(),
+                                        )
+                                    }
+                                    item(key = "today-meds-gap") { Spacer(Modifier.height(6.dp)) }
+                                }),
+                                topLabels = if (slots.isEmpty()) emptyList() else List(3) { medsLabel },
+                            )
+                        }
                         f == Filter.TASKS && list != null -> {
                             // The categories (the ones with the most open tasks first) as filters over the list.
                             val all = sectionsFor(f, list, showDone)
@@ -353,6 +383,9 @@ private fun Entries(
     files: List<com.villamediana.novelo.data.KeptFile> = emptyList(),
     /** The day's photos on the day's diary card. */
     dayPhotos: DayPhotosIndex = DayPhotosIndex.EMPTY,
+    /** What comes before the groups (Hoje: the day's medicines), and what the edge's handle says over each of its items. */
+    top: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    topLabels: List<String> = emptyList(),
 ) {
     val searched = terms != null
     // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); Notas: a note
@@ -378,9 +411,10 @@ private fun Entries(
     val byGroup = filter == Filter.TODAY || filter == Filter.TASKS
     // The diary's days without a label (all but Hoje and Ontem) keep apart by a gap.
     val gapped = filter == Filter.DIARY && !searched
-    val tags = remember(groups, searched, byGroup) {
+    val tags = remember(groups, searched, byGroup, topLabels) {
         if (searched) emptyList()
         else buildList<String?> {
+            addAll(topLabels)
             groups.forEach { (label, items) ->
                 if (items.isEmpty()) return@forEach
                 if (label != null) add(if (byGroup) label else month(items.first().createdAt))
@@ -395,7 +429,8 @@ private fun Entries(
             state = listState,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
         ) {
-            if (!searched && groups.all { it.second.isEmpty() }) {
+            top?.invoke(this)
+            if (!searched && top == null && groups.all { it.second.isEmpty() }) {
                 item { Empty(filter) }
             }
             if (photos.isNotEmpty()) {
@@ -497,6 +532,7 @@ private val TABS = Filter.entries - Filter.LINKS - Filter.ALL
 private fun title(f: Filter) = when (f) {
     Filter.TODAY -> t(R.string.today)
     Filter.TASKS -> t(R.string.tab_tasks)
+    Filter.MEDS -> t(R.string.tab_meds)
     Filter.NOTES -> t(R.string.tab_notes)
     Filter.DIARY -> t(R.string.tab_diary)
     Filter.GALLERY -> t(R.string.gallery)
@@ -683,7 +719,7 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
         // The diary's card already says its day: only Hoje and Ontem get a label (Miguel, 1.55.1).
         Filter.DIARY -> byDay(all.filter { it.kindEnum == Kind.DIARY }, zone, today, nearOnly = true)
         Filter.ALL -> byDay(all, zone, today)
-        Filter.GALLERY, Filter.LINKS -> emptyList()
+        Filter.GALLERY, Filter.LINKS, Filter.MEDS -> emptyList()
     }
 }
 
@@ -839,6 +875,7 @@ private fun Empty(filter: Filter) {
             when (filter) {
                 Filter.TODAY -> t(R.string.empty_today)
                 Filter.TASKS -> t(R.string.empty_tasks)
+                Filter.MEDS -> t(R.string.empty_meds)
                 Filter.NOTES -> t(R.string.empty_notes)
                 Filter.DIARY -> t(R.string.empty_diary)
                 Filter.GALLERY -> t(R.string.empty_gallery)
@@ -853,6 +890,7 @@ private fun Empty(filter: Filter) {
             when (filter) {
                 Filter.LINKS -> t(R.string.empty_links_line)
                 Filter.GALLERY -> t(R.string.empty_gallery_line)
+                Filter.MEDS -> t(R.string.empty_meds_line)
                 else -> t(R.string.empty_line)
             },
             style = MaterialTheme.typography.bodyMedium,

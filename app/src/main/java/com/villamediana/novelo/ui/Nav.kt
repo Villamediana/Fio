@@ -3,13 +3,15 @@ package com.villamediana.novelo.ui
 import androidx.compose.runtime.mutableStateListOf
 
 /** The tabs of the library; LINKS is the drawing of what connects to what. */
-enum class Filter { TODAY, TASKS, NOTES, DIARY, GALLERY, ALL, LINKS }
+enum class Filter { TODAY, TASKS, MEDS, NOTES, DIARY, GALLERY, ALL, LINKS }
 
 sealed interface Screen {
     data object Home : Screen
     /** [topic] opens the LINKS tab with that knot already touched. */
     data class Library(val filter: Filter, val search: Boolean = false, val query: String = "", val topic: Long? = null) : Screen
     data class Entry(val id: Long) : Screen
+    /** A medicine, to see and set by hand. */
+    data class Med(val id: Long) : Screen
     /** [ai]: opened on Inteligência (from the main screen, when something there is missing). */
     data class Settings(val ai: Boolean = false) : Screen
     data object Camera : Screen

@@ -37,6 +37,13 @@ import java.util.Date
 class Reminders(private val context: Context, private val db: NoveloDatabase) : ReminderSync {
     private val alarms = context.getSystemService(AlarmManager::class.java)
 
+    /** The medicines' reminders (one alarm, on the next time). */
+    val meds = MedAlarms(context, db)
+
+    override suspend fun syncMeds() = meds.sync()
+
+    override suspend fun medTaken(at: Long) = meds.dismissIfDone(at)
+
     override suspend fun sync(entryIds: List<Long>) {
         entryIds.forEach { id ->
             val e = db.entries().get(id)
@@ -52,6 +59,7 @@ class Reminders(private val context: Context, private val db: NoveloDatabase) : 
     suspend fun syncAll() {
         db.entries().withReminder().forEach { arm(it.id, REMIND, it.remindAt) }
         db.entries().withCheckIn().forEach { arm(it.id, CHECK_IN, it.checkInAt) }
+        meds.sync()
     }
 
     @SuppressLint("MissingPermission") // USE_EXACT_ALARM (33+) / SCHEDULE_EXACT_ALARM (≤32), checked below

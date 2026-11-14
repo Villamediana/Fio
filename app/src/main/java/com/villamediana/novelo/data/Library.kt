@@ -146,6 +146,48 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
         else if (e.kindEnum == Kind.DIARY && e.title.isBlank()) db.entries().update(e.copy(title = com.villamediana.novelo.mind.DayDiary.title(e.createdAt, zone)))
     }
 
+    // The medicines (the Remédios tab), by hand.
+
+    fun meds(): Flow<List<Med>> = db.meds().observeAll()
+    fun med(id: Long): Flow<Med?> = db.meds().observe(id)
+
+    /** The times of medicines taken in [range] (a day). */
+    fun taken(range: LongRange): Flow<List<MedTaken>> = db.meds().observeTaken(range.first, range.last)
+
+    /** A new one, made by hand (it opens on its name): from now on, no times yet. */
+    suspend fun newMed(): Long {
+        val now = clock()
+        return db.meds().insert(Med(name = "", startsAt = now, createdAt = now, updatedAt = now))
+    }
+
+    /** A medicine set by hand: kept, and its reminders go again. */
+    suspend fun saveMed(m: Med) {
+        val old = db.meds().get(m.id) ?: return
+        if (old == m) return
+        db.meds().update(m.copy(updatedAt = clock()))
+        reminders.syncMeds()
+    }
+
+    suspend fun deleteMed(id: Long) {
+        db.meds().delete(id)
+        reminders.syncMeds()
+    }
+
+    /** Made by hand and left with no name: it isn't kept. */
+    suspend fun dropMedIfEmpty(id: Long) {
+        val m = db.meds().get(id) ?: return
+        if (m.name.isBlank()) deleteMed(id)
+    }
+
+    /** One time of a medicine taken (or given) — or, tapped again, not. */
+    suspend fun toggleTaken(medId: Long, at: Long) {
+        if (db.meds().takenBetween(at, at).any { it.medId == medId }) db.meds().untake(medId, at)
+        else {
+            db.meds().take(MedTaken(medId, at, clock()))
+            reminders.medTaken(at)
+        }
+    }
+
     /** Tasks put in this order by hand (held and dragged in the list): each keeps its place. */
     suspend fun reorder(ids: List<Long>) = db.withTransaction {
         ids.forEachIndexed { i, id -> db.entries().get(id)?.let { e -> if (e.position != i.toLong()) db.entries().update(e.copy(position = i.toLong())) } }

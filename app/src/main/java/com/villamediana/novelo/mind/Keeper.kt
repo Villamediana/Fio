@@ -20,14 +20,18 @@ class Keeper(
     private val zone: () -> ZoneId = { ZoneId.systemDefault() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    /** What happened, in order; entries whose reminders changed are in [touched]. */
-    data class Result(val outcomes: List<Outcome>, val touched: List<Long>)
+    /**
+     * What happened, in order; entries whose reminders changed are in [touched]; the medicines made or
+     * changed in [meds] ([medsChanged]: any change at all — their reminders go again).
+     */
+    data class Result(val outcomes: List<Outcome>, val touched: List<Long>, val meds: List<Long> = emptyList(), val medsChanged: Boolean = false)
 
     /**
      * [sentPhotos] and [sentFiles]: the photos and files she sent with it, in the order the model saw
-     * them numbered (1, 2…): an item's numbers become theirs.
+     * them numbered (1, 2…): an item's numbers become theirs. [photo]: the photo she sent alone (the
+     * capture itself), which a medicine made from it keeps.
      */
-    suspend fun apply(plan: Plan, captureId: Long?, sentPhotos: List<Long> = emptyList(), sentFiles: List<Long> = emptyList()): Result = db.withTransaction {
+    suspend fun apply(plan: Plan, captureId: Long?, sentPhotos: List<Long> = emptyList(), sentFiles: List<Long> = emptyList(), photo: Long? = null): Result = db.withTransaction {
         /** An item's numbers → (all of them, these capture ids). */
         fun picked(nums: List<Int>, ids: List<Long>): Pair<Boolean, List<Long>> =
             if (Picks.ALL in nums) true to emptyList() else false to nums.mapNotNull { ids.getOrNull(it - 1) }.distinct()
@@ -164,7 +168,8 @@ class Keeper(
             }
         }
         if (plan.update.any { it.delete }) db.graph().pruneTopics()
-        Result(outcomes.distinctBy { it.entryId to it.action }, touched.distinct())
+        val meds = MedKeeper.apply(db, plan.meds, captureId, sentPhotos, photo, now, z)
+        Result(outcomes.distinctBy { it.entryId to it.action }, touched.distinct(), meds.meds, meds.changed)
     }
 
     /**
