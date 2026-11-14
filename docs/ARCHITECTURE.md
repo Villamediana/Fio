@@ -602,6 +602,13 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   do começo — o começo recua pra elas aparecerem); de tantas em tantas horas dado fora do horário, o modelo manda os
   `times` novos a partir dali. O contexto diz "doses: X de Y dadas".
 
+## Hoje por hora (1.67.0)
+
+- No Hoje, as tarefas de hoje com hora (o lembrete de hoje, ou o prazo com hora — `todayTime`) ficam em "Pra hoje" em
+  ordem de horário, a hora à esquerda do cartão (`Clock` no `EntryCard`, como os remédios): a da vez no acento com
+  "agora"/"próximo" (até 90 min depois da hora, sem marcar), as que passaram mais apagadas. As de hoje sem hora vão
+  em "Ao longo do dia". Atrasadas, Em andamento e Feitas hoje seguem iguais.
+
 ## Quem vê (1.66.0)
 
 - Três trabalhos separados: quem ouve (transcreve), **quem vê** (diz o que a foto mostra e o que é um documento) e

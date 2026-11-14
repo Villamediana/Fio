@@ -501,4 +501,5 @@
     <string name="setup_see_own_line">Um modelo que enxerga imagem (GPT-4o mini, Gemini…), com a sua chave.</string>
     <string name="ready_see">Falta quem vê suas fotos e documentos.</string>
     <string name="see_photo_ask">Descreva esta foto.</string>
+    <string name="section_through_day">Ao longo do dia</string>
 </resources>
