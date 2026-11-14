@@ -632,11 +632,15 @@ private fun AnswerView(s: MindState.Answer, entries: List<Entry>, onOpen: (Long)
             // The medicines made or changed: their own cards (a tap opens one).
             if (s.meds.isNotEmpty()) {
                 val meds by remember { com.villamediana.novelo.NoveloApplication.graph.library.meds() }.collectAsState(initial = emptyList())
+                val taken by remember { com.villamediana.novelo.NoveloApplication.graph.library.allTaken() }.collectAsState(initial = emptyList())
                 val now = remember { System.currentTimeMillis() }
                 s.meds.forEach { id ->
                     val m = meds.firstOrNull { it.id == id } ?: return@forEach
                     AppearingCard(i++) {
-                        com.villamediana.novelo.ui.meds.MedCard(m, now, onClick = { onOpenMed(m.id) }, label = t(if (m.createdAt >= now - 120_000L) R.string.outcome_med_new else R.string.outcome_med_changed))
+                        com.villamediana.novelo.ui.meds.MedCard(
+                            m, now, onClick = { onOpenMed(m.id) }, label = t(if (m.createdAt >= now - 120_000L) R.string.outcome_med_new else R.string.outcome_med_changed),
+                            taken = taken.filter { it.medId == m.id }.map { it.at }.toSet(),
+                        )
                     }
                 }
             }

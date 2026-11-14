@@ -69,11 +69,16 @@ internal object MedKeeper {
                 if (m != old) { dao.update(m.copy(updatedAt = now)); changed = true }
                 m.id
             }
-            if (ask.taken) {
-                take(db, dao.get(id) ?: continue, now, z)
-                changed = true
+            // Doses given: the one of now, ones at times said, how many already (the last ones).
+            val given = ask.taken || ask.takenAt.isNotEmpty() || (ask.takenCount ?: 0) > 0
+            if (ask.taken) take(db, dao.get(id) ?: continue, now, now, z)
+            for (text in ask.takenAt) {
+                val at = givenAt(text, now, z) ?: continue
+                take(db, dao.get(id) ?: break, at, now, z)
             }
-            if (old == null || m != old || ask.taken) ids += id
+            ask.takenCount?.takeIf { it > 0 }?.let { n -> takeLast(db, dao.get(id) ?: return@let, n.coerceAtMost(200), now, z) }
+            if (given) changed = true
+            if (old == null || m != old || given) ids += id
         }
         return Done(ids.distinct(), changed)
     }
@@ -97,16 +102,32 @@ internal object MedKeeper {
     }
 
     /**
-     * The time of now taken (or given): today's time nearest now — even one from before it was written
-     * down (then it starts there, so today shows it ticked); one taken only when needed, now.
+     * A dose given at [at]: the time of that day nearest it — even one from before it was written down
+     * (then it starts there, so it shows ticked); one taken only when needed, at that minute.
      */
-    suspend fun take(db: NoveloDatabase, m: Med, now: Long, z: ZoneId) {
-        val day = Doses.dayOf(now, z)
-        val whole = m.copy(startsAt = minOf(m.startsAt, day.atStartOfDay(z).toInstant().toEpochMilli()))
-        val slot = Doses.day(listOf(whole), day, z).minByOrNull { kotlin.math.abs(it.at - now) }?.at
+    suspend fun take(db: NoveloDatabase, m: Med, at: Long, now: Long, z: ZoneId) {
+        val slot = Doses.nearest(m, at, z)
         if (slot != null && slot < m.startsAt) db.meds().update(m.copy(startsAt = slot))
-        db.meds().take(MedTaken(m.id, slot ?: (now / 60_000L * 60_000L), now))
+        db.meds().take(MedTaken(m.id, slot ?: (at / 60_000L * 60_000L), minOf(at, now)))
     }
+
+    /** "Já dei 2 vezes": its last [n] times up to now (a little after counts: given a bit early), taken. */
+    private suspend fun takeLast(db: NoveloDatabase, m: Med, n: Int, now: Long, z: ZoneId) {
+        val last = Doses.lastTimes(m, n, now + EARLY_MS, z)
+        if (last.isEmpty()) return
+        if (last.first() < m.startsAt) db.meds().update(m.copy(startsAt = last.first()))
+        last.forEach { db.meds().take(MedTaken(m.id, it, now)) }
+    }
+
+    /** When a dose was given: "10:30" is today at that time; a day and time, that. */
+    private fun givenAt(text: String, now: Long, z: ZoneId): Long? {
+        Doses.time(text)?.let { t -> return Doses.dayOf(now, z).atTime(t).atZone(z).toInstant().toEpochMilli() }
+        val (ms, hasTime) = Brain.time(text, z) ?: return null
+        return if (hasTime) ms else null
+    }
+
+    /** A dose given this much before its time still counts as that one. */
+    private const val EARLY_MS = 60 * 60_000L
 
     /** When it starts: a day only — today is from now on, another day from its start; a time is that time. */
     private fun start(text: String?, now: Long, z: ZoneId): Long? {

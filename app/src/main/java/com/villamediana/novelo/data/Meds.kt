@@ -93,6 +93,9 @@ interface MedDao {
     @Query("SELECT * FROM med_taken WHERE at BETWEEN :from AND :to")
     fun observeTaken(from: Long, to: Long): Flow<List<MedTaken>>
 
+    @Query("SELECT * FROM med_taken ORDER BY at")
+    fun observeAllTaken(): Flow<List<MedTaken>>
+
     // A backup: everything, and everything back.
     @Query("SELECT * FROM med_taken ORDER BY at")
     suspend fun allTaken(): List<MedTaken>

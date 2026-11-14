@@ -93,6 +93,48 @@ object Doses {
             .map { (at, list) -> Slot(at, list) }
     }
 
+    /** One dose of a treatment: its time, taken or not, gone by or still to come. */
+    data class Dot(val at: Long, val taken: Boolean, val past: Boolean)
+
+    /**
+     * The doses to show as beads: the whole treatment when it has an end and isn't too long ([whole]),
+     * else today's; [days] groups them by day. Null: only when needed, or none today.
+     */
+    data class Course(val days: List<List<Dot>>, val whole: Boolean) {
+        val dots: List<Dot> get() = days.flatten()
+        val taken: Int get() = dots.count { it.taken }
+    }
+
+    fun course(m: Med, taken: Set<Long>, now: Long, zone: ZoneId): Course? {
+        if (times(m).isEmpty()) return null
+        fun dots(list: List<Long>) = list.groupBy { dayOf(it, zone) }.toSortedMap().values.map { day -> day.map { Dot(it, it in taken, it <= now) } }
+        m.endsAt?.let { end ->
+            val all = slots(m, m.startsAt, end, zone)
+            if (all.size in 1..MAX_DOTS) return Course(dots(all), whole = true)
+        }
+        val today = day(listOf(m), dayOf(now, zone), zone).map { it.at }
+        return if (today.isEmpty()) null else Course(dots(today), whole = false)
+    }
+
+    /** The last [n] times up to [until] (ms), looking back as far as it takes (from before it started too), in order. */
+    fun lastTimes(m: Med, n: Int, until: Long, zone: ZoneId): List<Long> {
+        if (n <= 0 || times(m).isEmpty()) return emptyList()
+        var back = 1L
+        while (true) {
+            val from = dayOf(until, zone).minusDays(back).atStartOfDay(zone).toInstant().toEpochMilli()
+            val found = slots(m.copy(startsAt = minOf(m.startsAt, from)), from, until, zone)
+            if (found.size >= n || back >= 120) return found.takeLast(n)
+            back *= 2
+        }
+    }
+
+    /** The time of [m] on the day of [at] nearest it (from before it started too); null: none that day. */
+    fun nearest(m: Med, at: Long, zone: ZoneId): Long? {
+        val day = dayOf(at, zone)
+        val whole = m.copy(startsAt = minOf(m.startsAt, day.atStartOfDay(zone).toInstant().toEpochMilli()))
+        return day(listOf(whole), day, zone).minByOrNull { kotlin.math.abs(it.at - at) }?.at
+    }
+
     /** Its last day is over. */
     fun ended(m: Med, now: Long): Boolean = m.endsAt != null && m.endsAt < now
 
@@ -177,6 +219,9 @@ object Doses {
 
     /** The words of a dose counted in pieces (pt, es, en). */
     private val PIECES = listOf("comprimido", "comp", "cp", "cápsula", "capsula", "drágea", "dragea", "pílula", "pilula", "sachê", "sache", "sobre", "unidade", "unidad", "tablete", "tableta", "tablet", "pastilla", "pill", "capsule")
+
+    /** The most doses shown one by one for a whole treatment (longer ones show today's). */
+    const val MAX_DOTS = 60
 
     /** How far ahead the next time is looked for (a medicine taken once a week has one in it). */
     private const val LOOK_AHEAD = 8 * 86_400_000L

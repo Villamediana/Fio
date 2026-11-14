@@ -755,8 +755,7 @@ class Mind(
         val categories = com.villamediana.novelo.data.Categories.inUse(all)
         // Her medicines, with today's times taken: what "já dei o remédio do Cooper" is about.
         val meds = db.meds().all()
-        val day = DayDiary.bounds(now, z)
-        val takenToday = if (meds.isEmpty()) emptyList() else db.meds().takenBetween(day.first, day.last)
+        val takenToday = if (meds.isEmpty()) emptyList() else db.meds().allTaken()
         val first = Brain.context(heard, now, z, open, hits, focus, recent, photo = photo, typed = typed, diary = diary, photos = photoHits, takenAt = taken, before = before, sent = sentPhotos, files = files, fileAlone = fileAlone, seen = shows, categories = categories, meds = meds, taken = takenToday)
         var plan = Brain.parse(thinking.answer(Brain.SYSTEM, first)) ?: throw IllegalStateException(t(R.string.bad_format))
         var found = emptyList<Entry>()

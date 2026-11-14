@@ -1146,6 +1146,7 @@ class ScreensTest {
             // Further down, the cards: the dose worked out, the one only when needed.
             compose.onNodeWithTag("meds").performScrollToNode(androidx.compose.ui.test.hasText("½ comprimido · 250 mg (de 500 mg)"))
             compose.mainClock.advanceTimeBy(800)
+            assertTrue(compose.onAllNodesWithTag("dose-dots", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
             shot("70a-meds-cards")
             compose.onNodeWithTag("meds").performScrollToNode(androidx.compose.ui.test.hasText("quando precisar"))
             compose.onNodeWithTag("meds").performScrollToIndex(0)
