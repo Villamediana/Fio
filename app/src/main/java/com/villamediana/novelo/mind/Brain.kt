@@ -269,6 +269,7 @@ Como preencher:
   · Quando ela não diz o horário, use horários que os outros REMÉDIOS já têm, pra os lembretes chegarem juntos num aviso só; não havendo, horários comuns (08:00, 20:00…).
   · start: quando começa (sem dizer, agora). end: o último dia de tomar — "por 7 dias" conta o dia do começo como o primeiro; uso contínuo, sem end.
   · Pra mudar um remédio: {"id": N, só o que muda}. Voltar a ser contínuo: "end": "none". Parou ou acabou: "end" com o dia de hoje. Tirar da lista: "delete": true.
+  · Dose dada é só a que ela JÁ deu ou tomou ("dei", "tomei", "acabei de dar"). O que ela ainda vai dar ("vou dar às 10", "começa às 10") é horário — "times"/"start" —, nunca dose dada.
   · Doses dadas: a de agora, "taken": true; numa hora que ela diz, "taken_at": ["HH:MM" ou "AAAA-MM-DDTHH:MM"], uma por dose; quantas já deu ("já dei 2 vezes"), "taken_count": 2. Deu fora do horário um remédio de tantas em tantas horas: os próximos seguem dali — mande também os times novos a partir dessa hora. Remédio que já vinha sendo tomado: "start" no dia em que começou. Marcou errado ("não, dei só uma vez", "essa não dei"): tire a marcação — "untaken_at" com a hora de cada dose que não foi, ou "taken": false pra de agora.
   · A foto de uma receita ou de uma caixa de remédio: leia e crie os remédios dela, com a foto em "photos".
 - related: ids de itens do contexto que tratam do mesmo assunto.

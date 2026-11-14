@@ -602,6 +602,19 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   do começo — o começo recua pra elas aparecerem); de tantas em tantas horas dado fora do horário, o modelo manda os
   `times` novos a partir dali. O contexto diz "doses: X de Y dadas".
 
+## Quem vê (1.66.0)
+
+- Três trabalhos separados: quem ouve (transcreve), **quem vê** (diz o que a foto mostra e o que é um documento) e
+  quem pensa — cada um o Novelo ou a API dela (`Job.SEE`, chaves `see_by`, `see_api_*`; provedor, chave e modelo
+  próprios; "usar a mesma chave" de qualquer outro trabalho do mesmo provedor).
+- `mind/Seeing` (em `FileAbout.kt`) é o `About` do Mind: Novelo → Omni no celular; API → a foto (ou a 1ª página do
+  documento sem texto) vai pro modelo dela com o mesmo pedido; falha não diz nada (o texto lido no celular segue).
+- Ajustes › Inteligência: linha "Quem vê"; o modelo do celular aparece quando ouve ou vê pelo Novelo ("Ouvido e olhos
+  do Novelo"). Primeiros passos: "Quem vai ver suas fotos e documentos?" só quando a API ouve. Home: faltando quem
+  vê, o cartão diz (`Missing.SEE`, `locks = false`) e o botão não trava. A busca por sentido segue no Omni do celular.
+- Junto (1.66.0): dose futura não é marcada ("vou dar às 10" é horário; `taken_at` adiante de agora é ignorado), e o
+  Hoje mostra só os horários das últimas 2 horas e o próximo (`nearTimes`); o dia inteiro fica em Remédios.
+
 ## Abas (1.64.0)
 
 - Ordem padrão: Hoje, Tarefas, Diário, Notas, Remédios, Galeria (`TabOrder.DEFAULT`, em `ui/library/LibraryScreen.kt`).

@@ -329,6 +329,26 @@ class MedsTest {
         assertEquals(at(today, 7), db.meds().get(right)!!.startsAt)
     }
 
+    /** Bug 1.65: "vou dar às 10" said at 9:40 is the first time, not a dose given — even if the model marks it. */
+    @Test
+    fun aDoseStillToComeIsNotGiven() = runBlocking {
+        val nineForty = at(today, 9, 40)
+        val keeper = Keeper(db, zone = { zone }, clock = { nineForty })
+        val r = keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"Dipirona sódica","strength":"500 mg","dose":"½ comprimido","times":["10:00","22:00"],"every_hours":12,"end":"2026-11-17","taken_at":["10:00"]}]}""")!!, null)
+        assertTrue(db.meds().allTaken().none { it.medId == r.meds.single() })
+        assertTrue(Brain.SYSTEM.contains("vou dar às 10"))
+    }
+
+    /** Hoje shows only what is near: the times of the last 2 hours and the next one. */
+    @Test
+    fun hojeShowsOnlyTheNearTimes() {
+        val slots = listOf(0, 7, 8, 10, 13, 16, 20).map { Doses.Slot(at(today, it), emptyList()) }
+        val near = com.villamediana.novelo.ui.meds.nearTimes(slots, at(today, 9, 41))
+        assertEquals(listOf(at(today, 8), at(today, 10)), near.map { it.at })
+        // Late at night, nothing more today: only the last 2 hours.
+        assertEquals(listOf(at(today, 20)), com.villamediana.novelo.ui.meds.nearTimes(slots, at(today, 21)).map { it.at })
+    }
+
     @Test
     fun theTreatmentGoesAlongItsDays() {
         val m = med("A", listOf("08:00"), start = at(today.minusDays(3), 9), end = Doses.endOf(today.plusDays(6), zone))

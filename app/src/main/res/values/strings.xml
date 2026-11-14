@@ -482,4 +482,23 @@
     <string name="tabs_move">Mover %1$s</string>
     <string name="tabs_hide">Esconder %1$s</string>
     <string name="tabs_show">Mostrar %1$s</string>
+    <string name="ai_who_sees">Quem vê</string>
+    <string name="ai_api_sees">API de quem vê</string>
+    <string name="ai_model_sees">Modelo que vê</string>
+    <string name="ai_model_sees_title">Modelo que vê fotos</string>
+    <string name="ai_missing_see_api">falta a API de quem vê</string>
+    <string name="ai_missing_see_model">falta o modelo que vê</string>
+    <string name="ai_sees_phone">vê no celular</string>
+    <string name="ai_sees_with">vê com %1$s</string>
+    <string name="api_same_key_sees">Usar a mesma chave de quem vê</string>
+    <string name="local_pack_see">Olhos do Novelo</string>
+    <string name="local_pack_both">Ouvido e olhos do Novelo</string>
+    <string name="local_delete_line_sees">É ele que vê suas fotos e documentos: até baixar de novo (%1$s), eles ficam só com o texto lido.</string>
+    <string name="setup_see_title">Quem vai ver suas fotos e documentos?</string>
+    <string name="setup_see_line">Diz o que tem em cada foto e o que é cada documento, pra você achar depois.</string>
+    <string name="setup_see_novelo">Os olhos do Novelo</string>
+    <string name="setup_see_novelo_line">No celular, sem internet. Baixa uma vez (%1$s); pode ser depois.</string>
+    <string name="setup_see_own_line">Um modelo que enxerga imagem (GPT-4o mini, Gemini…), com a sua chave.</string>
+    <string name="ready_see">Falta quem vê suas fotos e documentos.</string>
+    <string name="see_photo_ask">Descreva esta foto.</string>
 </resources>

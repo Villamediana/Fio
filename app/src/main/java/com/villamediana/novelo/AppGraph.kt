@@ -94,7 +94,8 @@ class AppGraph(context: Context) {
             dir = captures,
             offline = { WhenOnline.schedule(appContext) },
             peek = com.villamediana.novelo.mind.PhonePeek(appContext, MlKitPhotoReader(appContext)),
-            about = com.villamediana.novelo.mind.OmniAbout(engine, localModel),
+            // Who sees: Omni on the phone, or her API (Ajustes › Inteligência › Quem vê).
+            about = com.villamediana.novelo.mind.Seeing(settings, api, com.villamediana.novelo.mind.OmniAbout(engine, localModel)),
         )
     }
 

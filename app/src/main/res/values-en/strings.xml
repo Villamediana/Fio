@@ -482,4 +482,23 @@
     <string name="tabs_move">Move %1$s</string>
     <string name="tabs_hide">Hide %1$s</string>
     <string name="tabs_show">Show %1$s</string>
+    <string name="ai_who_sees">Who sees</string>
+    <string name="ai_api_sees">API that sees</string>
+    <string name="ai_model_sees">Model that sees</string>
+    <string name="ai_model_sees_title">Model that sees photos</string>
+    <string name="ai_missing_see_api">the API that sees is missing</string>
+    <string name="ai_missing_see_model">the model that sees is missing</string>
+    <string name="ai_sees_phone">sees on the phone</string>
+    <string name="ai_sees_with">sees with %1$s</string>
+    <string name="api_same_key_sees">Use the same key as who sees</string>
+    <string name="local_pack_see">Novelo\'s eyes</string>
+    <string name="local_pack_both">Novelo\'s ears and eyes</string>
+    <string name="local_delete_line_sees">It sees your photos and documents: until you download it again (%1$s), they only keep the text read.</string>
+    <string name="setup_see_title">Who will see your photos and documents?</string>
+    <string name="setup_see_line">It says what each photo shows and what each document is, so you find them later.</string>
+    <string name="setup_see_novelo">Novelo\'s eyes</string>
+    <string name="setup_see_novelo_line">On the phone, offline. Downloaded once (%1$s); it can be later.</string>
+    <string name="setup_see_own_line">A model that sees images (GPT-4o mini, Gemini…), with your key.</string>
+    <string name="ready_see">Who sees your photos and documents is missing.</string>
+    <string name="see_photo_ask">Describe this photo.</string>
 </resources>

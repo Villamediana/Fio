@@ -114,7 +114,8 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
     val ears by graph.localModel.state.collectAsStateWithLifecycle()
     // What is still missing to hear and think (the ears, her APIs): the button is locked until it is there.
     val missing = remember(settings, ears) { missing(settings, ears, com.villamediana.novelo.local.LocalEngine.available) }
-    val locked = missing.isNotEmpty()
+    // Locked only for what speaking needs (who sees lacks only for photos and documents: said, not locked).
+    val locked = missing.any { it.locks }
     var nudge by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     SideEffect { OrbSpot.locked = locked }
 

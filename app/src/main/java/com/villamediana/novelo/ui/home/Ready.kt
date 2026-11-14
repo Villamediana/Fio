@@ -44,8 +44,11 @@ import com.villamediana.novelo.ui.setup.LocalDownload
 import com.villamediana.novelo.ui.theme.NoveloColors
 import com.villamediana.novelo.ui.theme.NoveloText
 
-/** What still has to be there for Novelo to hear and think (she set it up, or it is still to come). */
-enum class Missing { EARS, HEAR_API, THINK_API }
+/**
+ * What still has to be there for Novelo to hear, see and think (she set it up, or it is still to come).
+ * [locks]: without it nothing can be said (who sees only lacks for photos and documents).
+ */
+enum class Missing(val locks: Boolean = true) { EARS, HEAR_API, THINK_API, SEE(locks = false) }
 
 /**
  * What is missing for what she chose: the ears on the phone when the Novelo hears (a build that
@@ -57,6 +60,11 @@ fun missing(s: NoveloSettings, ears: LocalModel.State, engine: Boolean): List<Mi
         Source.API -> s.api(Job.HEAR).let { if (!it.ready || it.model.isBlank()) add(Missing.HEAR_API) }
     }
     if (s.think == Source.API) s.api(Job.THINK).let { if (!it.ready || it.model.isBlank()) add(Missing.THINK_API) }
+    // Who sees: the model on the phone (when it isn't already asked for as the ears), or her API.
+    when (s.see) {
+        Source.NOVELO -> if (engine && ears != LocalModel.State.Ready && Missing.EARS !in this) add(Missing.SEE)
+        Source.API -> s.api(Job.SEE).let { if (!it.ready || it.model.isBlank()) add(Missing.SEE) }
+    }
 }
 
 /**
@@ -95,8 +103,11 @@ internal fun ReadyCard(missing: List<Missing>, nudge: Int, onSettings: () -> Uni
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(NoveloIcons.Lock, null, tint = NoveloColors.Accent, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(7.dp))
+            // The lock only when the button is locked.
+            if (missing.any { it.locks }) {
+                Icon(NoveloIcons.Lock, null, tint = NoveloColors.Accent, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(7.dp))
+            }
             Text(t(R.string.ready_title), style = NoveloText.Invite, color = NoveloColors.Text, textAlign = TextAlign.Center)
         }
         missing.forEach { m ->
@@ -115,9 +126,9 @@ internal fun ReadyCard(missing: List<Missing>, nudge: Int, onSettings: () -> Uni
                         modifier = Modifier.clip(CircleShape).clickable(onClick = onSettings).padding(horizontal = 10.dp, vertical = 8.dp),
                     )
                 }
-                Missing.HEAR_API, Missing.THINK_API -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Missing.HEAR_API, Missing.THINK_API, Missing.SEE -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     Text(
-                        t(if (m == Missing.HEAR_API) R.string.ready_hear_api else R.string.ready_think_api),
+                        t(when (m) { Missing.HEAR_API -> R.string.ready_hear_api; Missing.SEE -> R.string.ready_see; else -> R.string.ready_think_api }),
                         style = MaterialTheme.typography.bodyMedium,
                         color = NoveloColors.TextMuted,
                         modifier = Modifier.weight(1f, fill = false),

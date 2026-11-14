@@ -176,13 +176,14 @@ class HearingTest {
         assertEquals(listOf(Missing.EARS), missing(st.current(), LocalModel.State.Missing, true))
         assertEquals(listOf(Missing.EARS), missing(st.current(), LocalModel.State.Downloading(0.5f, 1, 2), true))
         assertTrue(missing(st.current(), LocalModel.State.Ready, true).isEmpty())
-        // Her API hears: no ears needed, her API is.
+        // Her API hears: no ears needed, her API is (and who sees, still the Novelo, needs its model: said, not locking).
         st.setHear(Source.API)
-        assertEquals(listOf(Missing.HEAR_API), missing(st.current(), LocalModel.State.Missing, true))
+        assertEquals(listOf(Missing.HEAR_API, Missing.SEE), missing(st.current(), LocalModel.State.Missing, true))
         herApi()
-        assertTrue(missing(st.current(), LocalModel.State.Missing, true).isEmpty())
+        assertEquals(listOf(Missing.SEE), missing(st.current(), LocalModel.State.Missing, true))
+        assertTrue(missing(st.current(), LocalModel.State.Ready, true).isEmpty())
         st.setThink(Source.API)
-        assertEquals(listOf(Missing.THINK_API), missing(st.current(), LocalModel.State.Missing, true))
+        assertEquals(listOf(Missing.THINK_API), missing(st.current(), LocalModel.State.Ready, true))
         st.setThink(Source.NOVELO)
         Unit
     }
@@ -194,7 +195,7 @@ class HearingTest {
         // This build has no engine: the ears are what is missing.
         assertTrue(intelligenceSummary(st.current(), ready, novelo = true).second)
         herApi()
-        assertEquals("ouve com whisper-1 · Inteligência do Novelo" to false, intelligenceSummary(st.current(), LocalModel.State.Missing, novelo = true))
+        assertEquals("ouve com whisper-1 · vê no celular · Inteligência do Novelo" to false, intelligenceSummary(st.current(), LocalModel.State.Missing, novelo = true))
         st.setModel(Job.HEAR, "")
         assertEquals("falta o modelo que ouve" to true, intelligenceSummary(st.current(), LocalModel.State.Missing, novelo = true))
     }

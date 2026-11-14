@@ -128,6 +128,19 @@ fun IntelligenceSection() {
             },
             {
                 SourceLine(
+                    title = t(R.string.ai_who_sees),
+                    source = s.see,
+                    model = s.seeModel,
+                    tag = "see",
+                    onSource = { src ->
+                        scope.launch { st.setSee(src) }
+                        if (src == Source.API && s.seeModel.isBlank() && s.api(Job.SEE).ready) { models = emptyList(); picking = Job.SEE }
+                    },
+                    onPick = { models = emptyList(); picking = Job.SEE },
+                )
+            },
+            {
+                SourceLine(
                     title = t(R.string.ai_who_thinks),
                     source = s.think,
                     model = s.thinkModel,
@@ -141,15 +154,19 @@ fun IntelligenceSection() {
             },
         )
 
-        // The ears: to download when the Novelo hears; and, once on the phone, to take them off.
-        if (s.hear == Source.NOVELO || local !is LocalModel.State.Missing) {
+        // The model on the phone (it hears and sees): to download when the Novelo hears or sees; and, once there, to take it off.
+        if (s.hear == Source.NOVELO || s.see == Source.NOVELO || local !is LocalModel.State.Missing) {
             SectionLabel(t(R.string.ai_on_phone))
-            Group(Modifier, { LocalModelLine(graph.localModel, local, t(R.string.local_pack_hear), onDelete = { deleting = true }) })
+            Group(Modifier, { LocalModelLine(graph.localModel, local, phonePack(s), onDelete = { deleting = true }) })
         }
 
         if (s.hear == Source.API) {
             SectionLabel(t(R.string.ai_api_hears))
             OwnSetup(job = Job.HEAR, showModels = false)
+        }
+        if (s.see == Source.API) {
+            SectionLabel(t(R.string.ai_api_sees))
+            OwnSetup(job = Job.SEE, showModels = false)
         }
         if (s.think == Source.API) {
             SectionLabel(t(R.string.ai_api_thinks))
@@ -159,7 +176,7 @@ fun IntelligenceSection() {
 
     picking?.let { job ->
         ModelPicker(
-            title = t(if (job == Job.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
+            title = modelTitle(job),
             current = s.api(job).model,
             models = models,
             ready = s.api(job).ready,
@@ -178,7 +195,11 @@ fun IntelligenceSection() {
     if (deleting) {
         com.villamediana.novelo.ui.sheets.ConfirmDialog(
             title = t(R.string.local_delete_title),
-            line = if (s.hear == Source.NOVELO) t(R.string.local_delete_line_hears, formatBytes(graph.localModel.totalBytes)) else t(R.string.local_delete_line, formatBytes(graph.localModel.totalBytes)),
+            line = when {
+                s.hear == Source.NOVELO -> t(R.string.local_delete_line_hears, formatBytes(graph.localModel.totalBytes))
+                s.see == Source.NOVELO -> t(R.string.local_delete_line_sees, formatBytes(graph.localModel.totalBytes))
+                else -> t(R.string.local_delete_line, formatBytes(graph.localModel.totalBytes))
+            },
             yes = t(R.string.local_delete),
             onYes = {
                 deleting = false
@@ -192,6 +213,16 @@ fun IntelligenceSection() {
         )
     }
 }
+
+/** What the model on the phone is for her: its ears, its eyes, or both. */
+internal fun phonePack(s: com.villamediana.novelo.settings.NoveloSettings): String = when {
+    s.hear == Source.NOVELO && s.see == Source.NOVELO -> t(R.string.local_pack_both)
+    s.see == Source.NOVELO -> t(R.string.local_pack_see)
+    else -> t(R.string.local_pack_hear)
+}
+
+/** The model picker's title for [job]. */
+internal fun modelTitle(job: Job): String = t(when (job) { Job.HEAR -> R.string.ai_model_hears_title; Job.SEE -> R.string.ai_model_sees_title; Job.THINK -> R.string.ai_model_thinks_title })
 
 /** A provider's name as she reads it ("Outro" / "Other" / "Otro" for an address of her own). */
 internal fun providerName(p: Provider): String = if (p == Providers.OTHER) t(R.string.provider_other) else p.name
