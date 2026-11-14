@@ -971,7 +971,7 @@ class ScreensTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("A nota mais antiga").fetchSemanticsNodes().isNotEmpty() }
         nav.go(Screen.Library(Filter.TASKS))
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Tarefa 0").fetchSemanticsNodes().isNotEmpty() }
-        crossToTheEnd("A fazer")
+        crossToTheEnd("Sem categoria")
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Tarefa 39").fetchSemanticsNodes().isNotEmpty() }
     }
 
@@ -1200,6 +1200,44 @@ class ScreensTest {
             compose.waitUntil(5_000) { runBlocking { graph.db.meds().get(made) } == null }
         } finally {
             runBlocking { graph.db.meds().all().forEach { graph.db.meds().delete(it.id) } }
+        }
+    }
+
+    /** Feitas folds: in Tarefas and in Hoje only its name and how many; a tap opens it and the done ones come down under it. */
+    @Test
+    fun theDoneOnesFold() {
+        val ids = runBlocking {
+            listOf(
+                Entry(kind = "task", title = "Mandar o relatório", status = "todo", category = "Trabalho", createdAt = now, updatedAt = now),
+                Entry(kind = "task", title = "Consertar a pia", status = "todo", category = "Casa", createdAt = now, updatedAt = now),
+                Entry(kind = "task", title = "Pagar a luz", status = "done", category = "Casa", doneAt = now, createdAt = now - day, updatedAt = now),
+                Entry(kind = "task", title = "Comprar ração", status = "done", category = "Casa", doneAt = now, createdAt = now - day, updatedAt = now),
+            ).map { graph.db.entries().insert(it) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.TASKS)) }
+        compose.setContent { NoveloTheme(ThemeMode.LIGHT) { (nav.top as? Screen.Library)?.let { LibraryScreen(nav, it) } } }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Mandar o relatório").fetchSemanticsNodes().isNotEmpty() }
+            // A group per category, under its name; Feitas folded with its count.
+            compose.onAllNodesWithText("Trabalho")[0].assertExists()
+            compose.onNodeWithText("Feitas").assertExists()
+            assertTrue(compose.onAllNodesWithText("Pagar a luz").fetchSemanticsNodes().isEmpty())
+            compose.mainClock.advanceTimeBy(800)
+            shot("74-tasks-by-category")
+            compose.onNodeWithTag("fold").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Pagar a luz").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(800)
+            shot("74b-tasks-done-open")
+            // Hoje: the done ones of today folded too.
+            nav.go(Screen.Library(Filter.TODAY))
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Feitas hoje").fetchSemanticsNodes().isNotEmpty() }
+            assertTrue(compose.onAllNodesWithText("Comprar ração").fetchSemanticsNodes().isEmpty())
+            compose.onNodeWithTag("fold").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Comprar ração").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(800)
+            shot("75-today-done-open")
+        } finally {
+            runBlocking { ids.forEach { graph.db.entries().delete(it) } }
         }
     }
 

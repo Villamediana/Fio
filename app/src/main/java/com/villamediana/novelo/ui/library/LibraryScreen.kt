@@ -145,6 +145,8 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     var searching by rememberSaveable(screen.search, screen.query) { mutableStateOf(screen.search) }
     var query by rememberSaveable(screen.search, screen.query) { mutableStateOf(screen.query) }
     var showDone by rememberSaveable { mutableStateOf(false) }
+    // Hoje › Feitas hoje: folded until she opens it.
+    var showDoneToday by rememberSaveable { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
 
     // Searching is the whole library, words matched (and their neighbours in the graph)…
@@ -325,6 +327,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                             val medsLabel = t(R.string.tab_meds)
                             Entries(
                                 f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle,
+                                fold = t(R.string.section_done_today), folded = !showDoneToday, onFold = { showDoneToday = !showDoneToday },
                                 top = if (day == null || slots.isEmpty()) null else ({
                                     item(key = "label-meds") { SectionLabel(medsLabel, Modifier.animateItem()) }
                                     item(key = "today-meds") {
@@ -350,7 +353,8 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                                 if (names.isNotEmpty()) CategoryFilter(names, chosen, onChoose = { category = it })
                                 Entries(
                                     f, inCategory(all, chosen), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle,
-                                    whole = all, showCategories = chosen == null,
+                                    whole = all, showCategories = false,
+                                    fold = t(R.string.section_done), folded = !showDone, onFold = { showDone = !showDone },
                                 )
                             }
                         }
@@ -386,6 +390,10 @@ private fun Entries(
     /** What comes before the groups (Hoje: the day's medicines), and what the edge's handle says over each of its items. */
     top: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
     topLabels: List<String> = emptyList(),
+    /** The group that folds (Feitas, Feitas hoje): a header with its count; its cards come down under it when opened. */
+    fold: String? = null,
+    folded: Boolean = true,
+    onFold: () -> Unit = {},
 ) {
     val searched = terms != null
     // Tarefas: a task held and dragged moves within its group (doing, to do, waiting); Notas: a note
@@ -397,6 +405,7 @@ private fun Entries(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val reorder = sh.calvin.reorderable.rememberReorderableLazyListState(listState) { from, to ->
         val group = shown.indexOfFirst { (_, list) -> list.any { it.id == from.key } }
+        if (fold != null && shown.getOrNull(group)?.first == fold) return@rememberReorderableLazyListState
         val list = shown.getOrNull(group)?.second ?: return@rememberReorderableLazyListState
         val a = list.indexOfFirst { it.id == from.key }
         val b = list.indexOfFirst { it.id == to.key }
@@ -411,12 +420,17 @@ private fun Entries(
     val byGroup = filter == Filter.TODAY || filter == Filter.TASKS
     // The diary's days without a label (all but Hoje and Ontem) keep apart by a gap.
     val gapped = filter == Filter.DIARY && !searched
-    val tags = remember(groups, searched, byGroup, topLabels) {
+    val tags = remember(groups, searched, byGroup, topLabels, folded) {
         if (searched) emptyList()
         else buildList<String?> {
             addAll(topLabels)
             groups.forEach { (label, items) ->
                 if (items.isEmpty()) return@forEach
+                if (fold != null && label == fold) {
+                    add(label)
+                    if (!folded) items.forEach { _ -> add(label) }
+                    return@forEach
+                }
                 if (label != null) add(if (byGroup) label else month(items.first().createdAt))
                 else if (gapped) add(month(items.first().createdAt))
                 items.forEach { add(if (byGroup) label else month(it.createdAt)) }
@@ -430,8 +444,8 @@ private fun Entries(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (searched) 14.dp else 0.dp, bottom = 40.dp),
         ) {
             top?.invoke(this)
-            if (!searched && top == null && groups.all { it.second.isEmpty() }) {
-                item { Empty(filter) }
+            if (!searched && top == null && groups.filter { fold == null || it.first != fold }.all { it.second.isEmpty() }) {
+                item(key = "empty") { Empty(filter) }
             }
             if (photos.isNotEmpty()) {
                 item(key = "label-photos") { SectionLabel(t(R.string.photos), Modifier.animateItem()) }
@@ -449,6 +463,20 @@ private fun Entries(
                 item(key = "files-gap") { Spacer(Modifier.height(6.dp)) }
             }
             groups.forEach { (label, items) ->
+                // The group that folds: its header (the count, an arrow that turns); opened, its cards come down under it.
+                if (label != null && label == fold && !searched) {
+                    if (items.isEmpty()) return@forEach
+                    item(key = "fold-$label") { FoldHeader(label, items.size, open = !folded, onClick = onFold, modifier = Modifier.animateItem()) }
+                    if (!folded) itemsIndexed(items, key = { _, e -> e.id }) { i, e ->
+                        Box(Modifier.animateItem(fadeInSpec = androidx.compose.animation.core.tween(260), placementSpec = spring(dampingRatio = 0.9f, stiffness = 500f)).padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) {
+                            EntryCard(
+                                e, onClick = { open(e.id) }, onToggle = { toggle(e.id) }, showKind = filter == Filter.TODAY, inToday = filter == Filter.TODAY,
+                                shape = groupShape(i, items.size, outer = 22.dp), showCategory = filter == Filter.TODAY, modifier = Modifier.testTag("done-$i"),
+                            )
+                        }
+                    }
+                    return@forEach
+                }
                 if (label != null && (items.isNotEmpty() || searched)) item(key = "label-$label") { SectionLabel(label, Modifier.animateItem()) }
                 else if (label == null && gapped && items.isNotEmpty()) item(key = "gap-${items.first().id}") { Spacer(Modifier.height(DAY_GAP)) }
                 // One block per group: the cards touch, only the ends are round.
@@ -464,7 +492,7 @@ private fun Entries(
                             onToggle = { toggle(e.id) },
                             showKind = searched || filter == Filter.ALL || filter == Filter.TODAY,
                             // Where the group already says it, the card doesn't again.
-                            showStatus = searched || (filter != Filter.TASKS && !(filter == Filter.TODAY && label == DOING)),
+                            showStatus = searched || !(filter == Filter.TODAY && label == DOING),
                             inToday = !searched && filter == Filter.TODAY,
                             shape = shape,
                             dated = !searched && filter == Filter.NOTES,
@@ -494,17 +522,6 @@ private fun Entries(
                     } else {
                         Box(Modifier.animateItem().padding(bottom = if (i == items.lastIndex) 0.dp else GroupGap)) { card(Modifier) }
                     }
-                }
-            }
-            if (!searched && filter == Filter.TASKS) {
-                val done = all.count { it.kindEnum == Kind.TASK && it.statusEnum == Status.DONE }
-                if (done > 0) item(key = "done-toggle") {
-                    Text(
-                        if (showDone) t(R.string.done_hide) else t(R.string.done_show, done),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = NoveloColors.TextMuted,
-                        modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable(onClick = onShowDone).padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
                 }
             }
         }
@@ -706,13 +723,13 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
             )
         }
         Filter.TASKS -> {
-            val byStatus = open.groupBy { it.statusEnum ?: Status.TODO }
-            // Each group by category, together (see arrange); what she moved by hand stays where she put it.
+            // One group per category, under its name (the ones with the most open tasks first; none empty), the
+            // ones with no category yet on top; inside, her order (see inOrder). The done ones last, folded.
             buildList {
-                add(t(R.string.status_doing) to arrange(byStatus[Status.DOING].orEmpty()))
-                add(t(R.string.status_todo) to arrange(byStatus[Status.TODO].orEmpty()))
-                add(t(R.string.status_waiting) to arrange(byStatus[Status.WAITING].orEmpty()))
-                if (showDone) add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
+                val loose = open.filter { it.category == null }
+                if (loose.isNotEmpty()) add(t(R.string.category_none) to inOrder(loose))
+                Categories.inUse(open).forEach { c -> add(c to inOrder(open.filter { it.category == c })) }
+                add(t(R.string.section_done) to tasks.filter { it.statusEnum == Status.DONE }.sortedByDescending { it.doneAt ?: it.updatedAt })
             }
         }
         Filter.NOTES -> listOf(null to byHand(all.filter { it.kindEnum == Kind.NOTE }))
@@ -730,26 +747,13 @@ fun sectionsFor(filter: Filter, all: List<Entry>, showDone: Boolean, zone: ZoneI
 internal const val SHOW_KEPT_TODAY = false
 
 /**
- * A group of tasks in order, together by category: what she moved by hand ([Entry.position]) stays in
- * her order; the others (new ones, never moved) go next to the ones of their category — after the
- * last of them. The ones of a category not there yet, and the ones with none yet, come on top,
- * together, the categories with the most tasks first; inside, by due day, the newest first.
+ * One category's tasks in order (1.63): the new ones (never moved by hand) on top, by due day and then the
+ * newest first; then the ones she moved, in her order ([Entry.position], within the category — a task is
+ * dragged only among the ones of its category).
  */
-internal fun arrange(tasks: List<Entry>): List<Entry> {
-    val key: (Entry) -> String = { it.category?.let(Categories::fold).orEmpty() }
-    val size = tasks.groupingBy(key).eachCount()
+internal fun inOrder(tasks: List<Entry>): List<Entry> {
     val byDue: (Entry) -> Long = { it.dueAt ?: (Long.MAX_VALUE - it.createdAt) }
-    val placed = tasks.filter { it.position != null }.sortedBy { it.position }.toMutableList()
-    val loose = tasks.filter { it.position == null }
-        .sortedWith(compareByDescending<Entry> { size[key(it)] ?: 0 }.thenBy(key).thenBy(byDue))
-    val top = ArrayList<Entry>()
-    for (t in loose) {
-        val k = key(t)
-        // One with no category yet (made by hand, to be organized) stays on top, where it is seen.
-        val last = if (t.category == null) -1 else placed.indexOfLast { key(it) == k }
-        if (last >= 0) placed.add(last + 1, t) else top += t
-    }
-    return top + placed
+    return tasks.filter { it.position == null }.sortedBy(byDue) + tasks.filter { it.position != null }.sortedBy { it.position }
 }
 
 /** The groups with only the tasks of [category] (all of them when null). */
@@ -781,6 +785,31 @@ private fun CategoryFilter(names: List<String>, chosen: String?, onChoose: (Stri
     ) {
         CategoryChip(t(R.string.category_all), null, selected = chosen == null, onClick = { onChoose(null) })
         names.forEach { n -> CategoryChip(n, n, selected = chosen == n, onClick = { onChoose(if (chosen == n) null else n) }) }
+    }
+}
+
+/** The header of the group that folds: its name, how many, and an arrow that turns down when it is open. */
+@Composable
+private fun FoldHeader(label: String, count: Int, open: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, label = "fold")
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp, bottom = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .semantics { this.selected = open }
+            .padding(start = 6.dp, top = 10.dp, bottom = 6.dp)
+            .testTag("fold"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = NoveloText.Section, color = NoveloColors.TextMuted)
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.clip(CircleShape).background(NoveloColors.Surface2).padding(horizontal = 9.dp, vertical = 2.dp)) {
+            Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = NoveloColors.TextMuted)
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(NoveloIcons.Chevron, null, tint = NoveloColors.TextFaint, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = turn })
     }
 }
 
