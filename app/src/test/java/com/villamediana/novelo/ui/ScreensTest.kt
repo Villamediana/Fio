@@ -1183,6 +1183,9 @@ class ScreensTest {
             }
             compose.mainClock.advanceTimeBy(800)
             shot("72b-med-fixed")
+            // Changed elsewhere while open (the model): the page follows it.
+            runBlocking { graph.db.meds().update(graph.db.meds().get(ids[0])!!.copy(name = "Amoxicilina infantil")) }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Amoxicilina infantil").fetchSemanticsNodes().isNotEmpty() }
             // A new one by hand: it opens on its name; left without one, it isn't kept.
             nav.back()
             nav.go(Screen.Library(Filter.MEDS))

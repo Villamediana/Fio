@@ -70,8 +70,14 @@ internal object MedKeeper {
                 m.id
             }
             // Doses given: the one of now, ones at times said, how many already (the last ones).
-            val given = ask.taken || ask.takenAt.isNotEmpty() || (ask.takenCount ?: 0) > 0
-            if (ask.taken) take(db, dao.get(id) ?: continue, now, now, z)
+            val given = ask.taken != null || ask.takenAt.isNotEmpty() || (ask.takenCount ?: 0) > 0 || ask.untakenAt.isNotEmpty()
+            // A mistake first: the doses not given after all (at the times said; false: the one of now).
+            for (text in ask.untakenAt) {
+                val at = givenAt(text, now, z) ?: continue
+                untake(db, dao.get(id) ?: break, at, z)
+            }
+            if (ask.taken == false) untake(db, dao.get(id) ?: continue, now, z)
+            if (ask.taken == true) take(db, dao.get(id) ?: continue, now, now, z)
             for (text in ask.takenAt) {
                 val at = givenAt(text, now, z) ?: continue
                 take(db, dao.get(id) ?: break, at, now, z)
@@ -111,6 +117,13 @@ internal object MedKeeper {
         db.meds().take(MedTaken(m.id, slot ?: (at / 60_000L * 60_000L), minOf(at, now)))
     }
 
+    /** A dose marked by mistake: the one marked of that day nearest [at] is let go. */
+    private suspend fun untake(db: NoveloDatabase, m: Med, at: Long, z: ZoneId) {
+        val day = DayDiary.bounds(at, z)
+        val marked = db.meds().takenBetween(day.first, day.last).filter { it.medId == m.id }
+        marked.minByOrNull { kotlin.math.abs(it.at - at) }?.let { db.meds().untake(m.id, it.at) }
+    }
+
     /** "Já dei 2 vezes": its last [n] times up to now (a little after counts: given a bit early), taken. */
     private suspend fun takeLast(db: NoveloDatabase, m: Med, n: Int, now: Long, z: ZoneId) {
         val last = Doses.lastTimes(m, n, now + EARLY_MS, z)
@@ -127,7 +140,7 @@ internal object MedKeeper {
     }
 
     /** A dose given this much before its time still counts as that one. */
-    private const val EARLY_MS = 60 * 60_000L
+    private const val EARLY_MS = 30 * 60_000L
 
     /** When it starts: a day only — today is from now on, another day from its start; a time is that time. */
     private fun start(text: String?, now: Long, z: ZoneId): Long? {

@@ -103,10 +103,13 @@ fun MedScreen(nav: Nav, id: Long) {
     var loaded by remember { mutableStateOf(false) }
     // What is on the page: changed here and kept a beat after (and when leaving).
     var draft by remember(id) { mutableStateOf<Med?>(null) }
+    // The last one read: changed elsewhere (the model, a dose said) while nothing is being changed here, the page follows it.
+    var seen by remember(id) { mutableStateOf<Med?>(null) }
     LaunchedEffect(med) {
         val m = med
         if (m == null) { if (loaded) nav.back(); return@LaunchedEffect }
-        if (draft == null) draft = m
+        if (draft == null || draft?.copy(updatedAt = 0) == seen?.copy(updatedAt = 0)) draft = m
+        seen = m
         loaded = true
     }
     val d = draft

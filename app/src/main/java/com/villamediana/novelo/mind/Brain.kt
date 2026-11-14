@@ -28,6 +28,14 @@ object MedId : kotlinx.serialization.json.JsonTransformingSerializer<Long?>(kotl
     override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = firstNumber(element)
 }
 
+/** Medicine numbers to show ("remédio#3", "#3", 3): each one's number. */
+object MedIds : kotlinx.serialization.json.JsonTransformingSerializer<List<Long>>(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<Long>())) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement {
+        val list = (element as? kotlinx.serialization.json.JsonArray) ?: if (element is kotlinx.serialization.json.JsonNull) kotlinx.serialization.json.JsonArray(emptyList()) else kotlinx.serialization.json.JsonArray(listOf(element))
+        return kotlinx.serialization.json.JsonArray(list.map(::firstNumber).filter { it !is kotlinx.serialization.json.JsonNull })
+    }
+}
+
 object Hours : kotlinx.serialization.json.JsonTransformingSerializer<Int?>(kotlinx.serialization.serializer<Int?>()) {
     override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = firstNumber(element)
 }
@@ -99,6 +107,8 @@ data class Plan(
     @Serializable(with = Longs::class) val show: List<Long> = emptyList(),
     /** Photos that answer a question (foto#N → N), to show. */
     @SerialName("show_photos") @Serializable(with = Longs::class) val showPhotos: List<Long> = emptyList(),
+    /** Medicines that answer a question (remédio#N → N), to show. */
+    @SerialName("show_meds") @Serializable(with = MedIds::class) val showMeds: List<Long> = emptyList(),
     /** What she recorded: its sound is worth keeping too (a melody she sings), not only the words. */
     @SerialName("keep_audio") val keepAudio: Boolean = false,
     /** The tasks' categories renamed, joined or taken off. */
@@ -107,7 +117,7 @@ data class Plan(
     val meds: List<MedAsk> = emptyList(),
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
-    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty() && meds.isEmpty()
+    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty() && meds.isEmpty() && showMeds.isEmpty()
 }
 
 /**
@@ -133,7 +143,10 @@ data class MedAsk(
     val notes: String? = null,
     /** The photos she sent (their numbers) that show it: the first one stays with it. */
     @Serializable(with = Picks::class) val photos: List<Int> = emptyList(),
-    val taken: Boolean = false,
+    /** The dose of now given (true) — or, a mistake, not given after all (false). */
+    val taken: Boolean? = null,
+    /** Doses marked by mistake, at the times she said: not given after all. */
+    @SerialName("untaken_at") @Serializable(with = Strings::class) val untakenAt: List<String> = emptyList(),
     /** Doses given at times she said ("10:30", or a day and time). */
     @SerialName("taken_at") @Serializable(with = Strings::class) val takenAt: List<String> = emptyList(),
     /** How many doses she already gave ("já dei 2 vezes"): the last ones. */
@@ -234,7 +247,7 @@ Ela também pode:
   Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
 - dar notícia de um remédio (mudou a dose ou o horário, acabou, parou, tomou ou deu a dose de agora): mude o remédio de REMÉDIOS pelo id em "meds".
 - corrigir, completar ou desfazer o que acabou de falar, ou se referir ao que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS e em ANTES DISSO (a última conversa); mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro. ANTES DISSO serve só pra entender a que ela se refere: o que está ali já foi guardado — nunca crie de novo nem leve de novo pro diário.
-- perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem e em "show_photos" os números das fotos (foto#N) que respondem. Pergunta não cria item.
+- perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem, em "show_photos" os números das fotos (foto#N) e em "show_meds" os números dos remédios (remédio#N) que respondem. Pergunta não cria item.
 
 Como preencher:
 - Use as palavras dela. Título curto (até ~8 palavras) que diz do que se trata — nunca o tipo do item. Corpo com os detalhes ditos, sem inventar nada.
@@ -256,7 +269,7 @@ Como preencher:
   · Quando ela não diz o horário, use horários que os outros REMÉDIOS já têm, pra os lembretes chegarem juntos num aviso só; não havendo, horários comuns (08:00, 20:00…).
   · start: quando começa (sem dizer, agora). end: o último dia de tomar — "por 7 dias" conta o dia do começo como o primeiro; uso contínuo, sem end.
   · Pra mudar um remédio: {"id": N, só o que muda}. Voltar a ser contínuo: "end": "none". Parou ou acabou: "end" com o dia de hoje. Tirar da lista: "delete": true.
-  · Doses dadas: a de agora, "taken": true; numa hora que ela diz, "taken_at": ["HH:MM" ou "AAAA-MM-DDTHH:MM"], uma por dose; quantas já deu ("já dei 2 vezes"), "taken_count": 2. Deu fora do horário um remédio de tantas em tantas horas: os próximos seguem dali — mande também os times novos a partir dessa hora. Remédio que já vinha sendo tomado: "start" no dia em que começou.
+  · Doses dadas: a de agora, "taken": true; numa hora que ela diz, "taken_at": ["HH:MM" ou "AAAA-MM-DDTHH:MM"], uma por dose; quantas já deu ("já dei 2 vezes"), "taken_count": 2. Deu fora do horário um remédio de tantas em tantas horas: os próximos seguem dali — mande também os times novos a partir dessa hora. Remédio que já vinha sendo tomado: "start" no dia em que começou. Marcou errado ("não, dei só uma vez", "essa não dei"): tire a marcação — "untaken_at" com a hora de cada dose que não foi, ou "taken": false pra de agora.
   · A foto de uma receita ou de uma caixa de remédio: leia e crie os remédios dela, com a foto em "photos".
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - A foto de um momento já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item; ela só ganha a "reply". A foto de algo pra guardar ou fazer (um documento, um papel, um recibo, um aviso, um quadro) é desse item: crie ou mude o item com o que ela traz.
@@ -275,8 +288,8 @@ Os campos que existem:
 - create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], category, due, remind_at, repeat, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
 - update: [{id, status, steps_done, add_steps, title, append, body, category, due, remind_at, repeat, check_in_at, entities, delete, photos [números], files [números]}]
 - categories: [{name, to}]
-- meds: [{id, name, strength, dose, amount, person, times, every_hours, days, start, end, notes, photos [números], taken, taken_at, taken_count, delete}]
-- search, period {from, to}, show, show_photos, keep_audio
+- meds: [{id, name, strength, dose, amount, person, times, every_hours, days, start, end, notes, photos [números], taken, taken_at, taken_count, untaken_at, delete}]
+- search, period {from, to}, show, show_photos, show_meds, keep_audio
 """.trim()
 
     /**

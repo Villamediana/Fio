@@ -55,6 +55,8 @@ sealed interface MindState {
         val photos: List<Long> = emptyList(),
         /** Medicines made or changed. */
         val meds: List<Long> = emptyList(),
+        /** Medicines that answer a question. */
+        val shownMeds: List<Long> = emptyList(),
     ) : MindState
 
     data class Problem(val captureId: Long?, val need: Need?, val message: String, val said: String? = null) : MindState
@@ -652,6 +654,7 @@ class Mind(
             if (result.medsChanged) runCatching { reminders.syncMeds() }
             val shown = plan.show.distinct().filter { db.entries().get(it) != null }
             val shownPhotos = plan.showPhotos.distinct().filter { p -> p != id && db.captures().get(p)?.let { it.source == "photo" && it.imagePath != null } == true }
+            val shownMeds = plan.showMeds.distinct().filter { it !in result.meds && db.meds().get(it) != null }
             // The recording goes, unless the model saw its sound is what she wants kept.
             val keep = plan.keepAudio && c.source == "voice" && c.audioPath?.let { File(it).isFile } == true
             db.captures().update(
@@ -669,7 +672,7 @@ class Mind(
             )
             if (!keep) c.audioPath?.let { File(it).delete() }
             // A file sent alone: nothing was said (its name isn't words of hers).
-            say(MindState.Answer(id, if (file) "" else said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos, meds = result.meds))
+            say(MindState.Answer(id, if (file) "" else said, plan.reply, result.outcomes, shown, photo, typed, shownPhotos, meds = result.meds, shownMeds = shownMeds))
         } catch (e: NotReady) {
             db.captures().update(c.copy(state = if (c.transcript == null) Capture.RECORDED else Capture.FAILED, error = e.message, tries = 0))
             say(MindState.Problem(id, e.what, e.message ?: "", c.transcript ?: c.heard))
