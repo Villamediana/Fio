@@ -84,10 +84,8 @@ import com.villamediana.novelo.mind.Steps
 import com.villamediana.novelo.ui.Nav
 import com.villamediana.novelo.ui.components.CheckCircle
 import com.villamediana.novelo.ui.components.Dates
-import com.villamediana.novelo.ui.components.Pill
 import com.villamediana.novelo.ui.components.SectionLabel
 import com.villamediana.novelo.ui.components.kindLabel
-import com.villamediana.novelo.ui.components.statusLabel
 import com.villamediana.novelo.ui.home.QuietIcon
 import com.villamediana.novelo.ui.theme.NoveloColors
 import kotlinx.coroutines.delay
@@ -213,15 +211,10 @@ fun EntryScreen(nav: Nav, id: Long) {
                 )
             }
 
+            // A task: only its category, a tap to change it (or rename it, or make a new one). Where
+            // it stands (doing, waiting) isn't set by hand here (1.60): no micromanaging.
             if (kind == Kind.TASK) {
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Status.entries.forEach { st ->
-                        Pill(statusLabel(st), selected = (e.statusEnum ?: Status.TODO) == st, onClick = { scope.launch { lib.setStatus(e.id, st) } })
-                    }
-                }
-                // Its category, a tap to change it (or rename it, or make a new one).
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
                 CategoryLine(e)
             }
 
