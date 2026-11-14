@@ -41,6 +41,8 @@ import com.villamediana.novelo.update.UpdateNotifier
 sealed interface Ask {
     data class OpenEntry(val id: Long) : Ask
     data class TalkAbout(val id: Long) : Ask
+    /** The Remédios tab (a medicine's reminder was tapped). */
+    data object OpenMeds : Ask
 }
 
 /** A FragmentActivity (the system's lock prompt, for what is sensitive, needs one); Compose all the same. */
@@ -143,18 +145,22 @@ class NoveloActivity : androidx.fragment.app.FragmentActivity() {
         if (intent?.getBooleanExtra(UpdateNotifier.EXTRA_OPEN, false) == true) NoveloApplication.graph.updates.openSheet()
         val open = intent?.getLongExtra(EXTRA_OPEN_ENTRY, -1L) ?: -1L
         val talk = intent?.getLongExtra(EXTRA_TALK_ABOUT, -1L) ?: -1L
+        val meds = intent?.getBooleanExtra(EXTRA_OPEN_MEDS, false) == true
         ask = when {
             talk >= 0 -> Ask.TalkAbout(talk)
             open >= 0 -> Ask.OpenEntry(open)
+            meds -> Ask.OpenMeds
             else -> ask
         }
         intent?.removeExtra(EXTRA_OPEN_ENTRY)
         intent?.removeExtra(EXTRA_TALK_ABOUT)
+        intent?.removeExtra(EXTRA_OPEN_MEDS)
     }
 
     companion object {
         private const val EXTRA_OPEN_ENTRY = "com.villamediana.novelo.OPEN_ENTRY"
         private const val EXTRA_TALK_ABOUT = "com.villamediana.novelo.TALK_ABOUT"
+        private const val EXTRA_OPEN_MEDS = "com.villamediana.novelo.OPEN_MEDS"
 
         /** The logo on screen at least this long, so it is seen. */
         private const val SPLASH_MIN_MS = 700L
@@ -165,6 +171,10 @@ class NoveloActivity : androidx.fragment.app.FragmentActivity() {
         fun openEntry(context: Context, id: Long): Intent = Intent(context, NoveloActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_OPEN_ENTRY, id)
+
+        fun openMeds(context: Context): Intent = Intent(context, NoveloActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_OPEN_MEDS, true)
 
         fun talkAbout(context: Context, id: Long): Intent = Intent(context, NoveloActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)

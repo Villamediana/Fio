@@ -22,6 +22,8 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.longClick
@@ -1106,6 +1108,94 @@ class ScreensTest {
             assertTrue(compose.onAllNodesWithText("Casa", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         } finally {
             runBlocking { ids.forEach { graph.db.entries().delete(it) } }
+        }
+    }
+
+    /**
+     * Remédios: today's times to tick (by person when there are some), the medicines in use with their
+     * dose and treatment, the people filter; Hoje shows the day's times; a medicine is set by hand.
+     */
+    @Test
+    fun medicinesHaveTheirOwnTab() {
+        val start = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+        fun times(vararg t: String) = com.villamediana.novelo.meds.Doses.writeTimes(t.map { java.time.LocalTime.parse(it) })
+        val ids = runBlocking {
+            val m = graph.db.meds()
+            listOf(
+                com.villamediana.novelo.data.Med(name = "Amoxicilina", strength = "500 mg", dose = "½ comprimido", person = "Cooper", times = times("08:00", "16:00", "00:00"), everyHours = 8, startsAt = start - 2 * day, endsAt = com.villamediana.novelo.meds.Doses.endOf(LocalDate.now(zone).plusDays(4), zone), notes = "depois de comer", createdAt = now, updatedAt = now),
+                com.villamediana.novelo.data.Med(name = "Losartana", strength = "50 mg", dose = "1 comprimido", times = times("08:00", "20:00"), startsAt = start - 30 * day, createdAt = now, updatedAt = now),
+                com.villamediana.novelo.data.Med(name = "Vitamina D", strength = "2000 UI", dose = "1 cápsula", person = "Aurora", times = times("09:00"), startsAt = start - day, createdAt = now, updatedAt = now),
+                com.villamediana.novelo.data.Med(name = "Dipirona", strength = "1 g", dose = "1 comprimido", startsAt = start - day, createdAt = now, updatedAt = now),
+            ).map { m.insert(it) }
+        }
+        val nav = Nav().apply { go(Screen.Library(Filter.MEDS)) }
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val sc = nav.top) {
+                    is Screen.Library -> LibraryScreen(nav, sc)
+                    is Screen.Med -> com.villamediana.novelo.ui.meds.MedScreen(nav, sc.id)
+                    else -> Unit
+                }
+            }
+        }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Amoxicilina").fetchSemanticsNodes().isNotEmpty() }
+            for (w in listOf("Todos", "Você", "Cooper", "Aurora")) compose.onAllNodesWithText(w)[0].assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("70-meds")
+            // Further down, the cards: the dose worked out, the one only when needed.
+            compose.onNodeWithTag("meds").performScrollToNode(androidx.compose.ui.test.hasText("½ comprimido · 250 mg (de 500 mg)"))
+            compose.mainClock.advanceTimeBy(800)
+            shot("70a-meds-cards")
+            compose.onNodeWithTag("meds").performScrollToNode(androidx.compose.ui.test.hasText("quando precisar"))
+            compose.onNodeWithTag("meds").performScrollToIndex(0)
+            // Today's 08:00 of the Losartana, ticked.
+            val eight = LocalDate.now(zone).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+            compose.onNodeWithTag("tick-${ids[1]}-$eight", useUnmergedTree = true).performClick()
+            compose.waitUntil(5_000) { runBlocking { graph.db.meds().takenBetween(eight, eight).any { it.medId == ids[1] } } }
+            // Only Cooper's.
+            compose.onAllNodesWithText("Cooper")[0].performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Losartana").fetchSemanticsNodes().isEmpty() }
+            compose.onAllNodesWithText("Amoxicilina")[0].assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("70b-meds-cooper")
+            // Hoje: the day's times, with what was taken.
+            nav.go(Screen.Library(Filter.TODAY))
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("today-doses").fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodesWithText("Remédios")[0].assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("71-today-meds")
+            // A medicine set by hand: half a tablet comes to 250 mg; one is the box itself.
+            nav.go(Screen.Med(ids[0]))
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("med-name").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("med-amount").assertExists()
+            compose.mainClock.advanceTimeBy(800)
+            shot("72-med")
+            compose.onNodeWithText("1").performClick()
+            compose.waitUntil(5_000) { runBlocking { graph.db.meds().get(ids[0])!!.dose } == "1 comprimido" }
+            assertTrue(compose.onAllNodesWithTag("med-amount").fetchSemanticsNodes().isEmpty())
+            compose.onNodeWithText("Horários certos").performClick()
+            compose.waitUntil(5_000) { runBlocking { graph.db.meds().get(ids[0])!!.everyHours } == null }
+            compose.onNodeWithText("7 dias").performScrollTo().performClick()
+            compose.waitUntil(5_000) {
+                runBlocking { graph.db.meds().get(ids[0])!! }.let { it.endsAt == com.villamediana.novelo.meds.Doses.endOf(com.villamediana.novelo.meds.Doses.dayOf(it.startsAt, zone).plusDays(6), zone) }
+            }
+            compose.mainClock.advanceTimeBy(800)
+            shot("72b-med-fixed")
+            // A new one by hand: it opens on its name; left without one, it isn't kept.
+            nav.back()
+            nav.go(Screen.Library(Filter.MEDS))
+            compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Novo remédio").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithContentDescription("Novo remédio").performClick()
+            compose.waitUntil(5_000) { nav.top is Screen.Med }
+            val made = (nav.top as Screen.Med).id
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("med-name").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(800)
+            shot("73-med-new")
+            nav.back()
+            compose.waitUntil(5_000) { runBlocking { graph.db.meds().get(made) } == null }
+        } finally {
+            runBlocking { graph.db.meds().all().forEach { graph.db.meds().delete(it.id) } }
         }
     }
 

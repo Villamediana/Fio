@@ -70,10 +70,38 @@ data class Plan(
     @SerialName("keep_audio") val keepAudio: Boolean = false,
     /** The tasks' categories renamed, joined or taken off. */
     val categories: List<CategoryChange> = emptyList(),
+    /** Medicines made, changed, taken or taken off (the Remédios tab). */
+    val meds: List<MedAsk> = emptyList(),
 ) {
     val wantsLookup: Boolean get() = search.isNotEmpty() || period?.from != null || period?.to != null
-    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty()
+    val isLookupOnly: Boolean get() = wantsLookup && create.isEmpty() && update.isEmpty() && show.isEmpty() && showPhotos.isEmpty() && meds.isEmpty()
 }
+
+/**
+ * A medicine as the model says it: a new one (no [id]) or a change to one (its [id], only what
+ * changes). [end] "none" takes its end off; [taken] marks the time of now as taken (or given).
+ */
+@Serializable
+data class MedAsk(
+    val id: Long? = null,
+    val name: String? = null,
+    val strength: String? = null,
+    val dose: String? = null,
+    val amount: String? = null,
+    /** Who takes it, when it isn't her ("" takes the name off). */
+    val person: String? = null,
+    @Serializable(with = Strings::class) val times: List<String> = emptyList(),
+    @SerialName("every_hours") val everyHours: Int? = null,
+    /** The days of the week (1 = Monday); [] is every day again; null: not said. */
+    val days: List<Int>? = null,
+    val start: String? = null,
+    val end: String? = null,
+    val notes: String? = null,
+    /** The photos she sent (their numbers) that show it: the first one stays with it. */
+    @Serializable(with = Picks::class) val photos: List<Int> = emptyList(),
+    val taken: Boolean = false,
+    val delete: Boolean = false,
+)
 
 @Serializable
 data class Period(val from: String? = null, val to: String? = null)
@@ -156,6 +184,7 @@ Você é o Novelo, a memória externa de uma pessoa. Ela fala o que vem à cabe�
 Numa mesma fala pode haver várias coisas:
 - tarefa (task): algo que ela precisa ou quer fazer.
 - nota (note): algo pra guardar e achar depois — ideia, informação, dado, senha, referência, decisão.
+- remédio (meds): um remédio que ela, ou alguém dela (um filho, um bicho), toma — e o controle dele: quanto, de quanto em quanto tempo, até quando, pra quem. Remédio tem a aba dele e vai só em "meds", nunca em "create": não é tarefa nem nota. Comprar remédio, marcar consulta, ir à farmácia: isso sim é tarefa.
 - diário (diary): um relato do dia — o que viveu, fez, sentiu, o que está acontecendo com ela. Todo relato assim vai pro diário, mesmo quando também traz coisas a fazer ou a guardar, ou é notícia de algo que já existe: aí faça as duas coisas — o diário com o relato e, além dele, as tarefas/notas ou o "update" do item. O diário é um por dia: se há DIÁRIO DE HOJE, o relato entra nele em "update" com "append" — parágrafos novos no fim, sem mudar o que já está escrito nem o título; se não há, crie o diário do dia.
 
 Ela também pode:
@@ -165,6 +194,7 @@ Ela também pode:
   · o que completa a tarefa sem ser algo a fazer (o que aconteceu, o que decidiu, um dado) vai em "append": só o que ainda não está no texto, escrito como continuação dele;
   · se o que ela diz muda o que a tarefa é, reescreva o texto inteiro em "body" (e o "title", se preciso).
   Se a notícia vem num relato do dia dela, o relato inteiro vai também pro diário.
+- dar notícia de um remédio (mudou a dose ou o horário, acabou, parou, tomou ou deu a dose de agora): mude o remédio de REMÉDIOS pelo id em "meds".
 - corrigir, completar ou desfazer o que acabou de falar, ou se referir ao que acabou de falar: o item está em ÚLTIMAS COISAS GUARDADAS e em ANTES DISSO (a última conversa); mexa nele pelo id em "update" (ou apague com "delete": true) em vez de criar outro. ANTES DISSO serve só pra entender a que ela se refere: o que está ali já foi guardado — nunca crie de novo nem leve de novo pro diário.
 - perguntar ou pedir pra ver coisas (o que tem pra hoje, quando falou de algo, qual era uma senha, como está um projeto, uma foto de algo): responda em "reply" usando só o que está no contexto e ponha em "show" os ids dos itens que respondem e em "show_photos" os números das fotos (foto#N) que respondem. Pergunta não cria item.
 
@@ -181,6 +211,14 @@ Como preencher:
 - entities: pessoas, lugares, projetos, empresas e assuntos citados, com nome curto e type (person, place, project, org, topic). Servem pra ligar esta lembrança às outras.
 - category (só em tarefa): a área da vida dela a que a tarefa pertence (por exemplo Trabalho, Casa, Pessoal, Saúde). Use o nome de uma das CATEGORIAS DAS TAREFAS quando alguma servir; crie outra só quando nenhuma serve, com nome curto (uma ou duas palavras) e amplo, que sirva pra outras tarefas também — poucas categorias no total, no idioma dela. Pra mudar uma tarefa de categoria, "category" no "update".
 - categories: quando ela pede pra renomear, juntar ou tirar uma categoria: [{"name": "a categoria de agora", "to": "o nome novo, ou o de outra categoria pra juntar as duas"}]; sem "to", a categoria deixa de existir e as tarefas dela ficam sem.
+- meds: [{"name": "Amoxicilina", "strength": "500 mg", "dose": "½ comprimido", "amount": "250 mg", "person": "Cooper", "times": ["08:00", "16:00", "00:00"], "every_hours": 8, "start": "AAAA-MM-DD", "end": "AAAA-MM-DD", "notes": "depois de comer"}]
+  · strength: quanto tem uma unidade, como diz a caixa; dose: quanto toma de cada vez; amount: quanto isso dá — faça a conta (500 mg e meio comprimido → 250 mg).
+  · person: pra quem é, quando não é pra ela mesma (o nome, como ela diz). Pra ela, fica de fora.
+  · times: todos os horários do dia, HH:MM. De tantas em tantas horas: "every_hours" e os times a partir da primeira dose. Só em alguns dias da semana: "days" [1-7, 1 = segunda]. Só quando precisa, sem horário: sem times.
+  · Quando ela não diz o horário, use horários que os outros REMÉDIOS já têm, pra os lembretes chegarem juntos num aviso só; não havendo, horários comuns (08:00, 20:00…).
+  · start: quando começa (sem dizer, agora). end: o último dia de tomar — "por 7 dias" conta o dia do começo como o primeiro; uso contínuo, sem end.
+  · Pra mudar um remédio: {"id": N, só o que muda}. Voltar a ser contínuo: "end": "none". Parou ou acabou: "end" com o dia de hoje. Tirar da lista: "delete": true. Ela tomou (ou deu) a dose de agora: "taken": true.
+  · A foto de uma receita ou de uma caixa de remédio: leia e crie os remédios dela, com a foto em "photos".
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - A foto de um momento já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item; ela só ganha a "reply". A foto de algo pra guardar ou fazer (um documento, um papel, um recibo, um aviso, um quadro) é desse item: crie ou mude o item com o que ela traz.
 - No diário fica só o relato do dia. O que ela diz das fotos e dos arquivos que mandou (o que são, de quem, pra quê) vai pro item deles, nunca pro diário.
@@ -198,6 +236,7 @@ Os campos que existem:
 - create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], category, due, remind_at, repeat, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
 - update: [{id, status, steps_done, add_steps, title, append, body, category, due, remind_at, repeat, check_in_at, entities, delete, photos [números], files [números]}]
 - categories: [{name, to}]
+- meds: [{id, name, strength, dose, amount, person, times, every_hours, days, start, end, notes, photos [números], taken, delete}]
 - search, period {from, to}, show, show_photos, keep_audio
 """.trim()
 
@@ -231,6 +270,9 @@ Os campos que existem:
         seen: String? = null,
         /** The tasks' categories there are (the ones with the most open tasks first). */
         categories: List<String> = emptyList(),
+        /** Her medicines (and the ones that ended), with the times taken today. */
+        meds: List<com.villamediana.novelo.data.Med> = emptyList(),
+        taken: List<com.villamediana.novelo.data.MedTaken> = emptyList(),
     ): String = buildString {
         // What changes least comes first and what changes every time last (the moment, the item
         // being answered about, the words): a server that caches the start of the prompt, and the
@@ -239,6 +281,11 @@ Os campos que existem:
         val shown = setOfNotNull(focus?.id, today?.id)
         val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
         if (categories.isNotEmpty()) append("CATEGORIAS DAS TAREFAS: ").append(categories.joinToString(", ")).append("\n\n")
+        if (meds.isNotEmpty()) {
+            append("REMÉDIOS:\n")
+            meds.take(MAX_MEDS).forEach { append(medLine(it, taken, zone, now)).append('\n') }
+            append('\n')
+        }
         if (tasks.isNotEmpty()) {
             append("TAREFAS ABERTAS:\n")
             tasks.forEach { append(line(it, zone, now)).append('\n') }
@@ -361,6 +408,32 @@ Os campos que existem:
         p.text?.let { append(" · texto: ").append(it.take(120).replace('\n', ' ')) }
     }
 
+    /** One medicine in a line the model can read and point to (remédio#id): what, how much, for whom, when, until when, today's times. */
+    fun medLine(m: com.villamediana.novelo.data.Med, taken: List<com.villamediana.novelo.data.MedTaken>, zone: ZoneId, now: Long): String = buildString {
+        val doses = com.villamediana.novelo.meds.Doses
+        append("remédio#").append(m.id).append(" \"").append(m.name.take(60)).append('"')
+        listOfNotNull(m.strength, m.dose, m.amount).filter { it.isNotBlank() }.forEach { append(" · ").append(it.take(40)) }
+        m.person?.let { append(" · pra ").append(it) }
+        val times = doses.times(m)
+        if (times.isEmpty()) append(" · quando precisar")
+        else {
+            append(" · ").append(times.joinToString(", ") { doses.hhmm(it) })
+            m.everyHours?.let { append(" · de ").append(it).append(" em ").append(it).append(" h") }
+            doses.days(m).takeIf { it.isNotEmpty() }?.let { append(" · dias ").append(it.sorted().joinToString(",", "[", "]")) }
+        }
+        if (m.startsAt > now) append(" · começa ").append(stamp(m.startsAt, zone)) else append(" · desde ").append(day(m.startsAt, zone))
+        m.endsAt?.let { append(if (it < now) " · terminou " else " · até ").append(day(it, zone)) }
+        if (m.notes.isNotBlank()) append(" · ").append(m.notes.take(80).replace('\n', ' '))
+        if (!doses.ended(m, now)) {
+            val today = doses.day(listOf(m), doses.dayOf(now, zone), zone)
+            if (today.isNotEmpty()) {
+                append(" · hoje: ").append(today.joinToString(", ") { s ->
+                    doses.hhmm(java.time.Instant.ofEpochMilli(s.at).atZone(zone).toLocalTime()) + if (taken.any { it.medId == m.id && it.at == s.at }) " tomado" else ""
+                })
+            }
+        }
+    }
+
     /** One entry in a line the model can read and point to (#id). */
     fun line(e: Entry, zone: ZoneId, now: Long, long: Boolean = false, bodyMax: Int = 220): String = buildString {
         append('#').append(e.id).append(' ')
@@ -466,6 +539,7 @@ ws     ::= [ \t\n]{0,20}
 """.trim()
 
     private const val MAX_TASKS = 30
+    private const val MAX_MEDS = 40
     private const val MAX_RELATED = 8
     private const val MAX_RECENT = 5
     private const val MAX_FOUND = 40

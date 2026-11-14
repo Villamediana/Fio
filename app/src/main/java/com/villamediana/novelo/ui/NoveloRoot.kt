@@ -54,6 +54,7 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
     when (ask) {
         is Ask.OpenEntry -> LaunchedEffect(ask) { nav.home(); nav.go(Screen.Entry(ask.id)); onAskHandled() }
         is Ask.TalkAbout -> { LaunchedEffect(ask) { nav.home() }; talk = ask.id }
+        Ask.OpenMeds -> LaunchedEffect(ask) { nav.home(); nav.go(Screen.Library(Filter.MEDS)); onAskHandled() }
         null -> Unit
     }
 
@@ -87,6 +88,7 @@ fun NoveloRoot(ask: Ask?, onAskHandled: () -> Unit) {
                 Screen.Home -> HomeScreen(nav, talkAbout = talk, onTalkHandled = onAskHandled)
                 is Screen.Library -> library.SaveableStateProvider(LIBRARY_KEPT) { LibraryScreen(nav, screen) }
                 is Screen.Entry -> EntryScreen(nav, screen.id)
+                is Screen.Med -> com.villamediana.novelo.ui.meds.MedScreen(nav, screen.id)
                 is Screen.Settings -> SettingsScreen(nav, openAi = screen.ai)
                 Screen.Camera -> CameraScreen(nav)
             }
