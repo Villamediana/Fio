@@ -328,7 +328,9 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
                             // Hoje: the day's medicines first (their times, to tick), then the tasks.
                             val now = com.villamediana.novelo.ui.meds.rememberNow()
                             val day = com.villamediana.novelo.ui.meds.rememberToday(now)
-                            val slots = day?.slots.orEmpty()
+                            // Only what is near (Miguel, 1.66): the times of the last 2 hours (to tick one forgotten) and the next
+                            // one; the whole day is in Remédios, and the reminders come by themselves.
+                            val slots = remember(day?.slots, now / 60_000) { com.villamediana.novelo.ui.meds.nearTimes(day?.slots.orEmpty(), now) }
                             val medsLabel = t(R.string.tab_meds)
                             Entries(
                                 f, sectionsFor(f, list, showDone), list, terms = null, showDone = showDone, onShowDone = { showDone = !showDone }, open = open, toggle = toggle,

@@ -173,11 +173,15 @@ internal fun intelligenceSummary(s: NoveloSettings, local: LocalModel.State, nov
         s.hear == Source.NOVELO && !(LocalEngine.available && local is LocalModel.State.Ready) -> t(R.string.local_pack_hear) + " · " + localShort(local) to true
         s.hear == Source.API && !hear.ready -> t(R.string.ai_missing_hear_api) to true
         s.hear == Source.API && hear.model.isBlank() -> t(R.string.ai_missing_hear_model) to true
+        s.see == Source.NOVELO && s.hear != Source.NOVELO && LocalEngine.available && local !is LocalModel.State.Ready -> t(R.string.local_pack_see) + " · " + localShort(local) to true
+        s.see == Source.API && !s.api(Job.SEE).ready -> t(R.string.ai_missing_see_api) to true
+        s.see == Source.API && s.api(Job.SEE).model.isBlank() -> t(R.string.ai_missing_see_model) to true
         s.think == Source.NOVELO && !novelo -> t(R.string.need_novelo_not_in_version) to true
         s.think == Source.API && !think.ready -> t(R.string.ai_missing_api) to true
         s.think == Source.API && think.model.isBlank() -> t(R.string.ai_missing_model) to true
         else -> listOf(
             if (s.hear == Source.NOVELO) t(R.string.ai_hears_phone) else t(R.string.ai_hears_with, hear.model),
+            if (s.see == Source.NOVELO) t(R.string.ai_sees_phone) else t(R.string.ai_sees_with, s.api(Job.SEE).model),
             if (s.think == Source.NOVELO) t(R.string.ai_thinks_novelo) else t(R.string.ai_thinks_with, think.model),
         ).joinToString(" · ") to false
     }

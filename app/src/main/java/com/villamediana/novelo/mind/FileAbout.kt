@@ -3,6 +3,7 @@ package com.villamediana.novelo.mind
 import com.villamediana.novelo.local.LocalEngine
 import com.villamediana.novelo.local.LocalModel
 import com.villamediana.novelo.settings.Lang
+import com.villamediana.novelo.settings.t
 
 /**
  * What a photo shows and what a file is, in a sentence: what the search finds them by, and what
@@ -24,6 +25,42 @@ interface About {
 object NoAbout : About {
     override suspend fun photo(image: ByteArray): String? = null
     override suspend fun file(file: FileSeen, said: String?, look: ByteArray?): String? = null
+}
+
+/**
+ * Who sees (Ajustes › Inteligência › Quem vê): Omni on the phone, or her API — the photo (or a
+ * document's first page) goes to it with the same ask. A failure says nothing (the text read on the
+ * phone still goes to the model that thinks).
+ */
+class Seeing(
+    private val settings: com.villamediana.novelo.settings.Settings,
+    private val api: com.villamediana.novelo.ai.Api,
+    private val phone: About,
+) : About {
+    override suspend fun photo(image: ByteArray): String? = when (settings.current().see) {
+        com.villamediana.novelo.settings.Source.NOVELO -> phone.photo(image)
+        com.villamediana.novelo.settings.Source.API ->
+            if (image.isEmpty()) null else byApi(OmniAbout.PHOTO, t(com.villamediana.novelo.R.string.see_photo_ask), image)?.let { OmniAbout.clean(it, 400) }
+    }
+
+    override suspend fun file(file: FileSeen, said: String?, look: ByteArray?): String? = when (settings.current().see) {
+        com.villamediana.novelo.settings.Source.NOVELO -> phone.file(file, said, look)
+        com.villamediana.novelo.settings.Source.API -> byApi(OmniAbout.FILE, OmniAbout.ask(file, said), look)?.lineSequence()?.firstOrNull()?.let { OmniAbout.clean(it, 180) }
+    }
+
+    private suspend fun byApi(ask: String, user: String, image: ByteArray?): String? {
+        val a = settings.current().api(com.villamediana.novelo.settings.Job.SEE)
+        val key = settings.apiKey(com.villamediana.novelo.settings.Job.SEE)
+        if (!a.ready || a.model.isBlank() || key.isNullOrBlank()) return null
+        val system = ask.replace("{lang}", Lang.current.label)
+        return try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { api.chat(a.endpoint(key), a.model, system, user, image = image, jsonOut = false) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            null
+        }
+    }
 }
 
 /** Omni, on the phone. */

@@ -1436,21 +1436,23 @@ class ScreensTest {
         runBlocking { graph.settings.setThink(Source.API); graph.settings.setHear(Source.NOVELO) }
         compose.setContent { NoveloTheme(ThemeMode.LIGHT) { Box(Modifier.fillMaxSize().background(NoveloColors.Background).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp)) { com.villamediana.novelo.ui.settings.IntelligenceSection() } } }
         try {
-            // Who hears and who thinks, each the Novelo or her API.
+            // Who hears, who sees and who thinks, each the Novelo or her API.
             compose.waitUntil(5_000) { compose.onAllNodesWithText("Quem pensa").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Quem ouve").assertExists()
-            // The Novelo hears: its ears are the download here (no API that hears to fill).
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Quem vê").assertExists()
+            // The Novelo hears and sees: its model is the download here (no API that hears to fill).
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido e olhos do Novelo").fetchSemanticsNodes().isNotEmpty() }
             assertTrue(compose.onAllNodesWithText("API de quem ouve").fetchSemanticsNodes().isEmpty())
             // Her API thinks: its provider and key, no button to test (it tests by itself).
             compose.onNodeWithText("API de quem pensa").assertExists()
             assertTrue(compose.onAllNodesWithText("Conexão").fetchSemanticsNodes().isEmpty())
             compose.mainClock.advanceTimeBy(500)
             shot("30-settings-intelligence")
-            // Her API hears: its own provider (only those that hear), key and model; no download.
-            runBlocking { graph.settings.setHear(Source.API); graph.settings.setThink(Source.NOVELO) }
+            // Her API hears and sees: their own providers (for hearing only those that hear), keys and models; no download.
+            runBlocking { graph.settings.setHear(Source.API); graph.settings.setSee(Source.API); graph.settings.setThink(Source.NOVELO) }
             compose.waitUntil(5_000) { compose.onAllNodesWithText("API de quem ouve").fetchSemanticsNodes().isNotEmpty() }
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido do Novelo").fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithText("API de quem vê").assertExists()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Ouvido e olhos do Novelo").fetchSemanticsNodes().isEmpty() && compose.onAllNodesWithText("Olhos do Novelo").fetchSemanticsNodes().isEmpty() }
             assertTrue(compose.onAllNodesWithText("API de quem pensa").fetchSemanticsNodes().isEmpty())
             compose.onNodeWithTag("provider-line-hear").performClick()
             compose.waitUntil(5_000) { compose.onAllNodesWithText("OpenAI").fetchSemanticsNodes().isNotEmpty() }
@@ -1459,13 +1461,16 @@ class ScreensTest {
             compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isNotEmpty() }
             compose.mainClock.advanceTimeBy(500)
             shot("30b-settings-intelligence-hears-api")
-            // Both the Novelo's: nothing to fill, only the ears.
-            runBlocking { graph.settings.setHear(Source.NOVELO) }
+            // All the Novelo's: nothing to fill, only its model.
+            runBlocking { graph.settings.setHear(Source.NOVELO); graph.settings.setSee(Source.NOVELO) }
             compose.waitUntil(5_000) { compose.onAllNodesWithText("Chave").fetchSemanticsNodes().isEmpty() }
             compose.mainClock.advanceTimeBy(500)
             shot("30c-settings-intelligence-novelo")
         } finally {
-            runBlocking { graph.settings.setHear(Source.NOVELO); graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, "") }
+            runBlocking {
+                graph.settings.setHear(Source.NOVELO); graph.settings.setSee(Source.NOVELO)
+                graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.HEAR, ""); graph.settings.setApiProvider(com.villamediana.novelo.settings.Job.SEE, "")
+            }
         }
     }
 

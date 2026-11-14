@@ -120,8 +120,11 @@ import java.text.NumberFormat
 @Composable
 fun SetupScreen(onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
+    // Who sees is asked only when her API hears (when the Novelo hears, the same model on the phone sees).
+    val s by NoveloApplication.graph.settings.now.collectAsStateWithLifecycle()
+    val asksSee = s.hear == Source.API
     Column(Modifier.fillMaxSize().paper().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Steps(step, count = 4, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
+        Steps(if (!asksSee && step > 2) step - 1 else step, count = if (asksSee) 5 else 4, modifier = Modifier.padding(top = 18.dp).align(Alignment.CenterHorizontally))
         AnimatedContent(
             targetState = step,
             transitionSpec = {
@@ -133,8 +136,9 @@ fun SetupScreen(onDone: () -> Unit) {
         ) { at ->
             when (at) {
                 0 -> PermissionsStep(onNext = { step = 1 })
-                1 -> HearStep(onNext = { step = 2 })
-                2 -> BackupStep(onNext = { step = 3 })
+                1 -> HearStep(onNext = { step = if (asksSee) 2 else 3 })
+                2 -> SeeStep(onNext = { step = 3 })
+                3 -> BackupStep(onNext = { step = 4 })
                 else -> IntelligenceStep(onDone = onDone)
             }
         }
@@ -516,6 +520,47 @@ private fun HearStep(onNext: () -> Unit) {
     }
 }
 
+// ——— 1c. Who sees ———
+
+/**
+ * Who sees her photos and documents (says what each photo shows, what each document is): the Novelo's
+ * model on the phone (offline; it can come later — the main screen reminds her) or her own API (a model
+ * that sees images). Her API goes on only when it is whole.
+ */
+@Composable
+private fun SeeStep(onNext: () -> Unit) {
+    val graph = NoveloApplication.graph
+    val st = graph.settings
+    val scope = rememberCoroutineScope()
+    val s by st.now.collectAsStateWithLifecycle()
+    var own by rememberSaveable { mutableStateOf(s.see == Source.API) }
+    var ownReady by remember { mutableStateOf(OwnReady.PROVIDER) }
+    Page(
+        title = t(R.string.setup_see_title),
+        line = t(R.string.setup_see_line),
+        primary = if (own && ownReady != OwnReady.READY) t(ownReady.need) else t(R.string.setup_continue),
+        onPrimary = onNext,
+        primaryEnabled = !own || ownReady == OwnReady.READY,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(selected = !own, onClick = {
+                own = false
+                scope.launch { st.setSee(Source.NOVELO) }
+            }) {
+                ChoiceTitle(t(R.string.setup_see_novelo), t(R.string.setup_see_novelo_line, formatBytes(graph.localModel.totalBytes)))
+            }
+            Card(selected = own, onClick = {
+                own = true
+                scope.launch { st.setSee(Source.API) }
+            }) {
+                ChoiceTitle(t(R.string.setup_hear_own), t(R.string.setup_see_own_line))
+            }
+            Spacer(Modifier.height(6.dp))
+            if (own) OwnSetup(job = Job.SEE, onReady = { ownReady = it }) else LocalDownload()
+        }
+    }
+}
+
 /**
  * The model on the phone: ready, coming, or how she wants it to come. It never starts by itself:
  * on Wi-Fi she taps Baixar (it then waits if the Wi-Fi goes, never her mobile data unasked); off
@@ -600,8 +645,9 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
     val scope = rememberCoroutineScope()
     val s by st.now.collectAsStateWithLifecycle()
     val a = s.api(job)
-    val other = if (job == Job.HEAR) Job.THINK else Job.HEAR
-    val o = s.api(other)
+    // Another job with the same provider and its key saved: that key, with one tap.
+    val other = Job.entries.filter { it != job }.firstOrNull { j -> s.api(j).let { it.hasKey && it.chosen && it.providerId == s.api(job).providerId } }
+    val o = other?.let { s.api(it) }
     var base by remember { mutableStateOf(a.base) }
     var key by remember { mutableStateOf("") }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -654,9 +700,9 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
             secret = true,
         )
         // The same provider as the other job, with its key saved: that key, with one tap (her choice, never by itself).
-        if (!a.hasKey && o.hasKey && o.chosen && o.providerId == a.providerId) {
+        if (!a.hasKey && other != null && o != null) {
             Pill(
-                t(if (other == Job.THINK) R.string.api_same_key_thinks else R.string.api_same_key_hears),
+                t(when (other) { Job.THINK -> R.string.api_same_key_thinks; Job.HEAR -> R.string.api_same_key_hears; Job.SEE -> R.string.api_same_key_sees }),
                 selected = true,
                 onClick = {
                     scope.launch {
@@ -678,7 +724,7 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
         }
         // The model only once it connected (its list comes from there).
         if (showModels && a.ready && status?.second == true) {
-            ModelLine(t(if (job == Job.HEAR) R.string.ai_model_hears else R.string.ai_model_thinks), a.model, tag = "model-line-${job.name.lowercase()}") { picking = true }
+            ModelLine(t(when (job) { Job.HEAR -> R.string.ai_model_hears; Job.SEE -> R.string.ai_model_sees; Job.THINK -> R.string.ai_model_thinks }), a.model, tag = "model-line-${job.name.lowercase()}") { picking = true }
         }
     }
 
@@ -687,7 +733,7 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
                 Text(t(R.string.ai_provider_title), style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text, modifier = Modifier.padding(bottom = 10.dp))
                 // Hearing: only those that turn speech into text.
-                Providers.all.filter { job == Job.THINK || it.hears }.forEach { p ->
+                Providers.all.filter { job != Job.HEAR || it.hears }.forEach { p ->
                     val on = chosen && p.id == provider.id
                     Row(
                         Modifier
@@ -713,7 +759,7 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
 
     if (picking) {
         ModelPicker(
-            title = t(if (job == Job.HEAR) R.string.ai_model_hears_title else R.string.ai_model_thinks_title),
+            title = com.villamediana.novelo.ui.settings.modelTitle(job),
             current = a.model,
             models = models,
             ready = a.ready,
@@ -721,7 +767,7 @@ internal fun OwnSetup(job: Job = Job.THINK, modifier: Modifier = Modifier, showM
             onPick = { m ->
                 scope.launch {
                     st.setModel(job, m)
-                    if (job == Job.HEAR) st.setHear(Source.API) else st.setThink(Source.API)
+                    st.setSource(job, Source.API)
                     graph.mind.retryPending()
                 }
                 picking = false

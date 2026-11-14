@@ -177,6 +177,13 @@ private fun LazyListScope.medGroup(label: String, list: List<Med>, now: Long, on
     }
 }
 
+/** Hoje's medicines: the times of the last [back] (taken or not) and the next one to come. */
+fun nearTimes(slots: List<Doses.Slot>, now: Long, back: Long = 2 * 60 * 60_000L): List<Doses.Slot> {
+    val gone = slots.filter { it.at in (now - back)..now }
+    val next = slots.firstOrNull { it.at > now }
+    return gone + listOfNotNull(next)
+}
+
 /** "Você" in the people filter (a medicine with no person is hers). */
 private const val ME = "\u0000me"
 

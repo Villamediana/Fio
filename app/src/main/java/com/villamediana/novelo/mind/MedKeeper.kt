@@ -80,6 +80,8 @@ internal object MedKeeper {
             if (ask.taken == true) take(db, dao.get(id) ?: continue, now, now, z)
             for (text in ask.takenAt) {
                 val at = givenAt(text, now, z) ?: continue
+                // A dose isn't given at a time still to come ("vou dar às 10" is a plan, not a dose).
+                if (at > now + FUTURE_MS) continue
                 take(db, dao.get(id) ?: break, at, now, z)
             }
             ask.takenCount?.takeIf { it > 0 }?.let { n -> takeLast(db, dao.get(id) ?: return@let, n.coerceAtMost(200), now, z) }
@@ -138,6 +140,9 @@ internal object MedKeeper {
         val (ms, hasTime) = Brain.time(text, z) ?: return null
         return if (hasTime) ms else null
     }
+
+    /** A dose said given at a time later than now by more than this was never given (yet). */
+    private const val FUTURE_MS = 5 * 60_000L
 
     /** A dose given this much before its time still counts as that one. */
     private const val EARLY_MS = 30 * 60_000L

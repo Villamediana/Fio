@@ -51,7 +51,7 @@ enum class ThemeMode(val key: String) {
 }
 
 /** Which of her API settings: the one that thinks or the one that hears — each its own (Anthropic thinks but doesn't hear). */
-enum class Job { THINK, HEAR }
+enum class Job { THINK, HEAR, SEE }
 
 /** Her API for one [Job]: whose it is, the address she typed, whether its key is saved, and the model. */
 data class ApiSetup(val providerId: String, val base: String, val hasKey: Boolean, val model: String) {
@@ -76,6 +76,13 @@ data class NoveloSettings(
     val hearBase: String = "",
     val hasHearKey: Boolean = false,
     val hearModel: String = "",
+    /** Who sees (says what a photo shows, what a document is): the Novelo's model on the phone, or her API. */
+    val see: Source = Source.NOVELO,
+    /** Her API that sees (its own provider, address, key and model). */
+    val seeProvider: String = "",
+    val seeBase: String = "",
+    val hasSeeKey: Boolean = false,
+    val seeModel: String = "",
     val think: Source = Source.NOVELO,
     val thinkModel: String = "",
     val apiBase: String = "",
@@ -118,6 +125,7 @@ data class NoveloSettings(
     fun api(job: Job): ApiSetup = when (job) {
         Job.THINK -> ApiSetup(apiProvider, apiBase, hasApiKey, thinkModel)
         Job.HEAR -> ApiSetup(hearProvider, hearBase, hasHearKey, hearModel)
+        Job.SEE -> ApiSetup(seeProvider, seeBase, hasSeeKey, seeModel)
     }
 }
 
@@ -134,6 +142,11 @@ class Settings(private val context: Context, scope: CoroutineScope) {
             hearBase = p[HEAR_API_BASE].orEmpty(),
             hasHearKey = !p[HEAR_API_KEY].isNullOrEmpty(),
             hearModel = p[HEAR_API_MODEL].orEmpty(),
+            see = Source.of(p[SEE_BY]),
+            seeProvider = p[SEE_API_PROVIDER].orEmpty(),
+            seeBase = p[SEE_API_BASE].orEmpty(),
+            hasSeeKey = !p[SEE_API_KEY].isNullOrEmpty(),
+            seeModel = p[SEE_API_MODEL].orEmpty(),
             think = Source.of(p[THINK]),
             thinkModel = p[THINK_MODEL].orEmpty(),
             apiBase = p[API_BASE].orEmpty(),
@@ -161,6 +174,14 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     suspend fun apiKey(job: Job = Job.THINK): String? = store.data.first()[keys(job).key]?.let { vault.open(it) }
 
     suspend fun setHear(source: Source) = store.edit { it[HEAR_BY] = source.key }
+    suspend fun setSee(source: Source) = store.edit { it[SEE_BY] = source.key }
+
+    /** Who does [job] (hears, sees or thinks): the Novelo, or her API. */
+    suspend fun setSource(job: Job, source: Source) = when (job) {
+        Job.HEAR -> setHear(source)
+        Job.SEE -> setSee(source)
+        Job.THINK -> setThink(source)
+    }
     suspend fun setThink(source: Source) = store.edit { it[THINK] = source.key }
     suspend fun setThinkModel(model: String) = setModel(Job.THINK, model)
     suspend fun setApiBase(url: String) = setApiBase(Job.THINK, url)
@@ -195,6 +216,7 @@ class Settings(private val context: Context, scope: CoroutineScope) {
     private fun keys(job: Job): Keys = when (job) {
         Job.THINK -> Keys(API_PROVIDER, API_BASE, API_KEY, THINK_MODEL)
         Job.HEAR -> Keys(HEAR_API_PROVIDER, HEAR_API_BASE, HEAR_API_KEY, HEAR_API_MODEL)
+        Job.SEE -> Keys(SEE_API_PROVIDER, SEE_API_BASE, SEE_API_KEY, SEE_API_MODEL)
     }
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[THEME] = mode.key }
     suspend fun setAccent(id: String) = store.edit { it[ACCENT] = id }
@@ -232,6 +254,11 @@ class Settings(private val context: Context, scope: CoroutineScope) {
         val HEAR_API_BASE = stringPreferencesKey("hear_api_base")
         val HEAR_API_KEY = stringPreferencesKey("hear_api_key_sealed")
         val HEAR_API_MODEL = stringPreferencesKey("hear_api_model")
+        val SEE_BY = stringPreferencesKey("see_by")
+        val SEE_API_PROVIDER = stringPreferencesKey("see_api_provider")
+        val SEE_API_BASE = stringPreferencesKey("see_api_base")
+        val SEE_API_KEY = stringPreferencesKey("see_api_key_sealed")
+        val SEE_API_MODEL = stringPreferencesKey("see_api_model")
         val THINK = stringPreferencesKey("think")
         val THINK_MODEL = stringPreferencesKey("think_model")
         val API_BASE = stringPreferencesKey("api_base")
