@@ -1118,12 +1118,15 @@ class ScreensTest {
     @Test
     fun medicinesHaveTheirOwnTab() {
         val start = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+        // Losartana an hour ago (to tick in Hoje, which shows the last 2 hours and the next time) and later today.
+        val hourAgo = java.time.LocalTime.now(zone).minusHours(1).withSecond(0).withNano(0)
+        val later = hourAgo.plusHours(4)
         fun times(vararg t: String) = com.villamediana.novelo.meds.Doses.writeTimes(t.map { java.time.LocalTime.parse(it) })
         val ids = runBlocking {
             val m = graph.db.meds()
             listOf(
                 com.villamediana.novelo.data.Med(name = "Amoxicilina", strength = "500 mg", dose = "½ comprimido", person = "Cooper", times = times("08:00", "16:00", "00:00"), everyHours = 8, startsAt = start - 2 * day, endsAt = com.villamediana.novelo.meds.Doses.endOf(LocalDate.now(zone).plusDays(4), zone), notes = "depois de comer", createdAt = now, updatedAt = now),
-                com.villamediana.novelo.data.Med(name = "Losartana", strength = "50 mg", dose = "1 comprimido", times = times("08:00", "20:00"), startsAt = start - 30 * day, createdAt = now, updatedAt = now),
+                com.villamediana.novelo.data.Med(name = "Losartana", strength = "50 mg", dose = "1 comprimido", times = com.villamediana.novelo.meds.Doses.writeTimes(listOf(hourAgo, later)), startsAt = start - 30 * day, createdAt = now, updatedAt = now),
                 com.villamediana.novelo.data.Med(name = "Vitamina D", strength = "2000 UI", dose = "1 cápsula", person = "Aurora", times = times("09:00"), startsAt = start - day, createdAt = now, updatedAt = now),
                 com.villamediana.novelo.data.Med(name = "Dipirona", strength = "1 g", dose = "1 comprimido", startsAt = start - day, createdAt = now, updatedAt = now),
             ).map { m.insert(it) }
@@ -1150,20 +1153,23 @@ class ScreensTest {
             shot("70a-meds-cards")
             compose.onNodeWithTag("meds").performScrollToNode(androidx.compose.ui.test.hasText("quando precisar"))
             compose.onNodeWithTag("meds").performScrollToIndex(0)
-            // Today's 08:00 of the Losartana, ticked.
-            val eight = LocalDate.now(zone).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-            compose.onNodeWithTag("tick-${ids[1]}-$eight", useUnmergedTree = true).performClick()
-            compose.waitUntil(5_000) { runBlocking { graph.db.meds().takenBetween(eight, eight).any { it.medId == ids[1] } } }
+            // Remédios is the list: no times of the day here (they are Hoje's).
+            assertTrue(compose.onAllNodesWithTag("today-doses").fetchSemanticsNodes().isEmpty())
             // Only Cooper's.
             compose.onAllNodesWithText("Cooper")[0].performClick()
             compose.waitUntil(5_000) { compose.onAllNodesWithText("Losartana").fetchSemanticsNodes().isEmpty() }
             compose.onAllNodesWithText("Amoxicilina")[0].assertExists()
             compose.mainClock.advanceTimeBy(800)
             shot("70b-meds-cooper")
-            // Hoje: the day's times, with what was taken.
+            // Hoje: the times near now; the Losartana of an hour ago, ticked there.
             nav.go(Screen.Library(Filter.TODAY))
             compose.waitUntil(5_000) { compose.onAllNodesWithTag("today-doses").fetchSemanticsNodes().isNotEmpty() }
             compose.onAllNodesWithText("Remédios")[0].assertExists()
+            val ago = LocalDate.now(zone).atTime(hourAgo).atZone(zone).toInstant().toEpochMilli()
+            if (hourAgo.isBefore(java.time.LocalTime.now(zone))) {
+                compose.onNodeWithTag("tick-${ids[1]}-$ago", useUnmergedTree = true).performClick()
+                compose.waitUntil(5_000) { runBlocking { graph.db.meds().takenBetween(ago, ago).any { it.medId == ids[1] } } }
+            }
             compose.mainClock.advanceTimeBy(800)
             shot("71-today-meds")
             // A medicine set by hand: half a tablet comes to 250 mg; one is the box itself.
