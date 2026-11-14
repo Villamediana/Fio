@@ -111,20 +111,22 @@ class CategoriesTest {
         assertEquals(1, db.entries().uncategorized().size)
     }
 
+    /** 1.63: Tarefas is one group per category, under its name; none empty; the loose ones on top; the done ones last (they fold). */
     @Test
-    fun theTasksGoTogetherByCategory() {
+    fun theTasksGoInAGroupPerCategory() {
         var id = 0L
-        fun e(c: String?, position: Long? = null, due: Long? = null) = Entry(id = ++id, kind = "task", title = "$id", status = "todo", category = c, position = position, dueAt = due, createdAt = now + id, updatedAt = now)
-        // Nothing moved by hand: together, the category with the most first (inside, the newest first).
-        val a1 = e("Trabalho"); val b1 = e("Casa"); val a2 = e("trabalho"); val a3 = e("Trabalho")
-        assertEquals(listOf(a3.id, a2.id, a1.id, b1.id), com.villamediana.novelo.ui.library.arrange(listOf(a1, b1, a2, a3)).map { it.id })
-        // Moved by hand: her order stays; a new one goes after the last of its category, one of a new category on top.
-        val p1 = e("Casa", 0); val p2 = e("Trabalho", 1); val p3 = e("Casa", 2)
-        val newCasa = e("Casa"); val newSaude = e("Saúde")
-        assertEquals(listOf(newSaude.id, p1.id, p2.id, p3.id, newCasa.id), com.villamediana.novelo.ui.library.arrange(listOf(newCasa, p3, newSaude, p1, p2)).map { it.id })
-        // One with no category yet stays on top (it is organized when the app starts).
-        val loose = e(null)
-        assertEquals(loose.id, com.villamediana.novelo.ui.library.arrange(listOf(p1, p2, e(null, 3), loose)).first().id)
+        fun e(c: String?, position: Long? = null, status: String = "todo") = Entry(id = ++id, kind = "task", title = "$id", status = status, category = c, position = position, createdAt = now + id, updatedAt = now, doneAt = if (status == "done") now else null)
+        val a1 = e("Trabalho"); val b1 = e("Casa"); val a2 = e("Trabalho", 1); val a3 = e("Trabalho", 0)
+        val loose = e(null); val done = e("Casa", status = "done"); val doing = e("Casa", status = "doing")
+        val sections = com.villamediana.novelo.ui.library.sectionsFor(com.villamediana.novelo.ui.Filter.TASKS, listOf(a1, b1, a2, a3, loose, done, doing), showDone = false)
+        assertEquals(listOf("Sem categoria", "Trabalho", "Casa", "Feitas"), sections.map { it.first })
+        // Inside: the new one on top, then her order; doing or waiting is the same group (the card says it).
+        assertEquals(listOf(a1.id, a3.id, a2.id), sections[1].second.map { it.id })
+        assertEquals(setOf(b1.id, doing.id), sections[2].second.map { it.id }.toSet())
+        assertEquals(listOf(done.id), sections[3].second.map { it.id })
+        // A category with no open task has no group.
+        val onlyDone = com.villamediana.novelo.ui.library.sectionsFor(com.villamediana.novelo.ui.Filter.TASKS, listOf(a1, e("Saúde", status = "done")), showDone = false)
+        assertEquals(listOf("Trabalho", "Feitas"), onlyDone.map { it.first })
     }
 
     @Test

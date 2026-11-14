@@ -560,6 +560,12 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   nenhuma) vai pro topo, junta, as categorias com mais tarefas primeiro. Trocar de categoria (ela ou o modelo) tira
   a tarefa do lugar manual (`position = NULL`) e ela vai pro grupo da nova. Banco v11 (`MIGRATION_10_11`): a ordem
   manual de antes das categorias foi solta uma vez, pra cada grupo começar arrumado.
+- **Um grupo por categoria (1.63.0):** Tarefas deixou de agrupar por status: cada categoria é um grupo com o nome
+  em cima (as com mais tarefas abertas primeiro; categoria sem tarefa aberta não aparece), as sem categoria no topo
+  ("Sem categoria"). Dentro, as novas em cima e depois a ordem dela (`inOrder`); arrastar só dentro da categoria.
+  O cartão diz "Fazendo"/"Esperando" quando o modelo põe. **Feitas dobradas:** em Tarefas ("Feitas") e no Hoje
+  ("Feitas hoje") o grupo das feitas é um cabeçalho com o número e uma setinha (`FoldHeader`); aberto, os cartões
+  descem logo abaixo dele, sem arrastar.
 
 ## Remédios (1.61.0)
 

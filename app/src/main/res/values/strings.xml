@@ -476,4 +476,5 @@
     </plurals>
     <string name="med_doses_course">%1$d de %2$d doses</string>
     <string name="med_doses_today">hoje: %1$d de %2$d</string>
+    <string name="category_none">Sem categoria</string>
 </resources>
