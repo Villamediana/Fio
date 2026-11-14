@@ -37,7 +37,18 @@ internal object MedKeeper {
                 continue
             }
             val name = ask.name?.trim()?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotEmpty() }?.take(80)
-            var m = old ?: Med(name = name ?: continue, startsAt = start(ask.start, now, z) ?: now, captureId = captureId, createdAt = now, updatedAt = now)
+            // Said as new but already there (the same name, for the same person, not over): that one changes.
+            if (old == null && name != null) {
+                val who = ask.person?.let { Categories.clean(it) }?.let(Categories::fold)
+                val same = dao.all().firstOrNull { m0 ->
+                    Categories.fold(m0.name) == Categories.fold(name) && m0.person?.let(Categories::fold) == who && !Doses.ended(m0, now)
+                }
+                if (same != null) {
+                    apply(db, listOf(ask.copy(id = same.id, name = null)), captureId, sentPhotos, photo, now, z).let { d -> ids += d.meds; changed = changed || d.changed }
+                    continue
+                }
+            }
+            var m = old ?: Med(name = name ?: continue, startsAt = start(ask.start, now, z) ?: (now / 60_000L * 60_000L), captureId = captureId, createdAt = now, updatedAt = now)
             if (old != null) {
                 name?.let { m = m.copy(name = it) }
                 ask.start?.let { s -> start(s, now, z)?.let { m = m.copy(startsAt = it) } }
@@ -85,9 +96,15 @@ internal object MedKeeper {
         return m.copy(times = Doses.writeTimes(times), everyHours = every)
     }
 
-    /** The time of now taken (or given): the one of today nearest now; one taken only when needed, now. */
+    /**
+     * The time of now taken (or given): today's time nearest now — even one from before it was written
+     * down (then it starts there, so today shows it ticked); one taken only when needed, now.
+     */
     suspend fun take(db: NoveloDatabase, m: Med, now: Long, z: ZoneId) {
-        val slot = Doses.day(listOf(m), Doses.dayOf(now, z), z).minByOrNull { kotlin.math.abs(it.at - now) }?.at
+        val day = Doses.dayOf(now, z)
+        val whole = m.copy(startsAt = minOf(m.startsAt, day.atStartOfDay(z).toInstant().toEpochMilli()))
+        val slot = Doses.day(listOf(whole), day, z).minByOrNull { kotlin.math.abs(it.at - now) }?.at
+        if (slot != null && slot < m.startsAt) db.meds().update(m.copy(startsAt = slot))
         db.meds().take(MedTaken(m.id, slot ?: (now / 60_000L * 60_000L), now))
     }
 
@@ -95,7 +112,8 @@ internal object MedKeeper {
     private fun start(text: String?, now: Long, z: ZoneId): Long? {
         val (ms, hasTime) = Brain.time(text, z) ?: return null
         if (hasTime) return ms
-        return if (Doses.dayOf(ms, z) == Doses.dayOf(now, z)) now else ms
+        // Today, from this minute on (a time of this very minute counts).
+        return if (Doses.dayOf(ms, z) == Doses.dayOf(now, z)) now / 60_000L * 60_000L else ms
     }
 
     /** Until when: a day is the whole of it; a time is that time. */

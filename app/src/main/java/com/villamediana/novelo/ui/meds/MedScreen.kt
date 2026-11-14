@@ -150,7 +150,7 @@ fun MedScreen(nav: Nav, id: Long) {
         }
 
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 40.dp)) {
-            Text(t(R.string.med_kind) + " · " + t(R.string.med_since, Dates.day(d.startsAt, zone)), style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextFaint)
+            Text(t(R.string.med_kind) + " · " + t(if (d.startsAt > now) R.string.med_starts else R.string.med_since, Dates.day(d.startsAt, zone)), style = MaterialTheme.typography.labelLarge, color = NoveloColors.TextFaint)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
@@ -226,7 +226,7 @@ fun MedScreen(nav: Nav, id: Long) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf("¼", "½", "1", "2").forEach { q ->
                     val cur = d.dose.orEmpty()
-                    val word = cur.replace(Regex("""^\s*([\d.,/]+|[½¼¾⅓⅔]|meio|meia|um|uma|dois|duas)\s*""", RegexOption.IGNORE_CASE), "").trim().ifEmpty { t(R.string.med_tablet) }
+                    val word = cur.replace(Regex("""^\s*([\d.,/]+|[½¼¾⅓⅔]|meio|meia|uma|um|duas|dois|una|uno|un|media|medio|half|one|two)(?![\p{L}])\s*""", RegexOption.IGNORE_CASE), "").trim().ifEmpty { t(R.string.med_tablet) }
                     val made = "$q ${if (q == "2") plural(word) else singular(word)}"
                     Pill(q, selected = Categories.fold(cur) == Categories.fold(made), onClick = { set { it.copy(dose = made, amount = Doses.amount(it.strength, made)) } })
                 }
@@ -239,6 +239,14 @@ fun MedScreen(nav: Nav, id: Long) {
             // The times.
             Label(t(R.string.med_times))
             val times = Doses.times(d)
+            // With times, it reminds: notifications are asked for (once, Android 13+), or none would come.
+            val askNotifications = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
+            val reminds = times.isNotEmpty()
+            LaunchedEffect(reminds) {
+                if (reminds && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
             val mode = when { d.everyHours != null && times.isNotEmpty() -> Mode.EVERY; times.isNotEmpty() -> Mode.FIXED; else -> Mode.NEEDED }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(t(R.string.med_mode_every), mode == Mode.EVERY, {

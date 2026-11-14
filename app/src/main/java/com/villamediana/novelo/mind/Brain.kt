@@ -16,6 +16,39 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+/** A number the model may write with words around it ("remédio#3", "8h"): its first number; none, null. */
+private fun firstNumber(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement {
+    val p = e as? kotlinx.serialization.json.JsonPrimitive ?: return kotlinx.serialization.json.JsonNull
+    if (p is kotlinx.serialization.json.JsonNull) return p
+    val n = Regex("""\d+""").find(p.content)?.value?.toLongOrNull() ?: return kotlinx.serialization.json.JsonNull
+    return kotlinx.serialization.json.JsonPrimitive(n)
+}
+
+object MedId : kotlinx.serialization.json.JsonTransformingSerializer<Long?>(kotlinx.serialization.serializer<Long?>()) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = firstNumber(element)
+}
+
+object Hours : kotlinx.serialization.json.JsonTransformingSerializer<Int?>(kotlinx.serialization.serializer<Int?>()) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = firstNumber(element)
+}
+
+/** Days of the week as numbers (1 = Monday) or names ("seg", "segunda", "monday", "lunes"); one alone is a list of it. */
+object WeekDays : kotlinx.serialization.json.JsonTransformingSerializer<List<Int>?>(kotlinx.serialization.serializer<List<Int>?>()) {
+    private val names = listOf(
+        listOf("seg", "mon", "lun"), listOf("ter", "tue", "mar"), listOf("qua", "wed", "mie", "mié"), listOf("qui", "thu", "jue"),
+        listOf("sex", "fri", "vie"), listOf("sab", "sáb", "sat"), listOf("dom", "sun"),
+    )
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement {
+        if (element is kotlinx.serialization.json.JsonNull) return element
+        val list = (element as? kotlinx.serialization.json.JsonArray) ?: kotlinx.serialization.json.JsonArray(listOf(element))
+        return kotlinx.serialization.json.JsonArray(list.mapNotNull { e ->
+            val text = (e as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.lowercase() ?: return@mapNotNull null
+            val n = text.toIntOrNull() ?: names.indexOfFirst { group -> group.any { text.startsWith(it) } }.takeIf { it >= 0 }?.plus(1)
+            n?.takeIf { it in 1..7 }?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+        })
+    }
+}
+
 /** A list the model may also write as one value ("search": "currículo"): read as a list of it. */
 object Strings : kotlinx.serialization.json.JsonTransformingSerializer<List<String>>(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>())) {
     override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement) = oneOrMany(element)
@@ -83,7 +116,8 @@ data class Plan(
  */
 @Serializable
 data class MedAsk(
-    val id: Long? = null,
+    /** Its number ("remédio#3", "#3" and 3 are all 3). */
+    @Serializable(with = MedId::class) val id: Long? = null,
     val name: String? = null,
     val strength: String? = null,
     val dose: String? = null,
@@ -91,9 +125,9 @@ data class MedAsk(
     /** Who takes it, when it isn't her ("" takes the name off). */
     val person: String? = null,
     @Serializable(with = Strings::class) val times: List<String> = emptyList(),
-    @SerialName("every_hours") val everyHours: Int? = null,
-    /** The days of the week (1 = Monday); [] is every day again; null: not said. */
-    val days: List<Int>? = null,
+    @SerialName("every_hours") @Serializable(with = Hours::class) val everyHours: Int? = null,
+    /** The days of the week (1 = Monday; "seg", "monday" too); [] is every day again; null: not said. */
+    @Serializable(with = WeekDays::class) val days: List<Int>? = null,
     val start: String? = null,
     val end: String? = null,
     val notes: String? = null,
@@ -281,9 +315,12 @@ Os campos que existem:
         val shown = setOfNotNull(focus?.id, today?.id)
         val tasks = openTasks.filter { it.id !in shown }.take(MAX_TASKS)
         if (categories.isNotEmpty()) append("CATEGORIAS DAS TAREFAS: ").append(categories.joinToString(", ")).append("\n\n")
-        if (meds.isNotEmpty()) {
+        // The ones in use first, then the ones that ended (the latest first); none still without a name.
+        val named = meds.filter { it.name.isNotBlank() }
+            .sortedWith(compareBy<com.villamediana.novelo.data.Med> { com.villamediana.novelo.meds.Doses.ended(it, now) }.thenByDescending { if (com.villamediana.novelo.meds.Doses.ended(it, now)) it.endsAt else -it.createdAt })
+        if (named.isNotEmpty()) {
             append("REMÉDIOS:\n")
-            meds.take(MAX_MEDS).forEach { append(medLine(it, taken, zone, now)).append('\n') }
+            named.take(MAX_MEDS).forEach { append(medLine(it, taken, zone, now)).append('\n') }
             append('\n')
         }
         if (tasks.isNotEmpty()) {

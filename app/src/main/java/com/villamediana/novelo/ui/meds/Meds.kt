@@ -193,9 +193,8 @@ fun TodayDoses(
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
-    // The time to look at: the first not all taken that isn't long gone (or, all gone, the last not taken).
-    val pending = slots.filter { s -> s.meds.any { (it.id to s.at) !in taken } }
-    val focus = (pending.firstOrNull { it.at >= now - FOCUS_BEFORE_MS } ?: pending.lastOrNull())?.at
+    // The time to look at: the first not all taken that isn't long gone ("agora" near it, "próximo" before it).
+    val focus = slots.firstOrNull { s -> s.at >= now - FOCUS_BEFORE_MS && s.meds.any { (it.id to s.at) !in taken } }?.at
     Column(modifier.fillMaxWidth().testTag("today-doses")) {
         slots.forEachIndexed { i, s ->
             val shape = groupShape(i, slots.size)

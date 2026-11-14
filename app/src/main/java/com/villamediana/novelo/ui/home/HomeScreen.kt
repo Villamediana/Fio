@@ -147,7 +147,10 @@ fun HomeScreen(nav: Nav, talkAbout: Long?, onTalkHandled: () -> Unit) {
         val a = state as? MindState.Answer ?: return@LaunchedEffect
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             val ids = a.outcomes.map { it.entryId }.toSet()
-            if (entries.any { it.id in ids && (it.remindAt != null || it.checkInAt != null) }) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            val meds = if (a.meds.isEmpty()) emptyList() else graph.db.meds().all().filter { it.id in a.meds }
+            if (entries.any { it.id in ids && (it.remindAt != null || it.checkInAt != null) } || meds.any { com.villamediana.novelo.meds.Doses.times(it).isNotEmpty() }) {
+                notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
         if (!settings.hintSeen) graph.settings.setHintSeen()
         focus = null
