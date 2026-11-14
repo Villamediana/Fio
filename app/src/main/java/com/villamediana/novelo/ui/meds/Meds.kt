@@ -104,8 +104,9 @@ fun rememberToday(now: Long, zone: ZoneId = ZoneId.systemDefault()): Today? {
 }
 
 /**
- * Remédios: today's times on top (a tick each time it is taken or given), then the medicines in use —
- * by person when there are some (Cooper, Aurora…) — and, folded, the ones that ended.
+ * Remédios: the list (Miguel, 1.66.1) — the medicines in use, by person when there are some (Você,
+ * Cooper, Aurora…), each with its doses as beads; folded, the ones that ended. The times of the day
+ * (what is due now, the next one) are Hoje's.
  */
 @Composable
 fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
@@ -122,8 +123,6 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
     fun mine(m: Med) = chosen == null || (m.person ?: ME) == chosen
     val shown = named.filter(::mine)
     val (ended, inUse) = shown.partition { Doses.ended(it, now) }
-    val slots = today.slots.map { s -> s.copy(meds = s.meds.filter(::mine)) }.filter { it.meds.isNotEmpty() }
-    val toggle: (Long, Long) -> Unit = { id, at -> graph.scope.launch { graph.library.toggleTaken(id, at) } }
     // Every dose given, by medicine: the beads of each treatment.
     val allTaken by remember { graph.library.allTaken() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val takenBy = remember(allTaken) { allTaken.groupBy({ it.medId }, { it.at }).mapValues { it.value.toSet() } }
@@ -143,11 +142,6 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
         }
         LazyColumn(Modifier.fillMaxSize().testTag("meds"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
             if (named.isEmpty()) item(key = "empty") { empty() }
-            if (slots.isNotEmpty()) {
-                item(key = "label-today") { SectionLabel(t(R.string.today), Modifier.animateItem()) }
-                item(key = "today") { TodayDoses(slots, today.taken, now, onToggle = toggle, onOpen = onOpen, showPeople = people.size > 1 && chosen == null, modifier = Modifier.animateItem()) }
-                item(key = "today-gap") { Spacer(Modifier.height(8.dp)) }
-            }
             // In use: one group, or one per person (her first) when there are more and none is chosen.
             val groups = if (people.size > 1 && chosen == null) people.map { p -> (p ?: t(R.string.med_me)) to inUse.filter { it.person == p } }.filter { it.second.isNotEmpty() }
             else listOf(t(R.string.med_in_use) to inUse).filter { it.second.isNotEmpty() }
