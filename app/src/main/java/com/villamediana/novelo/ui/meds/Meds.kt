@@ -95,12 +95,14 @@ class Today(val meds: List<Med>, val slots: List<Doses.Slot>, val taken: Set<Pai
 @Composable
 fun rememberToday(now: Long, zone: ZoneId = ZoneId.systemDefault()): Today? {
     val graph = NoveloApplication.graph
-    val meds by graph.library.meds().collectAsStateWithLifecycle(initialValue = null)
+    // Kept in memory from the app's start (AppGraph): here at once, not coming in a beat after the screen.
+    val meds by graph.medsNow.collectAsStateWithLifecycle()
+    val all by graph.takenNow.collectAsStateWithLifecycle()
     val day = DayDiary.bounds(now, zone)
-    val taken by remember(day.first) { graph.library.taken(day) }.collectAsStateWithLifecycle(initialValue = emptyList())
     val list = meds ?: return null
+    val taken = all ?: return null
     val slots = remember(list, day.first) { Doses.day(list.filter { it.name.isNotBlank() }, Doses.dayOf(now, zone), zone) }
-    return Today(list, slots, remember(taken) { taken.map { it.medId to it.at }.toSet() })
+    return Today(list, slots, remember(taken, day.first) { taken.filter { it.at in day }.map { it.medId to it.at }.toSet() })
 }
 
 /**
@@ -124,8 +126,8 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
     val shown = named.filter(::mine)
     val (ended, inUse) = shown.partition { Doses.ended(it, now) }
     // Every dose given, by medicine: the beads of each treatment.
-    val allTaken by remember { graph.library.allTaken() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val takenBy = remember(allTaken) { allTaken.groupBy({ it.medId }, { it.at }).mapValues { it.value.toSet() } }
+    val allTaken by graph.takenNow.collectAsStateWithLifecycle()
+    val takenBy = remember(allTaken) { allTaken.orEmpty().groupBy({ it.medId }, { it.at }).mapValues { it.value.toSet() } }
 
     Column(Modifier.fillMaxSize()) {
         if (people.size > 1) {
