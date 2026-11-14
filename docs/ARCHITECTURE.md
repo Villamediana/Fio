@@ -465,6 +465,10 @@ num dia, sempre com hora. O modelo diz `"repeat": {"every": "day" | "week" | "mo
 Uma tarefa que repete, concluída (no app, na notificação ou falando), fica registrada como feita
 (`Progress`) e volta aberta pra próxima vez, com as etapas zeradas e o prazo junto (`Repeat.done`).
 
+- **Vários horários no dia (1.65.0):** `Repeat.times` (["10:00","14:00","20:00"]; vazio = só `time`, o JSON
+  antigo lê igual). `next` passa por cada horário; feita às 10h30, a tarefa volta pras 14:00. O modelo manda
+  `repeat.times`; no lembrete, com repetição, dá pra adicionar/mudar/tirar horários ("todo dia às 10:00, 14:00 e 20:00").
+
 ## Arrastar à mão (1.35.0)
 
 Etapas: o círculo marca; segurar a linha arrasta pra outra posição (`ReorderableColumn`, biblioteca

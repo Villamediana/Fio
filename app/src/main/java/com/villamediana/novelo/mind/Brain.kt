@@ -185,9 +185,9 @@ data class NewItem(
     @Serializable(with = Picks::class) val files: List<Int> = emptyList(),
 )
 
-/** How a reminder comes back, as the model says it: every day, week (on [days], 1 = Monday) or month; "none" stops it. */
+/** How a reminder comes back, as the model says it: every day, week (on [days], 1 = Monday) or month, at [times] when more than one a day; "none" stops it. */
 @Serializable
-data class RepeatAsk(val every: String = "", val days: List<Int> = emptyList())
+data class RepeatAsk(val every: String = "", val days: List<Int> = emptyList(), @Serializable(with = Strings::class) val times: List<String> = emptyList())
 
 @Serializable
 data class NamedTopic(val name: String, val type: String = "topic")
@@ -255,7 +255,7 @@ Como preencher:
 - A fala chega transcrita por máquina, e a transcrição às vezes ouve uma palavra errado (um nome de comida, de lugar, de pessoa, uma marca, um termo de outra língua que vira uma palavra parecida ou sem sentido). Quando o resto da frase deixa claro qual era a palavra que ela disse, escreva a certa; quando não dá pra ter certeza, deixe como veio — nunca invente.
 - Datas relativas (amanhã, sexta, daqui a duas semanas, às 3 da tarde) viram data absoluta a partir de AGORA, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM. Sem data dita, null.
 - remind_at: quando ela pede pra ser lembrada, ou quando algo tem hora marcada (lembre um pouco antes).
-- repeat: quando o lembrete (e a tarefa) volta sempre — todo dia, em dias da semana, todo mês: {"every": "day" | "week" | "month", "days": [1-7, 1 = segunda, só com week]}; remind_at é a primeira vez, com a hora. Pra parar de repetir: {"every": "none"}.
+- repeat: quando o lembrete (e a tarefa) volta sempre — todo dia, em dias da semana, todo mês: {"every": "day" | "week" | "month", "days": [1-7, 1 = segunda, só com week], "times": ["HH:MM", …] todos os horários quando é mais de um no dia}; remind_at é a primeira vez, com a hora. Pra parar de repetir: {"every": "none"}.
 - check_in_at: em tarefas que levam dias ou têm etapas, escolha um bom momento pra perguntar como está. Pode ser null.
 - steps: as etapas, quando a tarefa tem mais de um passo. status: todo, doing, waiting ou done.
 - sensitive: true para senhas, documentos pessoais e números deles, dados bancários e afins.
@@ -511,7 +511,7 @@ Os campos que existem:
         e.dueAt?.let { append(" · prazo ").append(if (e.dueHasTime) stamp(it, zone) else day(it, zone)) }
         e.doneAt?.let { append(" · feito em ").append(day(it, zone)) }
         e.remindAt?.takeIf { it > now }?.let { append(" · lembrete ").append(stamp(it, zone)) }
-        com.villamediana.novelo.remind.Repeat.read(e.repeat)?.let { r -> append(" · repete ").append(r.every).append(if (r.every == "week") r.days.joinToString(",", "[", "]") else "").append(' ').append(r.time) }
+        com.villamediana.novelo.remind.Repeat.read(e.repeat)?.let { r -> append(" · repete ").append(r.every).append(if (r.every == "week") r.days.joinToString(",", "[", "]") else "").append(' ').append(r.allTimes.joinToString(",") { "%02d:%02d".format(it.hour, it.minute) }) }
         val steps = Steps.read(e.steps)
         if (steps.isNotEmpty()) append(" · etapas: ").append(steps.joinToString(" ") { (if (it.done) "[x] " else "[ ] ") + it.text.take(40) })
         if (long && e.body.isNotBlank()) {
