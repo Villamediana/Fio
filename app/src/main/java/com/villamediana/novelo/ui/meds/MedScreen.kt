@@ -322,8 +322,8 @@ fun MedScreen(nav: Nav, id: Long) {
                 Text(t(R.string.med_starts_on), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.TextMuted, modifier = Modifier.width(72.dp))
                 TimeChip(Dates.day(d.startsAt, zone), icon = true) {
                     pickDay(d.startsAt) { day ->
-                        // Today: from now on (the times already gone today don't count); another day: from its start.
-                        val at = if (day == Doses.dayOf(System.currentTimeMillis(), zone)) System.currentTimeMillis() else day.atStartOfDay(zone).toInstant().toEpochMilli()
+                        // From the start of that day (today too: its times already gone show, to tick).
+                        val at = day.atStartOfDay(zone).toInstant().toEpochMilli()
                         set { it.copy(startsAt = at, endsAt = it.endsAt?.takeIf { e -> e >= at }) }
                     }
                 }

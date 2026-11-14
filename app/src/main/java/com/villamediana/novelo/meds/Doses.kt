@@ -93,7 +93,7 @@ object Doses {
             .map { (at, list) -> Slot(at, list) }
     }
 
-    /** One dose of a treatment: its time, taken or not, gone by or still to come. */
+    /** One dose of a treatment: its time, taken or not, gone by (a day before today, not ticked) or still to do. */
     data class Dot(val at: Long, val taken: Boolean, val past: Boolean)
 
     /**
@@ -107,7 +107,9 @@ object Doses {
 
     fun course(m: Med, taken: Set<Long>, now: Long, zone: ZoneId): Course? {
         if (times(m).isEmpty()) return null
-        fun dots(list: List<Long>) = list.groupBy { dayOf(it, zone) }.toSortedMap().values.map { day -> day.map { Dot(it, it in taken, it <= now) } }
+        // Gone by: a time of a day before today not ticked (today's are still to do until the day ends).
+        val dayStart = startOfDay(now, zone)
+        fun dots(list: List<Long>) = list.groupBy { dayOf(it, zone) }.toSortedMap().values.map { day -> day.map { Dot(it, it in taken, it < dayStart) } }
         m.endsAt?.let { end ->
             val all = slots(m, m.startsAt, end, zone)
             if (all.size in 1..MAX_DOTS) return Course(dots(all), whole = true)
@@ -149,6 +151,9 @@ object Doses {
         val gone = ChronoUnit.DAYS.between(dayOf(m.startsAt, zone), dayOf(now, zone))
         return (gone.toFloat() / total.coerceAtLeast(1)).coerceIn(0f, 1f)
     }
+
+    /** The start of the day [ms] falls in. */
+    fun startOfDay(ms: Long, zone: ZoneId): Long = dayOf(ms, zone).atStartOfDay(zone).toInstant().toEpochMilli()
 
     /** The end of [day] (its last ms): "até dia 21" takes the whole of the 21st. */
     fun endOf(day: LocalDate, zone: ZoneId): Long = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1

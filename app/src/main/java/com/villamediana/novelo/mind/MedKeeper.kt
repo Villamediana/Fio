@@ -48,7 +48,7 @@ internal object MedKeeper {
                     continue
                 }
             }
-            var m = old ?: Med(name = name ?: continue, startsAt = start(ask.start, now, z) ?: (now / 60_000L * 60_000L), captureId = captureId, createdAt = now, updatedAt = now)
+            var m = old ?: Med(name = name ?: continue, startsAt = start(ask.start, now, z) ?: Doses.startOfDay(now, z), captureId = captureId, createdAt = now, updatedAt = now)
             if (old != null) {
                 name?.let { m = m.copy(name = it) }
                 ask.start?.let { s -> start(s, now, z)?.let { m = m.copy(startsAt = it) } }
@@ -142,12 +142,14 @@ internal object MedKeeper {
     /** A dose given this much before its time still counts as that one. */
     private const val EARLY_MS = 30 * 60_000L
 
-    /** When it starts: a day only — today is from now on, another day from its start; a time is that time. */
+    /**
+     * When it starts: a day only (or none said) is the whole day — today's times already gone stay, to
+     * tick (a treatment of 4 days has its 4 doses); a time is that time.
+     */
     private fun start(text: String?, now: Long, z: ZoneId): Long? {
         val (ms, hasTime) = Brain.time(text, z) ?: return null
         if (hasTime) return ms
-        // Today, from this minute on (a time of this very minute counts).
-        return if (Doses.dayOf(ms, z) == Doses.dayOf(now, z)) now / 60_000L * 60_000L else ms
+        return Doses.startOfDay(ms, z)
     }
 
     /** Until when: a day is the whole of it; a time is that time. */
