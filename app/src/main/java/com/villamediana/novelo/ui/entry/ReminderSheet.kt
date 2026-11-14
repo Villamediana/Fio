@@ -67,7 +67,12 @@ internal fun ReminderSheet(e: Entry, onSave: (Long, Repeat?) -> Unit, onRemove: 
             ?: ZonedDateTime.now(zone).plusHours(1).withMinute(0)
     }
     var date by remember(e.id) { mutableStateOf(start.toLocalDate()) }
-    var time by remember(e.id) { mutableStateOf(rule?.let { runCatching { LocalTime.parse(it.time) }.getOrNull() } ?: start.toLocalTime().withSecond(0).withNano(0)) }
+    // Its hours: one (once, or once a day), or several a day when it comes back ("10:00, 14:00 e 20:00").
+    var times by remember(e.id) { mutableStateOf(rule?.allTimes ?: listOf(start.toLocalTime().withSecond(0).withNano(0))) }
+    fun pick(at: LocalTime, done: (LocalTime) -> Unit) {
+        TimePickerDialog(context, { _, h, min -> done(LocalTime.of(h, min)) }, at.hour, at.minute, true).show()
+    }
+    fun hhmm(at: LocalTime) = "%02d:%02d".format(at.hour, at.minute)
     var every by remember(e.id) { mutableStateOf(rule?.every) }
     var days by remember(e.id) { mutableStateOf(rule?.days?.toSet()?.takeIf { it.isNotEmpty() } ?: setOf(start.dayOfWeek.value)) }
 
@@ -75,15 +80,24 @@ internal fun ReminderSheet(e: Entry, onSave: (Long, Repeat?) -> Unit, onRemove: 
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
             Text(t(R.string.reminder), style = MaterialTheme.typography.headlineSmall, color = NoveloColors.Text)
             Spacer(Modifier.height(16.dp))
-            // When: the day (not for every day) and the hour.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // When: the day (not for every day) and the hour — when it comes back, as many hours a day as she wants.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (every != Repeat.DAY && every != Repeat.WEEK) {
                     Chip(NoveloIcons.Calendar, Dates.day(date.atStartOfDay(zone).toInstant().toEpochMilli(), zone), "${t(R.string.reminder_day)}") {
                         DatePickerDialog(context, { _, y, m, d -> date = LocalDate.of(y, m + 1, d) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
                     }
                 }
-                Chip(NoveloIcons.Bell, "%02d:%02d".format(time.hour, time.minute), t(R.string.reminder_time)) {
-                    TimePickerDialog(context, { _, h, min -> time = LocalTime.of(h, min) }, time.hour, time.minute, true).show()
+                val shown = if (every == null) times.take(1) else times
+                shown.forEach { at ->
+                    Chip(
+                        NoveloIcons.Bell, hhmm(at), t(R.string.reminder_time),
+                        onRemove = if (every != null && times.size > 1) ({ times = times - at }) else null,
+                    ) { pick(at) { new -> times = if (every == null) listOf(new) else (times - at + new).distinct().sorted() } }
+                }
+                if (every != null) {
+                    Chip(NoveloIcons.Plus, t(R.string.med_time_add), t(R.string.med_time_add), tag = "reminder-time-add") {
+                        pick(times.last().plusHours(4)) { new -> times = (times + new).distinct().sorted() }
+                    }
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -122,8 +136,8 @@ internal fun ReminderSheet(e: Entry, onSave: (Long, Repeat?) -> Unit, onRemove: 
                 }
             }
             // What it will be, in words.
-            val first = date.atTime(time).atZone(zone).toInstant().toEpochMilli()
-            val made = Repeat.from(every, days.toList(), first, zone)
+            val first = date.atTime(times.first()).atZone(zone).toInstant().toEpochMilli()
+            val made = Repeat.from(every, days.toList(), first, zone, times.map(::hhmm))
             Spacer(Modifier.height(14.dp))
             Text(made?.describe() ?: Dates.dayTime(first, zone), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Text)
             Spacer(Modifier.height(20.dp))
@@ -149,14 +163,20 @@ internal fun ReminderSheet(e: Entry, onSave: (Long, Repeat?) -> Unit, onRemove: 
 }
 
 @Composable
-private fun Chip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, name: String, onClick: () -> Unit) {
+private fun Chip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, name: String, onRemove: (() -> Unit)? = null, tag: String? = null, onClick: () -> Unit) {
     Row(
         Modifier.height(40.dp).clip(CircleShape).background(NoveloColors.Surface2).clickable(onClick = onClick)
-            .semantics { contentDescription = "$name: $text" }.padding(horizontal = 14.dp),
+            .semantics { contentDescription = "$name: $text" }.padding(start = 14.dp, end = if (onRemove != null) 4.dp else 14.dp)
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = NoveloColors.Accent, modifier = Modifier.size(18.dp))
         Spacer(Modifier.padding(start = 8.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = NoveloColors.Text)
+        if (onRemove != null) {
+            Box(Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onRemove), contentAlignment = Alignment.Center) {
+                Icon(NoveloIcons.Close, t(R.string.clear), tint = NoveloColors.TextFaint, modifier = Modifier.size(13.dp))
+            }
+        }
     }
 }
