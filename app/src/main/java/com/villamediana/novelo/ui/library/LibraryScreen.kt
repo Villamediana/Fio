@@ -206,12 +206,16 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
     // The tabs are pages side by side: a swipe goes to the next one, a touch on a word too.
     // The tab asked by the screen is the page; the page a swipe stops on is the tab kept (so
     // coming back from an entry lands where you were).
+    // The tabs in her order, without the ones she hid (Ajustes › Abas).
+    val prefs by graph.settings.now.collectAsStateWithLifecycle()
+    val TABS = remember(prefs.tabOrder, prefs.tabsHidden) { TabOrder.visible(prefs) }
     val pager = rememberPagerState(initialPage = TABS.indexOf(screen.filter).coerceAtLeast(0)) { TABS.size }
     val current by rememberUpdatedState(screen)
     LaunchedEffect(screen.filter) { TABS.indexOf(screen.filter).takeIf { it >= 0 && it != pager.currentPage }?.let { pager.scrollToPage(it) } }
+    val tabsNow by rememberUpdatedState(TABS)
     LaunchedEffect(pager) {
         snapshotFlow { pager.settledPage }.collect { p ->
-            val f = TABS[p]
+            val f = tabsNow.getOrNull(p) ?: return@collect
             if (f != current.filter) nav.go(current.copy(filter = f, topic = null))
         }
     }
@@ -298,6 +302,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
 
         AnimatedVisibility(visible = !searching || query.isBlank(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Tabs(
+                TABS,
                 selected = pager.currentPage,
                 position = { pager.currentPage + pager.currentPageOffsetFraction },
                 onSelect = { i -> scope.launch { pager.animateScrollToPage(i) } },
@@ -313,7 +318,7 @@ fun LibraryScreen(nav: Nav, screen: Screen.Library) {
         }
         Box(Modifier.fillMaxSize().nestedScroll(edge)) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-                val f = TABS[page]
+                val f = TABS.getOrNull(page) ?: return@HorizontalPager
                 Box(Modifier.fillMaxSize().graphicsLayer { if (page == 0) translationX = pull * SWIPE_FOLLOW }) {
                     when {
                         f == Filter.LINKS -> Connections(startTopic = screen.topic, onOpen = open, empty = { Empty(Filter.LINKS) })
@@ -540,13 +545,27 @@ internal fun month(at: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(at).atZone(zone).let { d -> d.month.getDisplayName(TextStyle.FULL_STANDALONE, PT).replaceFirstChar { it.titlecase(PT) } + " " + d.year }
 
 /**
- * The tabs shown, in order. Hidden for now, their code kept: Conexões (the drawing stays in
- * ui/graph) and Tudo (Miguel, 1.46.0; the search, which looks in everything, still goes as ALL).
- * Arquivos is gone (1.47.0): a file lives in its item.
+ * The tabs there are, in the usual order (Miguel, 1.64): Hoje, Tarefas, Diário, Notas, Remédios, Galeria —
+ * hers in Ajustes › Abas (moved, or hidden). Not tabs, their code kept: Conexões (the drawing stays in
+ * ui/graph) and Tudo (1.46.0; the search, which looks in everything, still goes as ALL). Arquivos is
+ * gone (1.47.0): a file lives in its item.
  */
-private val TABS = Filter.entries - Filter.LINKS - Filter.ALL
+object TabOrder {
+    val DEFAULT = listOf(Filter.TODAY, Filter.TASKS, Filter.DIARY, Filter.NOTES, Filter.MEDS, Filter.GALLERY)
 
-private fun title(f: Filter) = when (f) {
+    fun key(f: Filter): String = f.name.lowercase()
+    private fun of(text: String): List<Filter> = text.split(',').mapNotNull { k -> DEFAULT.firstOrNull { key(it) == k.trim() } }
+
+    /** All of them in her order (a tab that came after she set it goes at the end). */
+    fun order(s: com.villamediana.novelo.settings.NoveloSettings): List<Filter> = (of(s.tabOrder) + DEFAULT).distinct()
+
+    fun hidden(s: com.villamediana.novelo.settings.NoveloSettings): Set<Filter> = of(s.tabsHidden).toSet()
+
+    /** The ones shown, in order — never none. */
+    fun visible(s: com.villamediana.novelo.settings.NoveloSettings): List<Filter> = order(s).let { all -> all.filter { it !in hidden(s) }.ifEmpty { all.take(1) } }
+}
+
+internal fun title(f: Filter) = when (f) {
     Filter.TODAY -> t(R.string.today)
     Filter.TASKS -> t(R.string.tab_tasks)
     Filter.MEDS -> t(R.string.tab_meds)
@@ -562,7 +581,7 @@ private fun title(f: Filter) = when (f) {
  * the others wait in gray. The stitch slides to the new tab; a tab off the edge comes into view.
  */
 @Composable
-private fun Tabs(selected: Int, position: () -> Float, onSelect: (Int) -> Unit) {
+private fun Tabs(TABS: List<Filter>, selected: Int, position: () -> Float, onSelect: (Int) -> Unit) {
     val scroll = rememberScrollState()
     val bounds = remember { mutableStateMapOf<Int, Pair<Float, Float>>() } // x, width (inside the row's padding)
     val density = LocalDensity.current

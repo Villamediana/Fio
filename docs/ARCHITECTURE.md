@@ -598,6 +598,14 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   do começo — o começo recua pra elas aparecerem); de tantas em tantas horas dado fora do horário, o modelo manda os
   `times` novos a partir dali. O contexto diz "doses: X de Y dadas".
 
+## Abas (1.64.0)
+
+- Ordem padrão: Hoje, Tarefas, Diário, Notas, Remédios, Galeria (`TabOrder.DEFAULT`, em `ui/library/LibraryScreen.kt`).
+- Ajustes › Abas (`ui/settings/TabsSection.kt`): lista arrastável (`ReorderableColumn`; segurar a linha ou pegar
+  pelos pontinhos) e um olho por aba pra esconder/mostrar; a última visível não esconde. Guardado em `tab_order` e
+  `tabs_hidden` (chaves `today,tasks,…`); aba nova que não estava na ordem dela entra no fim. Pedir uma aba
+  escondida (o "Hoje" da Home, o aviso de remédio) abre a primeira visível.
+
 ## Lançar versão
 
 Igual ao FreeSong: bump de `versionCode`/`versionName` → commit → branch + PR + merge → na main limpa

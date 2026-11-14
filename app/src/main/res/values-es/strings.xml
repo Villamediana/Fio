@@ -477,4 +477,9 @@
     <string name="med_doses_course">%1$d de %2$d dosis</string>
     <string name="med_doses_today">hoy: %1$d de %2$d</string>
     <string name="category_none">Sin categoría</string>
+    <string name="tabs_title">Pestañas</string>
+    <string name="tabs_line">Mantén y arrastra para cambiar el orden. El ojo oculta la pestaña o la vuelve a mostrar.</string>
+    <string name="tabs_move">Mover %1$s</string>
+    <string name="tabs_hide">Ocultar %1$s</string>
+    <string name="tabs_show">Mostrar %1$s</string>
 </resources>

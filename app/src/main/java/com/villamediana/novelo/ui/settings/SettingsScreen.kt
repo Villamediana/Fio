@@ -73,7 +73,7 @@ import com.villamediana.novelo.ui.theme.NoveloColors
 import com.villamediana.novelo.ui.update.UpdateRow
 
 /** The parts of Ajustes, each opened in place. */
-private enum class Part { AI, THEME, BACKUP, PRIVACY, LANGUAGE }
+private enum class Part { AI, THEME, TABS, BACKUP, PRIVACY, LANGUAGE }
 
 /**
  * Ajustes: one page. Each part is a line that says in a few words how things are (in the accent
@@ -100,6 +100,7 @@ fun SettingsScreen(nav: Nav, openAi: Boolean = false) {
                 when (s.theme) { ThemeMode.SYSTEM -> t(R.string.theme_system); ThemeMode.LIGHT -> t(R.string.theme_light); ThemeMode.DARK -> t(R.string.theme_dark) } + " · " + NoveloAccents.byId(s.accent).name.lowercase(),
                 false, open == Part.THEME, { toggle(Part.THEME) },
             ) { ThemeSection() }
+            Fold(t(R.string.tabs_title), tabsSummary(s), false, open == Part.TABS, { toggle(Part.TABS) }) { TabsSection() }
             Fold(t(R.string.backup), backup.first, backup.second, open == Part.BACKUP, { toggle(Part.BACKUP) }) { BackupSection() }
             Fold(t(R.string.privacy), if (s.lockSensitive) t(R.string.privacy_on) else t(R.string.privacy_off), false, open == Part.PRIVACY, { toggle(Part.PRIVACY) }) { PrivacySection() }
             Fold(t(R.string.language), Lang.current.label, false, open == Part.LANGUAGE, { toggle(Part.LANGUAGE) }) { LanguagePicker() }

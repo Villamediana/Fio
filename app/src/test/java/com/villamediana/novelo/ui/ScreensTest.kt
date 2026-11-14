@@ -1241,6 +1241,37 @@ class ScreensTest {
         }
     }
 
+    /** Ajustes › Abas: the tabs in their order, an eye on each; one hidden is gone from the library. */
+    @Test
+    fun theTabsAreSetInAjustes() {
+        runBlocking { graph.settings.setTabs(emptyList(), emptySet()) }
+        val nav = Nav().apply { go(Screen.Settings()) }
+        compose.setContent {
+            NoveloTheme(ThemeMode.LIGHT) {
+                when (val sc = nav.top) {
+                    is Screen.Settings -> SettingsScreen(nav)
+                    is Screen.Library -> LibraryScreen(nav, sc)
+                    else -> Unit
+                }
+            }
+        }
+        try {
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Abas").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Abas").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("tab-eye-gallery").fetchSemanticsNodes().isNotEmpty() }
+            compose.mainClock.advanceTimeBy(800)
+            shot("76-settings-tabs")
+            compose.onNodeWithTag("tab-eye-gallery").performScrollTo().performClick()
+            compose.waitUntil(5_000) { graph.settings.now.value.tabsHidden == "gallery" }
+            // The library: Hoje, Tarefas, Diário… and no Galeria.
+            nav.go(Screen.Library(Filter.TODAY))
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Tarefas").fetchSemanticsNodes().isNotEmpty() }
+            assertTrue(compose.onAllNodesWithText("Galeria").fetchSemanticsNodes().isEmpty())
+        } finally {
+            runBlocking { graph.settings.setTabs(emptyList(), emptySet()) }
+        }
+    }
+
     /** Notas: one list in the order she sets — the newest on top, a note held and dragged moves; each card says its day. */
     @Test
     fun aNoteHeldAndDraggedMoves() {
