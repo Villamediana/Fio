@@ -154,6 +154,9 @@ class Library(private val db: NoveloDatabase, private val reminders: ReminderSyn
     /** The times of medicines taken in [range] (a day). */
     fun taken(range: LongRange): Flow<List<MedTaken>> = db.meds().observeTaken(range.first, range.last)
 
+    /** Every time of a medicine taken (the doses gone of each treatment). */
+    fun allTaken(): Flow<List<MedTaken>> = db.meds().observeAllTaken()
+
     /** A new one, made by hand (it opens on its name): from now on, no times yet. */
     suspend fun newMed(): Long {
         val now = clock()

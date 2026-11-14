@@ -474,4 +474,6 @@
         <item quantity="one">%d medicine</item>
         <item quantity="other">%d medicines</item>
     </plurals>
+    <string name="med_doses_course">%1$d of %2$d doses</string>
+    <string name="med_doses_today">today: %1$d of %2$d</string>
 </resources>

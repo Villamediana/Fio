@@ -585,6 +585,12 @@ pras outras telas passou a seguir 70% do dedo (`SWIPE_FOLLOW = 0.7f`).
   "faltam N dias". O + abre um remédio novo; `ui/meds/MedScreen` edita tudo à mão (pra quem, dose com toques
   ¼ ½ 1 2, de tantas em tantas horas / horários certos / quando precisar, dias, começo e fim, como tomar). A aba
   Hoje mostra os remédios do dia no topo; a resposta da Home mostra o cartão do remédio criado ou mudado.
+- **Doses (1.62.0):** cada cartão mostra as doses como bolinhas (`Doses.course`, `DoseDots`): o tratamento inteiro
+  agrupado por dia quando tem fim (até 60 doses), senão as de hoje — cheias as dadas, anel na cor da pessoa as que
+  vêm, anel cinza as que passaram sem marcar; "8 de 21 doses". Pela fala: `taken_at` (deu numa hora: vai pro
+  horário mais perto daquele dia, `takenAt` = a hora dita), `taken_count` (as últimas N, olhando pra trás até antes
+  do começo — o começo recua pra elas aparecerem); de tantas em tantas horas dado fora do horário, o modelo manda os
+  `times` novos a partir dali. O contexto diz "doses: X de Y dadas".
 
 ## Lançar versão
 

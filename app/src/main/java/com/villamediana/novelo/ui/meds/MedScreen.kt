@@ -344,6 +344,15 @@ fun MedScreen(nav: Nav, id: Long) {
                 Spacer(Modifier.height(10.dp))
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = NoveloColors.Accent)
             }
+            // The doses of the treatment, given and to come.
+            val given by remember { lib.allTaken() }.collectAsStateWithLifecycle(initialValue = emptyList())
+            val mine = remember(given, d.id) { given.filter { it.medId == d.id }.map { it.at }.toSet() }
+            Doses.course(d, mine, now, zone)?.takeIf { it.whole && d.name.isNotBlank() }?.let { c ->
+                Spacer(Modifier.height(14.dp))
+                DoseDots(c, personColor(d.person))
+                Spacer(Modifier.height(6.dp))
+                Text(dosesText(c), style = MaterialTheme.typography.bodyMedium, color = NoveloColors.TextMuted)
+            }
 
             // How to take it.
             Label(t(R.string.med_notes))

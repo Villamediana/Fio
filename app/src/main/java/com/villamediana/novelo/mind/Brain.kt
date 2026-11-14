@@ -134,6 +134,10 @@ data class MedAsk(
     /** The photos she sent (their numbers) that show it: the first one stays with it. */
     @Serializable(with = Picks::class) val photos: List<Int> = emptyList(),
     val taken: Boolean = false,
+    /** Doses given at times she said ("10:30", or a day and time). */
+    @SerialName("taken_at") @Serializable(with = Strings::class) val takenAt: List<String> = emptyList(),
+    /** How many doses she already gave ("já dei 2 vezes"): the last ones. */
+    @SerialName("taken_count") @Serializable(with = Hours::class) val takenCount: Int? = null,
     val delete: Boolean = false,
 )
 
@@ -251,7 +255,8 @@ Como preencher:
   · times: todos os horários do dia, HH:MM. De tantas em tantas horas: "every_hours" e os times a partir da primeira dose. Só em alguns dias da semana: "days" [1-7, 1 = segunda]. Só quando precisa, sem horário: sem times.
   · Quando ela não diz o horário, use horários que os outros REMÉDIOS já têm, pra os lembretes chegarem juntos num aviso só; não havendo, horários comuns (08:00, 20:00…).
   · start: quando começa (sem dizer, agora). end: o último dia de tomar — "por 7 dias" conta o dia do começo como o primeiro; uso contínuo, sem end.
-  · Pra mudar um remédio: {"id": N, só o que muda}. Voltar a ser contínuo: "end": "none". Parou ou acabou: "end" com o dia de hoje. Tirar da lista: "delete": true. Ela tomou (ou deu) a dose de agora: "taken": true.
+  · Pra mudar um remédio: {"id": N, só o que muda}. Voltar a ser contínuo: "end": "none". Parou ou acabou: "end" com o dia de hoje. Tirar da lista: "delete": true.
+  · Doses dadas: a de agora, "taken": true; numa hora que ela diz, "taken_at": ["HH:MM" ou "AAAA-MM-DDTHH:MM"], uma por dose; quantas já deu ("já dei 2 vezes"), "taken_count": 2. Deu fora do horário um remédio de tantas em tantas horas: os próximos seguem dali — mande também os times novos a partir dessa hora. Remédio que já vinha sendo tomado: "start" no dia em que começou.
   · A foto de uma receita ou de uma caixa de remédio: leia e crie os remédios dela, com a foto em "photos".
 - related: ids de itens do contexto que tratam do mesmo assunto.
 - A foto de um momento já fica no diário do dia por si: não escreva o que se vê nela no diário nem em outro item; ela só ganha a "reply". A foto de algo pra guardar ou fazer (um documento, um papel, um recibo, um aviso, um quadro) é desse item: crie ou mude o item com o que ela traz.
@@ -270,7 +275,7 @@ Os campos que existem:
 - create: [{kind (task, note ou diary), title, body, tags, entities [{name, type}], category, due, remind_at, repeat, check_in_at, steps, status, sensitive, related, photos [números], files [números]}]
 - update: [{id, status, steps_done, add_steps, title, append, body, category, due, remind_at, repeat, check_in_at, entities, delete, photos [números], files [números]}]
 - categories: [{name, to}]
-- meds: [{id, name, strength, dose, amount, person, times, every_hours, days, start, end, notes, photos [números], taken, delete}]
+- meds: [{id, name, strength, dose, amount, person, times, every_hours, days, start, end, notes, photos [números], taken, taken_at, taken_count, delete}]
 - search, period {from, to}, show, show_photos, keep_audio
 """.trim()
 
@@ -304,7 +309,7 @@ Os campos que existem:
         seen: String? = null,
         /** The tasks' categories there are (the ones with the most open tasks first). */
         categories: List<String> = emptyList(),
-        /** Her medicines (and the ones that ended), with the times taken today. */
+        /** Her medicines (and the ones that ended), with the times taken (today's ticked, each treatment's doses counted). */
         meds: List<com.villamediana.novelo.data.Med> = emptyList(),
         taken: List<com.villamediana.novelo.data.MedTaken> = emptyList(),
     ): String = buildString {
@@ -459,7 +464,14 @@ Os campos que existem:
             doses.days(m).takeIf { it.isNotEmpty() }?.let { append(" · dias ").append(it.sorted().joinToString(",", "[", "]")) }
         }
         if (m.startsAt > now) append(" · começa ").append(stamp(m.startsAt, zone)) else append(" · desde ").append(day(m.startsAt, zone))
-        m.endsAt?.let { append(if (it < now) " · terminou " else " · até ").append(day(it, zone)) }
+        m.endsAt?.let { end ->
+            append(if (end < now) " · terminou " else " · até ").append(day(end, zone))
+            val all = doses.slots(m, m.startsAt, end, zone)
+            if (all.isNotEmpty()) {
+                val ats = taken.filter { it.medId == m.id }.map { it.at }.toSet()
+                append(" · doses: ").append(all.count { it in ats }).append(" de ").append(all.size).append(" dadas")
+            }
+        }
         if (m.notes.isNotBlank()) append(" · ").append(m.notes.take(80).replace('\n', ' '))
         if (!doses.ended(m, now)) {
             val today = doses.day(listOf(m), doses.dayOf(now, zone), zone)

@@ -3,7 +3,10 @@ package com.villamediana.novelo.ui.meds
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -121,6 +124,9 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
     val (ended, inUse) = shown.partition { Doses.ended(it, now) }
     val slots = today.slots.map { s -> s.copy(meds = s.meds.filter(::mine)) }.filter { it.meds.isNotEmpty() }
     val toggle: (Long, Long) -> Unit = { id, at -> graph.scope.launch { graph.library.toggleTaken(id, at) } }
+    // Every dose given, by medicine: the beads of each treatment.
+    val allTaken by remember { graph.library.allTaken() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val takenBy = remember(allTaken) { allTaken.groupBy({ it.medId }, { it.at }).mapValues { it.value.toSet() } }
 
     Column(Modifier.fillMaxSize()) {
         if (people.size > 1) {
@@ -145,7 +151,7 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
             // In use: one group, or one per person (her first) when there are more and none is chosen.
             val groups = if (people.size > 1 && chosen == null) people.map { p -> (p ?: t(R.string.med_me)) to inUse.filter { it.person == p } }.filter { it.second.isNotEmpty() }
             else listOf(t(R.string.med_in_use) to inUse).filter { it.second.isNotEmpty() }
-            groups.forEach { (label, list) -> medGroup(label, list, now, onOpen, showPerson = false) }
+            groups.forEach { (label, list) -> medGroup(label, list, now, onOpen, showPerson = false, takenBy = takenBy) }
             if (ended.isNotEmpty()) {
                 item(key = "ended-toggle") {
                     Text(
@@ -155,18 +161,18 @@ fun MedsPage(onOpen: (Long) -> Unit, empty: @Composable () -> Unit) {
                         modifier = Modifier.animateItem().padding(top = 10.dp).clip(CircleShape).clickable { showEnded = !showEnded }.padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
-                if (showEnded) medGroup(t(R.string.med_ended), ended.sortedByDescending { it.endsAt }, now, onOpen, showPerson = people.size > 1, faded = true)
+                if (showEnded) medGroup(t(R.string.med_ended), ended.sortedByDescending { it.endsAt }, now, onOpen, showPerson = people.size > 1, faded = true, takenBy = takenBy)
             }
         }
     }
 }
 
 /** A group of medicine cards under its label, touching like the tasks. */
-private fun LazyListScope.medGroup(label: String, list: List<Med>, now: Long, onOpen: (Long) -> Unit, showPerson: Boolean, faded: Boolean = false) {
+private fun LazyListScope.medGroup(label: String, list: List<Med>, now: Long, onOpen: (Long) -> Unit, showPerson: Boolean, faded: Boolean = false, takenBy: Map<Long, Set<Long>> = emptyMap()) {
     item(key = "label-$label-$faded") { SectionLabel(label, Modifier.animateItem()) }
     itemsIndexed(list, key = { _, m -> "med-${m.id}" }) { i, m ->
         Box(Modifier.animateItem().padding(bottom = if (i == list.lastIndex) 8.dp else GroupGap)) {
-            MedCard(m, now, onClick = { onOpen(m.id) }, shape = groupShape(i, list.size), showPerson = showPerson, faded = faded, modifier = Modifier.testTag("med-$i"))
+            MedCard(m, now, onClick = { onOpen(m.id) }, shape = groupShape(i, list.size), showPerson = showPerson, faded = faded, taken = takenBy[m.id].orEmpty(), modifier = Modifier.testTag("med-$i"))
         }
     }
 }
@@ -265,6 +271,8 @@ fun MedCard(
     label: String? = null,
     showPerson: Boolean = true,
     faded: Boolean = false,
+    /** The times of it taken: its doses as beads. */
+    taken: Set<Long> = emptySet(),
 ) {
     val zone = ZoneId.systemDefault()
     val interaction = remember { MutableInteractionSource() }
@@ -307,19 +315,52 @@ fun MedCard(
                 Text(MedText.schedule(m), style = MaterialTheme.typography.labelMedium, color = NoveloColors.TextFaint, maxLines = 2)
             }
             val period = MedText.period(m, now, zone)
-            val progress = Doses.progress(m, now, zone).takeIf { !faded && m.startsAt <= now }
-            if (progress != null) {
+            // The doses as beads (the whole treatment, or today's); otherwise the thread of its days.
+            val course = remember(m, taken, now / 60_000) { Doses.course(m, taken, now, zone) }?.takeIf { !faded || it.whole }
+            val progress = Doses.progress(m, now, zone).takeIf { !faded && m.startsAt <= now && course == null }
+            if (course != null) {
+                Spacer(Modifier.height(10.dp))
+                DoseDots(course, personColor(m.person).let { if (faded) it.copy(alpha = 0.55f) else it })
+            } else if (progress != null) {
                 Spacer(Modifier.height(9.dp))
                 Thread(progress, personColor(m.person))
             }
-            if (period != null) {
-                Spacer(Modifier.height(if (progress != null) 5.dp else 4.dp))
+            val line = listOfNotNull(course?.let(::dosesText), period)
+            if (line.isNotEmpty()) {
+                Spacer(Modifier.height(if (course != null || progress != null) 6.dp else 4.dp))
                 val last = (Doses.daysLeft(m, now, zone) ?: 2) <= 1 && !faded
-                Text(period, style = MaterialTheme.typography.labelMedium, color = if (last) NoveloColors.Accent else NoveloColors.TextFaint, maxLines = 1)
+                Text(line.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = if (last) NoveloColors.Accent else NoveloColors.TextFaint, maxLines = 2)
             }
         }
     }
 }
+
+/**
+ * A treatment's doses as beads, a little cluster a day: the ones given full in the person's color, the
+ * ones to come a ring of it, the ones gone by without a tick a quiet gray ring.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun DoseDots(course: Doses.Course, color: Color, modifier: Modifier = Modifier) {
+    val gone = NoveloColors.TextFaint.copy(alpha = 0.6f)
+    FlowRow(modifier.testTag("dose-dots"), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        course.days.forEach { day ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                day.forEach { d ->
+                    Box(
+                        Modifier.size(9.dp).clip(CircleShape).then(
+                            if (d.taken) Modifier.background(color)
+                            else Modifier.border(1.4.dp, if (d.past) gone else color.copy(alpha = 0.55f), CircleShape),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "8 de 21 doses" (the whole treatment), "hoje: 1 de 3". */
+fun dosesText(c: Doses.Course): String = t(if (c.whole) R.string.med_doses_course else R.string.med_doses_today, c.taken, c.dots.size)
 
 /** How far the treatment went: the part gone a full thread, the rest a running stitch. */
 @Composable

@@ -229,6 +229,49 @@ class MedsTest {
         assertFalse(text, text.contains("remédio#3"))
     }
 
+    /** The doses as beads: the whole treatment (by day) when it has an end, today's when it goes on. */
+    @Test
+    fun theDosesOfATreatmentAreBeads() {
+        val m = med("A", listOf("08:00", "20:00"), start = at(today.minusDays(1), 0), end = Doses.endOf(today.plusDays(1), zone), id = 1)
+        val c = Doses.course(m, setOf(at(today.minusDays(1), 8), at(today, 8)), now, zone)!!
+        assertTrue(c.whole)
+        assertEquals(listOf(2, 2, 2), c.days.map { it.size })
+        assertEquals(2, c.taken)
+        // Yesterday 20:00 went by without a tick; today 20:00 is still to come.
+        assertEquals(listOf(true, false, true, false, false, false), c.dots.map { it.taken })
+        assertEquals(listOf(true, true, true, false, false, false), c.dots.map { it.past })
+        val forGood = Doses.course(m.copy(endsAt = null), emptySet(), now, zone)!!
+        assertFalse(forGood.whole)
+        assertEquals(2, forGood.dots.size)
+        assertNull(Doses.course(med("Dipirona", emptyList()), emptySet(), now, zone))
+    }
+
+    /** "Dei às 10h30", "já dei 2 vezes", one given off its time every 8 hours: the doses go where they belong, and the times follow. */
+    @Test
+    fun dosesSaidGoWhereTheyBelong() = runBlocking {
+        val keeper = Keeper(db, zone = { zone }, clock = { at(today, 14, 10) })
+        val fixed = db.meds().insert(med("Losartana", listOf("08:00", "20:00"), start = at(today.minusDays(3), 0)))
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"id":$fixed,"taken_at":["10:30"]}]}""")!!, null)
+        assertEquals(listOf(MedTaken(fixed, at(today, 8), at(today, 10, 30))), db.meds().takenBetween(at(today, 0), at(today, 23, 59)).filter { it.medId == fixed })
+        // Every 8 hours since two days ago: "já dei 2 vezes" is today's 06:00 and 14:00.
+        val eight = db.meds().insert(med("Amoxicilina", listOf("06:00", "14:00", "22:00"), start = at(today.minusDays(2), 0)).copy(everyHours = 8))
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"id":$eight,"taken_count":"2"}]}""")!!, null)
+        assertEquals(listOf(at(today, 6), at(today, 14)), db.meds().takenBetween(at(today, 0), at(today, 23, 59)).filter { it.medId == eight }.map { it.at })
+        // Written down now, three given already: it started before, and they show.
+        val r = keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"Prednisona","times":["08:00","20:00"],"taken_count":3}]}""")!!, null)
+        val p = db.meds().get(r.meds.single())!!
+        assertEquals(at(today.minusDays(1), 8), p.startsAt)
+        assertEquals(3, db.meds().allTaken().count { it.medId == p.id })
+        // Given at 10:30 one of every 8 hours: the next ones follow from there.
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"id":$eight,"times":["10:30"],"every_hours":8,"taken_at":["10:30"]}]}""")!!, null)
+        assertEquals(listOf("02:30", "10:30", "18:30"), Doses.times(db.meds().get(eight)!!).map(Doses::hhmm))
+        assertTrue(db.meds().takenBetween(at(today, 10, 30), at(today, 10, 30)).any { it.medId == eight })
+        // The model sees how many doses went of a treatment.
+        val withEnd = med("Antibiótico", listOf("08:00", "20:00"), start = at(today, 0), end = Doses.endOf(today.plusDays(6), zone), id = 9)
+        val text = Brain.context("oi", now, zone, emptyList(), emptyList(), meds = listOf(withEnd), taken = listOf(MedTaken(9, at(today, 8), now)))
+        assertTrue(text, text.contains("doses: 1 de 14 dadas"))
+    }
+
     @Test
     fun theTreatmentGoesAlongItsDays() {
         val m = med("A", listOf("08:00"), start = at(today.minusDays(3), 9), end = Doses.endOf(today.plusDays(6), zone))
