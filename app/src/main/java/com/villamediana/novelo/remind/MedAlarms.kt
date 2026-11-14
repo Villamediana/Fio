@@ -40,7 +40,7 @@ class MedAlarms(private val context: Context, private val db: NoveloDatabase, pr
 
     /** The next time after [after] armed (or none, when no medicine has one ahead). */
     suspend fun sync(after: Long = System.currentTimeMillis()) {
-        val next = Doses.next(db.meds().all(), after, zone())
+        val next = Doses.next(named(), after, zone())
         arm(ACTION_FIRE, 0, next, next ?: 0L)
     }
 
@@ -64,6 +64,9 @@ class MedAlarms(private val context: Context, private val db: NoveloDatabase, pr
         else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pi)
     }
 
+    /** The medicines there are (one still being written, with no name yet, has no reminder). */
+    private suspend fun named(): List<Med> = db.meds().all().filter { it.name.isNotBlank() }
+
     private fun minuteOfDay(at: Long): Int = Instant.ofEpochMilli(at).atZone(zone()).let { it.hour * 60 + it.minute }
 
     /** The notification of the time [at] (the same time each day is the same one). */
@@ -74,7 +77,7 @@ class MedAlarms(private val context: Context, private val db: NoveloDatabase, pr
     suspend fun notify(at: Long) {
         val z = zone()
         val taken = db.meds().takenBetween(at, at).map { it.medId }.toSet()
-        val due = Doses.at(db.meds().all(), at, z).filter { it.id !in taken }
+        val due = Doses.at(named(), at, z).filter { it.id !in taken }
         if (due.isEmpty()) return
         val allowed = Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -124,13 +127,13 @@ class MedAlarms(private val context: Context, private val db: NoveloDatabase, pr
     /** All due at [at] taken (ticked in the app): its notification, if it is up, goes. */
     suspend fun dismissIfDone(at: Long) {
         val taken = db.meds().takenBetween(at, at).map { it.medId }.toSet()
-        if (Doses.at(db.meds().all(), at, zone()).all { it.id in taken }) NotificationManagerCompat.from(context).cancel(notificationId(at))
+        if (Doses.at(named(), at, zone()).all { it.id in taken }) NotificationManagerCompat.from(context).cancel(notificationId(at))
     }
 
     /** Every one due at [at] (and not taken yet) taken now. */
     suspend fun takeAll(at: Long) {
         val now = System.currentTimeMillis()
-        Doses.at(db.meds().all(), at, zone()).forEach { db.meds().take(MedTaken(it.id, at, now)) }
+        Doses.at(named(), at, zone()).forEach { db.meds().take(MedTaken(it.id, at, now)) }
         NotificationManagerCompat.from(context).cancel(notificationId(at))
     }
 

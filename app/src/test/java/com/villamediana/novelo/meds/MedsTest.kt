@@ -169,6 +169,66 @@ class MedsTest {
         assertEquals("500 mg", MedText.dose(amox.copy(dose = null)))
     }
 
+    /** Rodada 1: "tomei agora" of one written down this minute is the time of now, shown ticked today. */
+    @Test
+    fun takenNowIsTheTimeOfNowEvenJustWrittenDown() = runBlocking {
+        val tenAndABit = at(today, 10) + 37_000
+        val keeper = Keeper(db, zone = { zone }, clock = { tenAndABit })
+        val r = keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"Amoxicilina","times":["10:00","18:00","02:00"],"every_hours":8,"taken":true}]}""")!!, null)
+        val m = db.meds().get(r.meds.single())!!
+        assertEquals(listOf(MedTaken(m.id, at(today, 10), tenAndABit)), db.meds().takenBetween(at(today, 0), at(today, 23, 59)))
+        assertTrue(Doses.day(listOf(m), today, zone).any { it.at == at(today, 10) })
+        // Taken a bit early for the next one: that next one.
+        Keeper(db, zone = { zone }, clock = { at(today, 17, 40) }).apply(Brain.parse("""{"reply":"ok","meds":[{"id":"remédio#${m.id}","taken":true}]}""")!!, null)
+        assertTrue(db.meds().takenBetween(at(today, 18), at(today, 18)).isNotEmpty())
+    }
+
+    /** Rodada 1: the same medicine said as new again (same name, same person) changes the one there is. */
+    @Test
+    fun theSameMedicineSaidAgainIsTheOneThereIs() = runBlocking {
+        val keeper = Keeper(db, zone = { zone }, clock = { now })
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"Amoxicilina","person":"Cooper","times":["08:00","20:00"]}]}""")!!, null)
+        val again = keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"amoxicilina","person":"cooper","times":["07:00","19:00"]}]}""")!!, null)
+        val all = db.meds().all()
+        assertEquals(1, all.size)
+        assertEquals(listOf(all.single().id), again.meds)
+        assertEquals(listOf("07:00", "19:00"), Doses.times(all.single()).map(Doses::hhmm))
+        // For someone else, it is another one.
+        keeper.apply(Brain.parse("""{"reply":"ok","meds":[{"name":"Amoxicilina","person":"Aurora","times":["09:00"]}]}""")!!, null)
+        assertEquals(2, db.meds().all().size)
+    }
+
+    /** Rodada 1: what the model writes a bit off (the id as in the context, "8h", days by name) is still read. */
+    @Test
+    fun theModelsWordsAroundNumbersAreRead() {
+        val plan = Brain.parse("""{"reply":"ok","meds":[{"id":"remédio#3","every_hours":"8h","days":["seg","quarta","6"]},{"id":"#4","days":"dom"}]}""")!!
+        assertEquals(3L, plan.meds[0].id)
+        assertEquals(8, plan.meds[0].everyHours)
+        assertEquals(listOf(1, 3, 6), plan.meds[0].days)
+        assertEquals(4L, plan.meds[1].id)
+        assertEquals(listOf(7), plan.meds[1].days)
+        assertNull(Brain.parse("""{"reply":"ok","meds":[{"name":"X"}]}""")!!.meds[0].days)
+    }
+
+    /** Rodada 1: "1.000 mg" is a thousand; "0.125 mg" has decimals. */
+    @Test
+    fun thousandsAndDecimalsInTheStrength() {
+        assertEquals("500 mg", Doses.amount("1.000 mg", "½ comprimido"))
+        assertEquals("0.25 mg", Doses.amount("0.125 mg", "2 comprimidos"))
+        assertEquals("750 mg", Doses.amount("1.500 mg", "meio"))
+    }
+
+    /** Rodada 1: the model sees the ones in use first, and none still without a name. */
+    @Test
+    fun theModelSeesTheOnesInUseFirst() {
+        val old = med("Antigo", listOf("08:00"), start = at(today.minusDays(40), 0), end = at(today.minusDays(30), 23, 59), id = 1)
+        val now1 = med("Atual", listOf("08:00"), id = 2)
+        val blank = med("", listOf("09:00"), id = 3)
+        val text = Brain.context("oi", now, zone, emptyList(), emptyList(), meds = listOf(old, now1, blank), taken = emptyList())
+        assertTrue(text, text.indexOf("remédio#2") in 0 until text.indexOf("remédio#1"))
+        assertFalse(text, text.contains("remédio#3"))
+    }
+
     @Test
     fun theTreatmentGoesAlongItsDays() {
         val m = med("A", listOf("08:00"), start = at(today.minusDays(3), 9), end = Doses.endOf(today.plusDays(6), zone))

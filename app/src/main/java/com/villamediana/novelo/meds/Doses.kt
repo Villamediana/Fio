@@ -121,11 +121,14 @@ object Doses {
     fun amount(strength: String?, dose: String?): String? {
         val s = strength?.trim() ?: return null
         if ('/' in s) return null
-        val m = Regex("""^(\d+(?:[.,]\d+)?)\s*(mcg|µg|mg|g|ui|UI|IU)\b""", RegexOption.IGNORE_CASE).find(s) ?: return null
-        val value = m.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return null
+        val m = Regex("""^(\d+(?:[.,]\d+)*)\s*(mcg|µg|mg|g|ui|UI|IU)\b""", RegexOption.IGNORE_CASE).find(s) ?: return null
+        val written = m.groupValues[1]
+        // "1.000 mg" is a thousand (the dot between thousands), "1,5 g" and "0.125 mg" have decimals.
+        val thousands = Regex("""^[1-9]\d{0,2}(\.\d{3})+$""").matches(written)
+        val value = (if (thousands) written.replace(".", "") else written.replace(',', '.')).toDoubleOrNull() ?: return null
         val q = pieces(dose ?: return null) ?: return null
         if (q == 1.0) return null // the same as the strength: nothing to add
-        val comma = !m.groupValues[1].contains('.')
+        val comma = thousands || !written.contains('.')
         return number(value * q, comma) + " " + m.groupValues[2]
     }
 
